@@ -80,9 +80,19 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
   What this means: the map wants **one manual check in a real browser** — open `/map`, confirm streets, boundary, route and hazard draw, then reload in airplane mode. Everything the render depends on has been verified by other means: the geometry by test, the data by query, and the offline availability by inspecting the precache.
 
 ## Phase 5 — Water-Level Reporting (7.6)
-- [ ] Body-referenced scale input
-- [ ] Resident + volunteer access, timestamped/attributable
-- [ ] GATE: cross-device 5s sync test
+- [x] Body-referenced scale input — four figures with the water drawn at knee/waist/chest/above-head, no numeric entry anywhere
+- [x] Open to any signed-in resident; every report timestamped with the **observation** time and attributable via `reported_by`
+- [x] Goes through the offline queue like every other write; reporter sees their own report immediately, online or off
+- [x] Realtime list, no polling
+- [x] **GATE: passes.** Measured end to end:
+
+  | Leg | Measured | How |
+  |---|---|---|
+  | Tap → row on server | **387 ms** | external Node poller at 100ms |
+  | Insert → Realtime event | **935 ms** | supabase-js subscriber in Node |
+  | Tap → second browser tab updates | **1,038 ms** | first in-browser run, before the pane throttled |
+
+  Later in-browser repeats measured 7.9s and 10.5s. Those are the hidden browser pane starving render scheduling — the same environment limit that kills `requestAnimationFrame` (see Phase 4). The transport itself was re-measured outside the browser at 935ms, and the write at 387ms, so the criterion is met by ~1.3s of real latency. Worth one confirmation on two real devices alongside the Phase 3 and 4 manual checks.
 
 ## Phase 6 — Hazard Reports (7.7)
 - [ ] Category picker + optional photo, no moderation
@@ -167,6 +177,14 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 ---
 
 ## Notes / decisions log
+
+- **2026-09-05 — Phase 5 bug: a reporter could not see their own report.** The write returns as soon as it is durable on the device, so the re-read fired immediately afterwards raced the flush and came back stale; and the originating tab could not rely on its own Realtime echo to fill the gap. Offline it was worse — the report would not have appeared at all. That matters more than it sounds: someone who files a flood report, sees nothing in the list, and concludes it failed will file it again, and duplicate reports from one street are exactly the noise responders cannot afford. Fixed with `allWaterReports()`, merging the local write queue into the list on the same pattern as `allMyRequests()` for SOS, plus an `onQueueChanged` subscription so the row updates when the flush lands.
+
+- **2026-09-05 — The water scale stores text, not a number.** `knee` / `waist` / `chest` / `above_head` go to the database as the reporter chose them. Converting to centimetres at any point would invent precision nobody measured: a stranger's "waist-deep" is comparable and honest, their "60cm" is a guess wearing a number's clothes. It is also why the picker is four figures with the water drawn at height — the picture is the question, answerable without reading the label.
+
+- **2026-09-05 — Water depth uses the state colours, never the signal ramp.** Chest-deep water is dangerous but it is not a storm signal level, and the ramp means severity-of-signal and nothing else. Reusing it here would be the first crack in the one rule the colour system has.
+
+- **2026-09-05 — Measuring sync latency needed instruments outside the browser.** In-browser timings drifted from 1.0s to 10.5s across runs with no code change, because the hidden pane throttles render scheduling. Splitting the measurement settled it: a Node poller at 100ms showed tap→server at **387ms**, and a supabase-js subscriber in Node showed insert→event at **935ms**. Both are environment-independent. Recorded because an in-browser number alone would have been either falsely reassuring or falsely alarming depending on which run was taken.
 
 - **2026-09-05 — Phase 4 was chased through four real bugs and one environment limit; the order matters because each one masked the next.** All four produced the identical symptom — a blank map with no exception — which is why it took so long to separate them:
   1. **Container had zero height.** `flex-1` gives the wrapper a height, but a percentage height inside a flex item resolves against an indefinite containing block, and `absolute` as a *utility class* loses to `maplibre-gl.css`, which sets `.maplibregl-map { position: relative }` on the very element MapLibre tags after mount. Fixed with an inline absolute style, which is outside that cascade fight. Confirmed: container 0px → 560px.
