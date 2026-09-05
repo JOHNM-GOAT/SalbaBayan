@@ -18,7 +18,7 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
 - [x] Anonymous-auth Supabase client (`src/lib/supabase.ts`)
 - [x] Persistent sync strip — cache age + queued count (`src/components/SyncStrip.tsx`)
 - [x] Schema + RLS applied to project `mpdzehfmxwuxjklgeqrz` — 13 tables, RLS on every one
-- [x] Security advisors clean (0 findings) after moving RLS helpers to a `private` schema
+- [x] Security advisors: **0 ERROR-level** after moving RLS helpers to a `private` schema. 14 WARN remain and are expected — 13 `auth_allow_anonymous_sign_ins` (that is the auth model chosen in Q2, and the boundaries it needs are what `scripts/rls-test.mjs` asserts) and 1 leaked-password check, moot in an app where nobody sets a password.
 - [x] Seed fixtures applied — 8 puroks, 33 protocols (7 deliberate gaps), 30 translations, 3 centres, 5 residents, Signal 3
 - [x] Env wired (`.env.local`, template committed as `.env.example`)
 - [x] RLS verified through the live REST API: no JWT returns `[]` for `protocols`
@@ -28,10 +28,14 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
 - [x] **GATE (offline): passes.** Production build, server stopped dead (`curl` → `000`), full reload: shell boots, Archivo/Plex render from precache, severity rail grey, sync strip present.
 
 ## Phase 1 — Advisory Core (7.1, 7.2)
-- [ ] Signal x Purok table + coverage matrix
-- [ ] current_signal_level join
-- [ ] translations wiring (Tagalog/Cebuano/English + fallback)
-- [ ] GATE: offline advisory correct + language switch, no reload
+- [x] Signal x Purok table + coverage matrix — `/coverage`, renders the 7 seeded gaps as dashed outlines
+- [x] `current_signal_level` join — one snapshot (barangay + puroks + protocols + centres + translations), derived per Purok client-side
+- [x] Bulletin context added (FR-2.3, FR-2.7): `storm_name`, `bulletin_no`, `wind_kph`, `evacuate_by`, `default_language` — migration `0004`
+- [x] Leave-by deadline + live countdown, evacuation-level signals only (FR-2.7)
+- [x] Coverage gap renders as an explicit "no protocol configured" card, never a blank one (FR-2.6)
+- [x] Translations wiring — Tagalog/Cebuano/English, UI chrome included (migration `0005`)
+- [x] Fallback to the barangay's *configured* default language, shown with an explicit notice (FR-3.5)
+- [x] **GATE: passes.** Production build, server stopped dead (`curl` → `000`), full reload → correct advisory for Purok 3 / Signal 3 / Barangay Gym. Language switched TL → CEB → EN and Purok switched 3 → 5 while offline, both correct, `performance.getEntriesByType('navigation').length` stayed at **1** throughout — no reload.
 
 ## Phase 2 — Offline-First Hardening (7.3)
 - [ ] All write paths confirmed to use offline utility
@@ -125,6 +129,20 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 ---
 
 ## Notes / decisions log
+
+- **2026-09-05 — Phase 1 bug: the advisory was empty on a first-ever load.** `ensureAnonymousSession()` and the advisory fetch ran concurrently. Every advisory policy is scoped `to authenticated`, so a read that wins the race comes back as `[]` rather than an error — indistinguishable from "this barangay has no data configured". The result was a permanent empty state until the resident happened to reload, on precisely the load where a first-time user forms their impression of whether the app works. Fixed by awaiting the session before fetching. Caught by wiping storage and loading cold; a warm reload hides it completely.
+
+- **2026-09-05 — Phase 1 bug: the sync strip hid cache age exactly when it mattered.** It rendered `online ? age : "OFFLINE"`, so going offline *replaced* the age. That inverts the §7.3 acceptance criterion, which says in airplane mode "the cached advisory shows its age" — offline is when a resident most needs to know whether the instruction on screen is ten minutes or three days old. Now shows both: `OFFLINE · CACHED 12 MIN · 2 NAKA-QUEUE`.
+
+- **2026-09-05 — Supabase REST is deliberately NOT Service-Worker cached.** Counter-intuitive for an offline-first app, so the reasoning is in `src/app/sw.ts`: a cached REST response makes an offline fetch succeed, which is indistinguishable from a real network read, which resets `fetchedAt` — and the cache-age indicator would then report "synced just now" after three days with no signal. Offline data is held instead as one app-level snapshot in IndexedDB (`lib/advisory.ts`) with a single honest `fetchedAt`. Letting the request fail is what keeps the number true.
+
+- **2026-09-05 — The advisory is fetched whole, not per-resident.** One snapshot holds the barangay, all 8 Puroks, all ~33 protocols, all centres and all ~90 translations. It is a few kilobytes, and it buys the Phase 1 gate outright: switching language or Purok becomes pure derivation from memory, so both work offline with no refetch and no reload. Fetching only the slice one resident needs would have cost more round trips and made offline Purok switching impossible.
+
+- **2026-09-05 — A deliberate translation gap, mirroring the deliberate protocol gaps.** Cebuano for `action.stay_inside` / `headline.stay_inside` (Signal 5) is intentionally absent. With every string present, the FR-3.5 fallback path has no data that exercises it and could ship broken while looking fine. It is also the realistic case: the rarest signal level is the one a barangay is least likely to have finished translating. Verified — a Cebuano resident at Signal 5 sees the Tagalog text plus a Cebuano notice reading "Wala pa niini nga pinulongan. Gipakita sa Tagalog."
+
+- **2026-09-05 — Preferences read as external stores, not copied into state.** Language and Purok live in `lib/prefs.ts` behind `useSyncExternalStore`. Copying `localStorage` into `useState` inside an effect meant first paint always showed the default and corrected on a second render — a visible flash of the wrong language on every load. Subscribing to `storage` also keeps two open tabs in agreement.
+
+- **2026-09-05 — Not built, and why: distance to the evacuation centre.** The approved design shows "850 m" beside the centre name, and FR-2.5 asks for distance. `evac_centers` has no coordinates and there is no geography yet (Q4 is still open), so the centre renders without a distance rather than with an invented one. A fabricated number on an evacuation screen is worse than an absent one.
 
 - **2026-09-05 — Bug: the whole app rendered in Times New Roman.** `next/font` sets `--font-archivo` etc. via a class, and that class was on `<body>`. Tailwind v4 emits `@theme` tokens onto `:root`, and a `var()` inside a custom-property declaration resolves against the element that declares it — so `--font-display: var(--font-archivo), ...` resolved on `:root` against an undefined variable, producing an invalid `font-family` that silently fell back to the browser default. Nothing errored; it just looked wrong. Fixed by moving the font variable classes to `<html>`. Verified: `getComputedStyle` now reports `Archivo` and `IBM Plex Sans`.
 

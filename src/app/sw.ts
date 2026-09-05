@@ -12,7 +12,7 @@
 
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist, NetworkFirst, ExpirationPlugin } from "serwist";
+import { Serwist, NetworkFirst, NetworkOnly, ExpirationPlugin } from "serwist";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -42,8 +42,19 @@ const buildRevision =
     .map((entry) => (typeof entry === "string" ? entry : entry.url))
     .find((url) => url.includes("_buildManifest")) ?? "dev";
 
+/**
+ * Routes precached as part of the shell. ADD NEW ROUTES HERE — a route missing
+ * from this list still works offline via the runtime rule below, but only
+ * after the resident has already visited it once with a connection, which is
+ * not a safe assumption for this product.
+ */
+const SHELL_ROUTES = ["/", "/coverage"];
+
 const serwist = new Serwist({
-  precacheEntries: [...manifest, { url: "/", revision: buildRevision }],
+  precacheEntries: [
+    ...manifest,
+    ...SHELL_ROUTES.map((url) => ({ url, revision: buildRevision })),
+  ],
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
@@ -76,27 +87,24 @@ const serwist = new Serwist({
     },
 
     /*
-     * Advisory reference data — protocols, translations, puroks, barangays.
-     * NetworkFirst, not CacheFirst: a resident should get the current signal
-     * level when the network allows, and the last known one when it does not.
-     * Never the reverse.
+     * Supabase REST. Deliberately NOT cached here — offline advisory data is
+     * held by the app instead (lib/advisory.ts, one snapshot in IndexedDB).
+     *
+     * This looks like the wrong call for an offline-first app, so the reason
+     * matters: if the Service Worker served these reads from cache, an offline
+     * fetch would resolve successfully and be indistinguishable from a real
+     * network read. The app would stamp `fetchedAt = now`, and the cache-age
+     * indicator would report "synced just now" after three days with no signal.
+     * FR-3.5 and the whole sync strip exist to state what is true; a cache that
+     * quietly forges freshness defeats them.
+     *
+     * Letting the request fail is what lets the app fall back to a snapshot
+     * whose age it can report honestly. Writes are unaffected — they never
+     * depend on this path, they go through the Dexie queue.
      */
     {
-      matcher: ({ url }) =>
-        url.pathname.startsWith("/rest/v1/") ||
-        /\/rest\/v1\/(protocols|translations|puroks|barangays|evac_centers)/.test(url.href),
-      handler: new NetworkFirst({
-        cacheName: "salbabayan-advisory",
-        networkTimeoutSeconds: 5,
-        plugins: [
-          new ExpirationPlugin({
-            maxEntries: 64,
-            // A week-old advisory is still worth showing, clearly labelled with
-            // its age, rather than showing a resident nothing at all.
-            maxAgeSeconds: 7 * 24 * 60 * 60,
-          }),
-        ],
-      }),
+      matcher: ({ url }) => url.pathname.startsWith("/rest/v1/"),
+      handler: new NetworkOnly(),
     },
     ...defaultCache,
   ],
