@@ -324,4 +324,4 @@ Targets are proposed, pending confirmation against the pilot barangay's real pop
 
 ---
 
-*Full requirement IDs, permission matrix, data model, and risk register: [`PRD-detailed.md`](PRD-detailed.md). Hackathon demo plan — golden path, build phases: [`PRD-pitch-brief.md`](PRD-pitch-brief.md).*
+*Full requirement IDs, permission matrix, data model, and risk register: [`PRD-detailed.md`](PRD-detailed.md). Wireframes and design language: [`design/`](design/).*

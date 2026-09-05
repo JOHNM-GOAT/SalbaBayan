@@ -37,3 +37,6 @@ design/*-wireframes.html
 
 # Word export (kept locally, not tracked)
 *.docx
+
+# Internal demo plan (kept locally, not published)
+PRD-pitch-brief.md

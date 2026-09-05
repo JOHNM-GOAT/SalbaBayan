@@ -107,7 +107,6 @@ Roles (`resident` / `volunteer` / `official`) are enforced by Postgres Row Level
 |---|---|
 | [`PRD.md`](PRD.md) | The primary PRD — 17 sections: background, vision, governance, scope, target users, crisis UX, core features with FR/AC pairs, accessibility, privacy, data sources, architecture, data flow, NFRs, error handling, testing approach, success metrics, assumptions & dependencies |
 | [`PRD-detailed.md`](PRD-detailed.md) | Deep-dive reference — 13 features with numbered requirement IDs, full data model, permission matrix, milestone-based release plan, risk register |
-| [`PRD-pitch-brief.md`](PRD-pitch-brief.md) | Hackathon demo plan — scoped-down 9-feature build, golden-path walkthrough for the live pitch, phased build sequence |
 | [`design/`](design/) | Eight high-fidelity wireframes — screen index, design language, PNG exports, and editable artboard sources |
 
 ---
