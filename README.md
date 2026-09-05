@@ -109,7 +109,6 @@ Roles (`resident` / `volunteer` / `official`) are enforced by Postgres Row Level
 | [`PRD-detailed.md`](PRD-detailed.md) | Deep-dive reference — 13 features with numbered requirement IDs, full data model, permission matrix, milestone-based release plan, risk register |
 | [`PRD-pitch-brief.md`](PRD-pitch-brief.md) | Hackathon demo plan — scoped-down 9-feature build, golden-path walkthrough for the live pitch, phased build sequence |
 | [`design/`](design/) | Eight high-fidelity wireframes — screen index, design language, PNG exports, and editable artboard sources |
-| [`SalbaBayan-PRD.docx`](SalbaBayan-PRD.docx) | Word version of `PRD.md` for offline reading and file-upload submissions |
 
 ---
 
