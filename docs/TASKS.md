@@ -68,10 +68,16 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
   Not verified here: the hold-to-cancel *gesture*. It is driven by `requestAnimationFrame`, which browsers pause in a hidden tab, and the Browser pane cannot be un-hidden from this session. The queued-cancel path it triggers was verified through the acknowledge button instead (same code path, plain click). The gesture wants one manual check on a real screen.
 
 ## Phase 4 — Offline Evacuation Map (7.5)
-- [!] MapLibre GPS + boundary + route — blocked on Q4 (real geography + tile source)
-- [ ] Pre-downloaded tile packs cached
-- [ ] Hazard overlay + path-blocked warning
-- [ ] GATE: airplane-mode map opens/pans/renders correctly
+- [x] Synthetic geography generated (`scripts/generate-synthetic-geo.mjs`, migration `0008`) — 8 Purok boundaries, 8 routes, centre + hazard coordinates
+- [x] MapLibre GPS + boundary + route + destination, all from GeoJSON already on the device
+- [x] Base map precached — `public/geo/streets.json`, the stand-in for a tile pack until real geography lands
+- [x] Hazard overlay + path-blocked warning, with hazards carried in the advisory snapshot
+- [x] Next-turn guidance and walking distance
+- [x] **Geometry verified: 13/13** via `npm run check:geo` — distance, threshold behaviour, mid-segment detection, turn direction, degenerate input
+- [!] **GATE (visual): NOT verified.** Cannot be checked from this session — see below.
+
+  The map's *rendering* could not be confirmed here. `requestAnimationFrame` never fires in this environment (measured: **0 rAF callbacks in 3s** against 15 `setInterval` callbacks), and MapLibre both loads inline styles through `frameAsync` and drives its render loop from rAF. So the style never finishes loading and the canvas stays blank regardless of correctness. The same starvation is why the Phase 3 hold-to-cancel gesture could not be exercised either.
+  What this means: the map wants **one manual check in a real browser** — open `/map`, confirm streets, boundary, route and hazard draw, then reload in airplane mode. Everything the render depends on has been verified by other means: the geometry by test, the data by query, and the offline availability by inspecting the precache.
 
 ## Phase 5 — Water-Level Reporting (7.6)
 - [ ] Body-referenced scale input
@@ -161,6 +167,18 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 ---
 
 ## Notes / decisions log
+
+- **2026-09-05 — Phase 4 was chased through four real bugs and one environment limit; the order matters because each one masked the next.** All four produced the identical symptom — a blank map with no exception — which is why it took so long to separate them:
+  1. **Container had zero height.** `flex-1` gives the wrapper a height, but a percentage height inside a flex item resolves against an indefinite containing block, and `absolute` as a *utility class* loses to `maplibre-gl.css`, which sets `.maplibregl-map { position: relative }` on the very element MapLibre tags after mount. Fixed with an inline absolute style, which is outside that cascade fight. Confirmed: container 0px → 560px.
+  2. **`glyphs: undefined` invalidated the style.** Setting the key to undefined is not the same as omitting it; MapLibre validates and rejects "glyphs: string expected, undefined found", which kills the whole style. There are no text layers, so the key is simply gone now.
+  3. **MapLibre rejects CSS variables *and* `oklch()`.** The severity tokens are authored in oklch, so the route layer failed with "color expected". `resolveColour()` converts by painting to a 1×1 canvas and sampling the pixel — reading `fillStyle` back does *not* normalise, because a browser that understands oklch serialises it straight out again. Resolving at runtime rather than hard-coding hex keeps the map's severity colour identical to the placard above it by construction.
+  4. **MapLibre 6 could not load its worker under Next + webpack.** v6 loads the worker as a separate module resolved from `import.meta.url`, which inside a bundled chunk points at `/_next/static/chunks/…`, returns Next's HTML 404, and is rejected for MIME type. Nothing throws. Pinned to **maplibre-gl@5**, which inlines the worker and needs no workaround; the vendoring script written for v6 was deleted rather than left behind.
+
+- **2026-09-05 — `requestAnimationFrame` never fires in this session's browser pane, which is why the map could not be verified visually.** Measured directly: 0 rAF callbacks in 3 seconds while `setInterval` fired 15 times, with `document.hidden` reporting false. MapLibre loads inline styles via `frameAsync` and renders from rAF, so `isStyleLoaded()` stays false forever and the canvas stays blank no matter what the code does. This also explains the Phase 3 hold-to-cancel gesture, which is rAF-driven and never completed. Worth recording because the symptom is indistinguishable from a real bug and cost most of Phase 4's time; the four genuine bugs above were all found and fixed *before* this was identified as the remaining cause.
+
+- **2026-09-05 — The base map is drawn from GeoJSON, not fetched from a tile source.** Barangay San Isidro is synthetic, so no tile provider has streets for it, and every layer being GeoJSON is what makes the view offline by construction: boundary and route ride in the advisory snapshot already cached in IndexedDB, and the street grid is a precached static file. There is no network call in this view at all. When real geography arrives, the same layers sit on top of a PMTiles basemap — one file per barangay, cached the same way.
+
+- **2026-09-05 — Geometry is tested rather than eyeballed (`npm run check:geo`).** A wrong "path blocked" answer does not look wrong on screen: the map still draws a confident line. The tests cover the case a naive implementation misses — a hazard in the middle of a long straight rather than near a vertex, which is the most likely place for a flooded road. Point-to-*segment* distance is what catches it. The tests import the TypeScript source directly (Node strips types natively), so they exercise exactly what ships. One test initially failed for the wrong reason: it offset the hazard north, along the route toward its corner, instead of perpendicular to the leg.
 
 - **2026-09-05 — Phase 3 security hole: the SOS rate limit could be bypassed by omitting one field.** `private.recent_rescue_count()` counts rows `where requested_by = auth.uid()`, but nothing required `requested_by` to be set — so a row inserted with a NULL owner counted against nobody and the limit never fired. Confirmed against the live REST API: **seven consecutive inserts all returned 201 against a limit of five**, using nothing more exotic than leaving a field out of the JSON body. Fixed in `0007` by requiring `requested_by = auth.uid()` in the insert policy. This does not reintroduce a login — every caller already holds an anonymous uid — and it moves into the database a rule the client was only following voluntarily. Re-verified: five accepted, sixth and seventh 403, bypass 403.
 

@@ -34,6 +34,7 @@ import {
 const CENTRE: [number, number] = [121.4142, 14.2801];
 
 export default function ResponderPage() {
+
   const { online } = useSync();
   const t = useT();
 

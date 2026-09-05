@@ -48,7 +48,25 @@ const buildRevision =
  * after the resident has already visited it once with a connection, which is
  * not a safe assumption for this product.
  */
-const SHELL_ROUTES = ["/", "/coverage", "/sos", "/responder"];
+const SHELL_ROUTES = ["/", "/coverage", "/sos", "/responder", "/map"];
+
+/*
+ * Files under `public/` are NOT listed here.
+ *
+ * `@serwist/next` already puts them in `__SW_MANIFEST`, so adding
+ * `/geo/streets.json` by hand created a second entry for the same resource
+ * with a different revision, and Serwist rejects conflicting entries by
+ * throwing during evaluation — which fails Service Worker registration
+ * outright, silently taking the entire offline story with it.
+ *
+ * It is worth knowing WHY that collision is not obvious from the manifest: on
+ * Windows the generated entry reads `/geo\streets.json`, with a backslash. It
+ * looks like a different URL from `/geo/streets.json` and greps as one, but
+ * browsers normalise backslashes to forward slashes when parsing a URL, so the
+ * two are the same resource by the time Serwist compares them. The backslash
+ * is harmless on its own for exactly that reason; a hand-added duplicate is
+ * not.
+ */
 
 const serwist = new Serwist({
   precacheEntries: [

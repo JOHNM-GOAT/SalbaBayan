@@ -77,6 +77,53 @@ export function signalStyle(level: number): SignalStyle {
 }
 
 /**
+ * Turn a design token into a literal colour MapLibre will accept.
+ *
+ * MapLibre validates its own style spec and rejects both `var(--x)` and the
+ * `oklch()` the tokens are authored in — "color expected, var(--color-signal-3)
+ * found" — which invalidates the layer and renders nothing.
+ *
+ * Resolving at runtime rather than hard-coding hex keeps the map's severity
+ * colours identical to the rest of the interface by construction. The ramp is
+ * load-bearing: a map route in a slightly different orange from the placard
+ * above it would quietly undermine the one rule the colour system has.
+ *
+ * The canvas round-trip is the conversion — assigning any CSS colour to
+ * `fillStyle` and reading it back yields a normalised `#rrggbb`.
+ */
+export function resolveColour(token: string): string {
+  if (typeof document === "undefined") return "#888888";
+
+  const name = token.match(/var\((--[^)]+)\)/)?.[1];
+  const value = name
+    ? getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+    : token;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return "#888888";
+
+  /*
+   * Paint the colour and read the pixel back, rather than reading `fillStyle`.
+   *
+   * Reading the property back does not reliably normalise: the tokens are
+   * authored in `oklch()`, and a browser that understands oklch serialises it
+   * straight back out — which MapLibre then rejects exactly as it rejected the
+   * `var()`. Sampling the rendered pixel is a real conversion, so whatever CSS
+   * colour syntax the theme uses arrives here as sRGB.
+   */
+  context.fillStyle = "#888888";
+  context.fillStyle = value;
+  context.fillRect(0, 0, 1, 1);
+
+  const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+  const hex = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${hex(r)}${hex(g)}${hex(b)}`;
+}
+
+/**
  * Time remaining, rendered the way a countdown to a deadline should read.
  *
  * Past deadlines return null rather than a negative duration: once the moment

@@ -9,15 +9,16 @@
     "lint": "eslint",
     "check:writes": "node scripts/check-write-paths.mjs",
     "check:rls": "node scripts/rls-test.mjs",
-    "verify": "npm run lint && npm run check:writes && npm run build && npm run check:rls",
-    "render:design": "node scripts/render-artboards.mjs"
+    "verify": "npm run lint && npm run check:writes && npm run check:geo && npm run build && npm run check:rls",
+    "render:design": "node scripts/render-artboards.mjs",
+    "check:geo": "node scripts/geo-test.mjs"
   },
   "dependencies": {
     "@serwist/next": "^9.5.12",
     "@supabase/supabase-js": "^2.115.0",
     "dexie": "^4.4.5",
     "jsqr": "^1.4.0",
-    "maplibre-gl": "^6.7.0",
+    "maplibre-gl": "^5.24.0",
     "next": "16.3.4",
     "qrcode": "^1.5.4",
     "react": "19.2.8",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/geojson": "^7946.0.16",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",

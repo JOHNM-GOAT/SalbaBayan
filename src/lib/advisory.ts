@@ -35,13 +35,22 @@ export type Barangay = {
   default_language: string;
 };
 
-export type Purok = { id: string; name: string; barangay_id: string };
+export type GeoPolygon = { type: "Polygon"; coordinates: number[][][] };
+export type GeoLine = { type: "LineString"; coordinates: number[][] };
+
+export type Purok = {
+  id: string;
+  name: string;
+  barangay_id: string;
+  boundary_geojson: GeoPolygon | null;
+};
 
 export type Protocol = {
   id: string;
   purok_id: string;
   signal_level: number;
   route: string | null;
+  route_geojson: GeoLine | null;
   action_key: string;
   evac_center_id: string | null;
 };
@@ -51,6 +60,25 @@ export type EvacCenter = {
   purok_id: string;
   name: string;
   capacity: number;
+  lat: number | null;
+  lng: number | null;
+};
+
+/**
+ * Open hazards, carried in the snapshot so the evacuation map can warn about a
+ * blocked path with no connection. Coordinates are nullable: a hazard reported
+ * without a GPS fix is still worth showing in a list, it just cannot be plotted
+ * or tested against a route.
+ */
+export type Hazard = {
+  id: string;
+  purok_id: string;
+  category: string;
+  description: string | null;
+  status: string;
+  ts: string;
+  lat: number | null;
+  lng: number | null;
 };
 
 export type AdvisorySnapshot = {
@@ -58,6 +86,7 @@ export type AdvisorySnapshot = {
   puroks: Purok[];
   protocols: Protocol[];
   centers: EvacCenter[];
+  hazards: Hazard[];
   translations: TranslationMap;
   /** When the network genuinely answered. Never set from a cache read. */
   fetchedAt: number;
@@ -126,7 +155,7 @@ export async function fetchAdvisory(): Promise<AdvisorySnapshot> {
   const supabase = getSupabase();
   if (!supabase) throw new Error("no supabase client");
 
-  const [barangays, puroks, protocols, centers, translations] =
+  const [barangays, puroks, protocols, centers, translations, hazards] =
     await Promise.all([
       supabase
         .from("barangays")
@@ -137,12 +166,21 @@ export async function fetchAdvisory(): Promise<AdvisorySnapshot> {
           "id,name,municipality,province,current_signal_level,signal_set_at,storm_name,bulletin_no,wind_kph,evacuate_by,default_language",
         )
         .limit(1),
-      supabase.from("puroks").select("id,name,barangay_id").order("name"),
+      supabase
+        .from("puroks")
+        .select("id,name,barangay_id,boundary_geojson")
+        .order("name"),
       supabase
         .from("protocols")
-        .select("id,purok_id,signal_level,route,action_key,evac_center_id"),
-      supabase.from("evac_centers").select("id,purok_id,name,capacity"),
+        .select("id,purok_id,signal_level,route,route_geojson,action_key,evac_center_id"),
+      supabase.from("evac_centers").select("id,purok_id,name,capacity,lat,lng"),
       supabase.from("translations").select("message_key,language,text"),
+      // Only open hazards. Resolved ones are history, and history on an
+      // evacuation map is noise that hides the thing you must avoid.
+      supabase
+        .from("hazard_reports")
+        .select("id,purok_id,category,description,status,ts,lat,lng")
+        .eq("status", "open"),
     ]);
 
   const failure =
@@ -150,7 +188,8 @@ export async function fetchAdvisory(): Promise<AdvisorySnapshot> {
     puroks.error ??
     protocols.error ??
     centers.error ??
-    translations.error;
+    translations.error ??
+    hazards.error;
   if (failure) throw new Error(failure.message);
 
   const barangay = barangays.data?.[0];
@@ -166,6 +205,7 @@ export async function fetchAdvisory(): Promise<AdvisorySnapshot> {
     puroks: (puroks.data ?? []) as Purok[],
     protocols: (protocols.data ?? []) as Protocol[],
     centers: (centers.data ?? []) as EvacCenter[],
+    hazards: (hazards.data ?? []) as Hazard[],
     translations: map,
     fetchedAt: Date.now(),
   };

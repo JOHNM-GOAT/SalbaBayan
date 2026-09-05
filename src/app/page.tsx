@@ -73,6 +73,12 @@ export default function Home() {
 
             <div className="mt-1 flex gap-2">
               <Link
+                href="/map"
+                className="tap mono flex flex-1 items-center justify-center rounded-instrument border-[1.5px] border-hv text-[10px] font-bold tracking-[1px] text-hv"
+              >
+                MAPA
+              </Link>
+              <Link
                 href="/coverage"
                 className="tap mono flex flex-1 items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
               >
