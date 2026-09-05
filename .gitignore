@@ -67,3 +67,8 @@ yarn-error.log*
 
 # ...but the placeholder template should be committed
 !.env.example
+
+# Serwist generated service worker
+public/sw.js
+public/sw.js.map
+public/swe-worker-*.js

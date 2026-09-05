@@ -23,7 +23,7 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
 - [x] Env wired (`.env.local`, template committed as `.env.example`)
 - [x] RLS verified through the live REST API: no JWT returns `[]` for `protocols`
 - [!] **Anonymous sign-in is DISABLED on the project — see Q8. Blocks the gate.**
-- [!] Service Worker app-shell precache — blocked on Q7 (`next-pwa` vs Next 16)
+- [x] Service Worker app-shell precache via Serwist — verified generating a manifest with 2 HTML, 25 JS, 2 CSS, 24 font files
 - [ ] GATE: RLS-per-role test (staff paths) + offline reload boots shell
 
 ## Phase 1 — Advisory Core (7.1, 7.2)
@@ -104,7 +104,7 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 
 **Q2 — Auth model. RESOLVED: anonymous auth.** The team initially asked for "no login-access". Flagged that literal zero-auth would leave every client on the same Postgres `anon` role, so RLS could not separate resident from official — contradicting NFR-5, §9, and the kickoff's non-negotiable RLS constraint. Resolved with Supabase **anonymous sign-in**: no login screen is ever shown (satisfying the request), but each device still gets a real `auth.uid()` for RLS to key off. Officials are elevated by inserting their uid into `user_roles`. Implemented in `src/lib/supabase.ts` and `0001_foundation.sql`.
 
-**Q7 — `next-pwa` does not support Next.js 16.** The PRD and kickoff both fix the stack to `next-pwa`, and the kickoff says not to substitute without asking. But `next-pwa` (shadowwalker) has been unmaintained since 2022, predates the App Router, and will not work with Next 16.3. Options: `@ducanh2912/next-pwa` (maintained App Router fork, same config shape), `serwist` (its official successor), or a hand-written Service Worker with no wrapper. **Blocks the Phase 0 Service Worker item and therefore the Phase 0 gate.**
+**Q7 — RESOLVED: Serwist.** `next-pwa` does not support Next.js 16. The PRD and kickoff both fix the stack to `next-pwa`, and the kickoff says not to substitute without asking. But `next-pwa` (shadowwalker) has been unmaintained since 2022, predates the App Router, and will not work with Next 16.3. Options: `@ducanh2912/next-pwa` (maintained App Router fork, same config shape), `serwist` (its official successor), or a hand-written Service Worker with no wrapper. Team chose **Serwist** (the maintained successor). Implemented in `next.config.ts` and `src/app/sw.ts`. Serwist is webpack-based while Next 16 defaults to Turbopack, so the build script is pinned to `next build --webpack`.
 
 **Q3 — Google Maps JavaScript API key.** Required for the Phase 3 responder rescue map (PRD §11 lists it as the one non-open-source dependency). No key provided. Needs a billing-enabled Google Cloud project.
 
