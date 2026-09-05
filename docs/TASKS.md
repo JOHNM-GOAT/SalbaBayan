@@ -17,11 +17,14 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
 - [x] Queue flush listener — in-order, idempotent, `online` event + 30s poll
 - [x] Anonymous-auth Supabase client (`src/lib/supabase.ts`)
 - [x] Persistent sync strip — cache age + queued count (`src/components/SyncStrip.tsx`)
-- [x] Schema + RLS written as migration (`supabase/migrations/0001_foundation.sql`)
-- [!] **Apply migration — HARD BLOCKED on Q1.** SQL is written and ready; nothing can run until a Supabase slot exists.
-- [!] Seed fixtures — blocked on Q1 (needs a live database)
+- [x] Schema + RLS applied to project `mpdzehfmxwuxjklgeqrz` — 13 tables, RLS on every one
+- [x] Security advisors clean (0 findings) after moving RLS helpers to a `private` schema
+- [x] Seed fixtures applied — 8 puroks, 33 protocols (7 deliberate gaps), 30 translations, 3 centres, 5 residents, Signal 3
+- [x] Env wired (`.env.local`, template committed as `.env.example`)
+- [x] RLS verified through the live REST API: no JWT returns `[]` for `protocols`
+- [!] **Anonymous sign-in is DISABLED on the project — see Q8. Blocks the gate.**
 - [!] Service Worker app-shell precache — blocked on Q7 (`next-pwa` vs Next 16)
-- [ ] GATE: RLS-per-role test + offline reload boots shell
+- [ ] GATE: RLS-per-role test (staff paths) + offline reload boots shell
 
 ## Phase 1 — Advisory Core (7.1, 7.2)
 - [ ] Signal x Purok table + coverage matrix
@@ -80,7 +83,16 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
 
 ## Open questions / ambiguities
 
-**Q1 — Supabase capacity. UNRESOLVED, HARD BLOCKER.** Both paths are refused by the same account limit:
+**Q8 — Anonymous sign-in is disabled on the project. BLOCKS THE PHASE 0 GATE.** The auth model agreed in Q2 depends on it: without anonymous sign-in, no client can obtain a session, so every RLS policy (all scoped `to authenticated`) denies everything and the app has no identity to attach writes to. Verified live:
+
+```
+POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled",
+                           "msg":"Anonymous sign-ins are disabled"}
+```
+
+  **Action needed:** enable it at [Authentication → Sign In / Providers](https://supabase.com/dashboard/project/mpdzehfmxwuxjklgeqrz/auth/providers) → *Anonymous Sign-Ins* → toggle on. There is no MCP tool for auth configuration, so this cannot be done from here. One click, then the gate can close.
+
+**Q1 — Supabase capacity. RESOLVED.** The team created project **`SalbaBayan`** (`mpdzehfmxwuxjklgeqrz`, ap-northeast-1, Postgres 17) under a different organisation. Schema, RLS, and seed all applied successfully. Original blocker below, kept for the record:
   - `create_project("salbabayan")` → `BadRequestException`
   - `restore_project(xtxiskhmjmwjhicwxiyu)` → `ForbiddenException`
 

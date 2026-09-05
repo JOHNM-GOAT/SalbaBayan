@@ -64,3 +64,6 @@ next-env.d.ts
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# ...but the placeholder template should be committed
+!.env.example
