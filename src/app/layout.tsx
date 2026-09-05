@@ -52,10 +52,19 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="fil">
-      <body
-        className={`${archivo.variable} ${plexSans.variable} ${plexMono.variable} bg-ink-900 text-paper antialiased`}
-      >
+    /*
+     * The font variable classes belong on <html>, NOT <body>. Tailwind v4 emits
+     * the `@theme` tokens onto `:root`, and a `var()` inside a custom-property
+     * declaration resolves against the element that declares it. With the
+     * classes on <body>, `--font-display: var(--font-archivo), ...` resolved on
+     * :root against an undefined `--font-archivo`, yielding an invalid
+     * font-family that silently dropped the whole app to Times New Roman.
+     */
+    <html
+      lang="fil"
+      className={`${archivo.variable} ${plexSans.variable} ${plexMono.variable}`}
+    >
+      <body className="bg-ink-900 text-paper antialiased">
         <AppRuntime>{children}</AppRuntime>
       </body>
     </html>

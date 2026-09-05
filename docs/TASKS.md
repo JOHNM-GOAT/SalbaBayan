@@ -23,9 +23,9 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
 - [x] Env wired (`.env.local`, template committed as `.env.example`)
 - [x] RLS verified through the live REST API: no JWT returns `[]` for `protocols`
 - [x] Anonymous sign-in enabled and verified — real auth.uid(), is_anonymous: true, authenticated role
-- [x] Service Worker app-shell precache via Serwist — verified generating a manifest with 2 HTML, 25 JS, 2 CSS, 24 font files
+- [x] Service Worker app-shell precache via Serwist — 48 manifest entries (JS, CSS, fonts, webmanifest) plus a runtime shell-document cache
 - [x] **GATE (RLS): 18/18 pass** via `node scripts/rls-test.mjs` against the live REST API
-- [ ] GATE (offline): airplane-mode reload boots the shell — needs a manual device/browser check
+- [x] **GATE (offline): passes.** Production build, server stopped dead (`curl` → `000`), full reload: shell boots, Archivo/Plex render from precache, severity rail grey, sync strip present.
 
 ## Phase 1 — Advisory Core (7.1, 7.2)
 - [ ] Signal x Purok table + coverage matrix
@@ -125,6 +125,18 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 ---
 
 ## Notes / decisions log
+
+- **2026-09-05 — Bug: the whole app rendered in Times New Roman.** `next/font` sets `--font-archivo` etc. via a class, and that class was on `<body>`. Tailwind v4 emits `@theme` tokens onto `:root`, and a `var()` inside a custom-property declaration resolves against the element that declares it — so `--font-display: var(--font-archivo), ...` resolved on `:root` against an undefined variable, producing an invalid `font-family` that silently fell back to the browser default. Nothing errored; it just looked wrong. Fixed by moving the font variable classes to `<html>`. Verified: `getComputedStyle` now reports `Archivo` and `IBM Plex Sans`.
+
+- **2026-09-05 — Bug found while closing the offline gate: the app shell was never precached.** Serwist's Next preset does not put App Router HTML into `__SW_MANIFEST` (verified: 48 entries, zero `.html`). Two consequences, both caught by testing rather than reading:
+  1. The document was only cached at runtime by `defaultCache`'s catch-all, which expires after `maxAgeSeconds: 86400`. A resident who last opened the app two days before landfall would have got the browser error page.
+  2. Worse, runtime caching only happens once the worker already controls a navigation — which is never the first visit. Someone installing SalbaBayan *as* the storm arrives had every asset cached except the page that loads them.
+
+  Fixed by adding `{ url: "/", revision: <build id> }` to `precacheEntries`, so the document is fetched during `install`, before the worker controls anything. The revision is derived from Next's build-stamped `_buildManifest` URL so the HTML invalidates in step with the hashed chunks it references — they must expire together, or the shell boots to a blank screen. Precache is now 49 entries. A NetworkFirst rule with a 30-day expiry stays ahead of `defaultCache` to cover the document routes added in later phases, which are not precached.
+
+- **2026-09-05 — How the offline gate was tested.** Production build, **one** visit, then the server stopped outright (`curl` → `000`), then a full reload. Stopping the server is the stronger test: it proves the Service Worker is serving the shell, where airplane mode can be satisfied by ordinary HTTP cache. The single visit is what makes it realistic — it is the first-run case, not a warmed one. It does not exercise `navigator.onLine`, so the sync strip's `OFFLINE` branch still wants a real-device check.
+
+- **2026-09-05 — Connectivity moved to `useSyncExternalStore`.** `AppRuntime` was copying `navigator.onLine` into state inside an effect, so the first paint always claimed "online" and corrected on a second render. `navigator.onLine` is browser-owned and can already be false before React hydrates. Subscribing reads the true value at render time and removes the cascading render ESLint flagged.
 
 - **2026-09-05 — Bug caught by the RLS gate: unattributed writes become invisible to their author.** The first gate run failed on `can raise an SOS` with a 403. The insert itself was allowed; the failure was PostgREST's RETURNING clause, which needs SELECT on the new row. `read_rescue` is scoped to `requested_by = auth.uid() or is_staff()`, so an SOS written with a null owner inserted fine and then became unreadable to the person who raised it — silently breaking the pending/acknowledged/rescued display (FR-4.3). Fixed centrally with an `OWNER_COLUMN` map in `lib/offlineQueue.ts`, stamped on enqueue and again on flush (a write queued before the first session exists has no uid yet). Gate now 18/18.
 

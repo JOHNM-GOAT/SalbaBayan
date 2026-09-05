@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { ensureAnonymousSession } from "@/lib/supabase";
 import {
   flushQueue,
@@ -46,22 +52,37 @@ export function markSynced(): void {
   }
 }
 
+/**
+ * Connectivity read as an external store rather than mirrored into state.
+ *
+ * `navigator.onLine` is browser-owned and can already be false before React
+ * hydrates, so copying it into state inside an effect meant the first paint
+ * was always "online" and only corrected on a second render. Subscribing reads
+ * the true value at render time instead.
+ */
+function subscribeOnline(onChange: () => void): () => void {
+  window.addEventListener("online", onChange);
+  window.addEventListener("offline", onChange);
+  return () => {
+    window.removeEventListener("online", onChange);
+    window.removeEventListener("offline", onChange);
+  };
+}
+
 export function AppRuntime({ children }: { children: React.ReactNode }) {
-  // Start optimistic: navigator.onLine is unavailable during SSR, and assuming
-  // offline would flash a false warning on every first paint.
-  const [online, setOnline] = useState(true);
+  const online = useSyncExternalStore(
+    subscribeOnline,
+    () => navigator.onLine,
+    // SSR has no navigator. Assume online so first paint never flashes a false
+    // offline warning at a resident who is in fact connected.
+    () => true,
+  );
+
   const [queued, setQueued] = useState(0);
   const [cacheAgeMs, setCacheAgeMs] = useState<number | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    setOnline(navigator.onLine);
-
-    const on = () => setOnline(true);
-    const off = () => setOnline(false);
-    window.addEventListener("online", on);
-    window.addEventListener("offline", off);
-
     // Silent anonymous sign-in: no screen, no credentials, but a real uid for
     // RLS to key off. Failing soft is correct — offline, the cached session
     // (if any) still carries the identity.
@@ -78,8 +99,6 @@ export function AppRuntime({ children }: { children: React.ReactNode }) {
     }, 1000);
 
     return () => {
-      window.removeEventListener("online", on);
-      window.removeEventListener("offline", off);
       stopFlush();
       unsubscribe();
       window.clearInterval(tick);
