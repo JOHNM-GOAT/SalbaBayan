@@ -33,7 +33,7 @@ npm-debug.log*
 yarn-error.log*
 
 # Generated design canvas bundle (large, rebuilt from .dc.html sources)
-design/*-wireframes.html
+stage-2/design/*-wireframes.html
 
 # Word export (kept locally, not tracked)
 *.docx

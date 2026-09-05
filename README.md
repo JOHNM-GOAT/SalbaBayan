@@ -6,9 +6,9 @@
 
 > **Status: pre-implementation.** This repository holds the product requirements and the design. No application code yet.
 
-![Advisory Home](design/screens/advisory-home.png)
+![Advisory Home](stage-2/design/screens/advisory-home.png)
 
-*The screen the app opens to — Signal 3, Purok-specific instruction, leave-by countdown, and cache state always visible. [All eight screens →](design/)*
+*The screen the app opens to — Signal 3, Purok-specific instruction, leave-by countdown, and cache state always visible. [All eight screens →](stage-2/design/)*
 
 ---
 
@@ -81,7 +81,7 @@ Tiered by build order. Tier 1 is the demo spine and must stay working as later t
 **Tier 4 — If stable**
 - Pre-Storm Readiness Checklist · Documentation Knowledge Base
 
-Full requirements, data model, and acceptance criteria: [`PRD-detailed.md`](PRD-detailed.md).
+Full requirements, data model, and acceptance criteria: [`PRD-detailed.md`](stage-2/PRD-detailed.md).
 
 ---
 
@@ -105,9 +105,9 @@ Roles (`resident` / `volunteer` / `official`) are enforced by Postgres Row Level
 
 | Document | Contents |
 |---|---|
-| [`PRD.md`](PRD.md) | The primary PRD — 17 sections: background, vision, governance, scope, target users, crisis UX, core features with FR/AC pairs, accessibility, privacy, data sources, architecture, data flow, NFRs, error handling, testing approach, success metrics, assumptions & dependencies |
-| [`PRD-detailed.md`](PRD-detailed.md) | Deep-dive reference — 13 features with numbered requirement IDs, full data model, permission matrix, milestone-based release plan, risk register |
-| [`design/`](design/) | Eight high-fidelity wireframes — screen index, design language, PNG exports, and editable artboard sources |
+| [`PRD.md`](stage-2/PRD.md) | The primary PRD — 17 sections: background, vision, governance, scope, target users, crisis UX, core features with FR/AC pairs, accessibility, privacy, data sources, architecture, data flow, NFRs, error handling, testing approach, success metrics, assumptions & dependencies |
+| [`PRD-detailed.md`](stage-2/PRD-detailed.md) | Deep-dive reference — 13 features with numbered requirement IDs, full data model, permission matrix, milestone-based release plan, risk register |
+| [`design/`](stage-2/design/) | Eight high-fidelity wireframes — screen index, design language, PNG exports, and editable artboard sources |
 
 ---
 
