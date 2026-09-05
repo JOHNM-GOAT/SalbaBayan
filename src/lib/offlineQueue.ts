@@ -16,7 +16,7 @@
  */
 
 import Dexie, { type Table } from "dexie";
-import { getSupabase } from "./supabase";
+import { getCurrentUserId, getSupabase } from "./supabase";
 
 /** Tables the queue is allowed to write to. Keep in sync with the schema. */
 export type QueueTable =
@@ -25,6 +25,41 @@ export type QueueTable =
   | "rescue_requests"
   | "headcounts"
   | "checkins";
+
+/**
+ * The column on each table that records who performed the action.
+ *
+ * Stamping this is not cosmetic attribution — it is what lets a resident read
+ * their OWN row back. `read_rescue` is scoped to
+ * `requested_by = auth.uid() or is_staff()`, so an SOS written with a null
+ * owner inserts successfully and then becomes invisible to the person who
+ * raised it, breaking the pending -> acknowledged -> rescued display (FR-4.3).
+ * Caught by scripts/rls-test.mjs.
+ */
+const OWNER_COLUMN: Record<QueueTable, string> = {
+  water_reports: "reported_by",
+  hazard_reports: "reported_by",
+  rescue_requests: "requested_by",
+  headcounts: "recorded_by",
+  checkins: "scanned_by",
+};
+
+/**
+ * Fill in the owner column if it is not already set and we have an identity.
+ *
+ * Offline on a first-ever load there may be no session yet, so this is applied
+ * again at flush time rather than only at enqueue time.
+ */
+async function stampOwner(
+  table: QueueTable,
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const column = OWNER_COLUMN[table];
+  if (payload[column]) return payload;
+
+  const uid = await getCurrentUserId();
+  return uid ? { ...payload, [column]: uid } : payload;
+}
 
 export interface QueuedWrite {
   /** Stable client-generated id — also the row's primary key server-side. */
@@ -78,7 +113,7 @@ export async function enqueueWrite(
   payload: Record<string, unknown>,
 ): Promise<WriteOutcome> {
   const id = (payload.id as string) ?? newClientId();
-  const row = { ...payload, id };
+  const row = await stampOwner(table, { ...payload, id });
 
   try {
     const supabase = getSupabase();
@@ -144,11 +179,16 @@ export async function flushQueue(): Promise<{ sent: number; remaining: number }>
     const pending = await database.queue.orderBy("createdAt").toArray();
 
     for (const item of pending) {
+      // Re-stamp: a write queued before the first session existed has no owner
+      // yet. Without this it would sync successfully and then be unreadable by
+      // the person who made it.
+      const payload = await stampOwner(item.table, item.payload);
+
       // upsert, not insert: if a previous attempt actually landed before the
       // connection dropped, this collapses to a no-op instead of a duplicate.
       const { error } = await supabase
         .from(item.table)
-        .upsert(item.payload, { onConflict: "id", ignoreDuplicates: true });
+        .upsert(payload, { onConflict: "id", ignoreDuplicates: true });
 
       if (error) {
         await database.queue.update(item.id, {

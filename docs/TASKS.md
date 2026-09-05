@@ -22,9 +22,10 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
 - [x] Seed fixtures applied — 8 puroks, 33 protocols (7 deliberate gaps), 30 translations, 3 centres, 5 residents, Signal 3
 - [x] Env wired (`.env.local`, template committed as `.env.example`)
 - [x] RLS verified through the live REST API: no JWT returns `[]` for `protocols`
-- [!] **Anonymous sign-in is DISABLED on the project — see Q8. Blocks the gate.**
+- [x] Anonymous sign-in enabled and verified — real auth.uid(), is_anonymous: true, authenticated role
 - [x] Service Worker app-shell precache via Serwist — verified generating a manifest with 2 HTML, 25 JS, 2 CSS, 24 font files
-- [ ] GATE: RLS-per-role test (staff paths) + offline reload boots shell
+- [x] **GATE (RLS): 18/18 pass** via `node scripts/rls-test.mjs` against the live REST API
+- [ ] GATE (offline): airplane-mode reload boots the shell — needs a manual device/browser check
 
 ## Phase 1 — Advisory Core (7.1, 7.2)
 - [ ] Signal x Purok table + coverage matrix
@@ -83,7 +84,7 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
 
 ## Open questions / ambiguities
 
-**Q8 — Anonymous sign-in is disabled on the project. BLOCKS THE PHASE 0 GATE.** The auth model agreed in Q2 depends on it: without anonymous sign-in, no client can obtain a session, so every RLS policy (all scoped `to authenticated`) denies everything and the app has no identity to attach writes to. Verified live:
+**Q8 — RESOLVED.** Anonymous sign-in is enabled and verified. (The toggle had been flipped but not saved.) Original detail: The auth model agreed in Q2 depends on it: without anonymous sign-in, no client can obtain a session, so every RLS policy (all scoped `to authenticated`) denies everything and the app has no identity to attach writes to. Verified live:
 
 ```
 POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled",
@@ -124,6 +125,8 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 ---
 
 ## Notes / decisions log
+
+- **2026-09-05 — Bug caught by the RLS gate: unattributed writes become invisible to their author.** The first gate run failed on `can raise an SOS` with a 403. The insert itself was allowed; the failure was PostgREST's RETURNING clause, which needs SELECT on the new row. `read_rescue` is scoped to `requested_by = auth.uid() or is_staff()`, so an SOS written with a null owner inserted fine and then became unreadable to the person who raised it — silently breaking the pending/acknowledged/rescued display (FR-4.3). Fixed centrally with an `OWNER_COLUMN` map in `lib/offlineQueue.ts`, stamped on enqueue and again on flush (a write queued before the first session exists has no uid yet). Gate now 18/18.
 
 - **2026-09-05 — Repo layout.** Next.js scaffolded at repository root; `stage-2/` remains alongside as submission documentation. Rationale: App Router reserves `app/`, so nesting the whole project under a top-level `app/` folder would be confusing. No PRD/design conflict.
 - **2026-09-05 — Phase 0 sequencing.** Scaffold, Dexie offline queue, and Service Worker precache do not depend on Supabase, so they proceed while Q1/Q2 are open. Schema, RLS, and seed work is held until Q1 and Q2 are answered rather than guessed at.

@@ -67,6 +67,18 @@ export async function ensureAnonymousSession(): Promise<string | null> {
   }
 }
 
+/**
+ * The current device's uid from the cached session, or null offline-before-
+ * first-sign-in. Reads the stored session rather than calling the network, so
+ * it stays usable with no connectivity.
+ */
+export async function getCurrentUserId(): Promise<string | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user?.id ?? null;
+}
+
 export type UserRole = "resident" | "volunteer" | "official";
 
 /**
