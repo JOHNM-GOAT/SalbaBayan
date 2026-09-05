@@ -1,0 +1,63 @@
+import type { Metadata, Viewport } from "next";
+import { Archivo, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
+import "./globals.css";
+import { AppRuntime } from "@/components/AppRuntime";
+
+/*
+ * Fonts are self-hosted by next/font rather than linked from the Google Fonts
+ * CDN as the wireframes did. Deliberate: a CDN link fails offline, and this is
+ * an offline-first product. Self-hosted files get precached with the app shell.
+ */
+const archivo = Archivo({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-archivo",
+  display: "swap",
+});
+
+const plexSans = IBM_Plex_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-plex-sans",
+  display: "swap",
+});
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-plex-mono",
+  display: "swap",
+});
+
+export const metadata: Metadata = {
+  title: "SalbaBayan",
+  description:
+    "Barangay-level typhoon early warning and evacuation coordination that keeps working offline.",
+  manifest: "/manifest.webmanifest",
+  applicationName: "SalbaBayan",
+  appleWebApp: { capable: true, title: "SalbaBayan", statusBarStyle: "black-translucent" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0b0e12",
+  // The app is a field instrument, not a document: zooming breaks the fixed
+  // thumb-zone layout the controls depend on.
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="fil">
+      <body
+        className={`${archivo.variable} ${plexSans.variable} ${plexMono.variable} bg-ink-900 text-paper antialiased`}
+      >
+        <AppRuntime>{children}</AppRuntime>
+      </body>
+    </html>
+  );
+}
