@@ -1,0 +1,182 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ink-900:oklch(0.13 0.012 245); --ink-800:oklch(0.175 0.014 245); --ink-700:oklch(0.225 0.016 245); --ink-600:oklch(0.29 0.018 245);
+    --line:oklch(0.36 0.02 245); --line-soft:oklch(0.27 0.018 245);
+    --paper:oklch(0.97 0.005 245); --paper-2:oklch(0.78 0.012 245); --paper-3:oklch(0.575 0.014 245);
+    --hv:oklch(0.82 0.13 195); --hv-ink:oklch(0.15 0.04 200); --hv-dim:oklch(0.82 0.13 195 / 0.13);
+    --s1:oklch(0.74 0.16 148); --s2:oklch(0.85 0.16 100); --s3:oklch(0.76 0.18 62); --s4:oklch(0.63 0.22 28); --s5:oklch(0.47 0.20 12);
+    --alarm:oklch(0.63 0.22 28); --caution:oklch(0.82 0.15 85); --clear:oklch(0.74 0.16 148);
+    --f-d:'Archivo','Arial Narrow',Helvetica,sans-serif;
+    --f-b:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+    --f-m:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink-900);}
+  a{color:var(--hv);text-decoration:none;} a:hover{color:var(--paper);}
+  .lbl{font-family:var(--f-m);font-size:10px;font-weight:600;letter-spacing:1.4px;color:var(--paper-3);}
+  .mono{font-family:var(--f-m);font-variant-numeric:tabular-nums;}
+  .panel{background:var(--ink-800);border:1.5px solid var(--line-soft);border-radius:4px;}
+  .tap{min-height:44px;}
+</style>
+</helmet>
+
+<div style="width:390px;height:844px;background:var(--ink-900);color:var(--paper);font-family:var(--f-b);display:flex;flex-direction:column;overflow:hidden;position:relative;">
+
+  <div style="height:5px;flex-shrink:0;background:var(--s3);"></div>
+
+  <!-- map canvas fills behind everything -->
+  <div style="position:absolute;top:5px;left:0;right:0;bottom:74px;overflow:hidden;">
+    <svg width="390" height="765" viewBox="0 0 390 765" style="position:absolute;inset:0;display:block;">
+      <rect width="390" height="765" fill="oklch(0.165 0.012 245)"/>
+      <!-- water -->
+      <path d="M0 600 C 90 575, 150 620, 250 590 S 350 560, 390 580 L390 765 L0 765Z" fill="oklch(0.22 0.035 235)"/>
+      <!-- blocks -->
+      <g fill="oklch(0.205 0.013 245)">
+        <rect x="16" y="120" width="120" height="86"/><rect x="150" y="112" width="96" height="70"/>
+        <rect x="262" y="132" width="112" height="94"/><rect x="24" y="252" width="104" height="112"/>
+        <rect x="286" y="268" width="88" height="128"/><rect x="42" y="404" width="128" height="96"/>
+        <rect x="250" y="430" width="120" height="102"/>
+      </g>
+      <!-- roads -->
+      <g stroke="oklch(0.255 0.014 245)" stroke-width="13" stroke-linecap="square">
+        <path d="M0 232 H390"/><path d="M0 384 H390"/><path d="M142 60 V620"/><path d="M268 60 V620"/>
+      </g>
+      <!-- purok boundary -->
+      <polygon points="30,180 330,150 356,470 236,624 52,562" fill="oklch(0.82 0.13 195 / 0.05)" stroke="oklch(0.82 0.13 195 / 0.55)" stroke-width="1.8" stroke-dasharray="7 6"/>
+      <!-- route: travelled + remaining -->
+      <path d="M195 520 L195 384 L142 384 L142 232" fill="none" stroke="oklch(0.76 0.18 62 / 0.3)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M195 520 L195 384 L142 384" fill="none" stroke="oklch(0.76 0.18 62)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M142 384 L142 232" fill="none" stroke="oklch(0.76 0.18 62)" stroke-width="7" stroke-linecap="round" stroke-dasharray="2 13"/>
+      <!-- hazard sitting ON the route -->
+      <g transform="translate(142,300)">
+        <rect x="-11" y="-11" width="22" height="22" rx="3" fill="oklch(0.63 0.22 28)" stroke="oklch(0.165 0.012 245)" stroke-width="2"/>
+        <path d="M-4 -5l1 6M-3 3h.01" stroke="white" stroke-width="2" stroke-linecap="round" transform="translate(3,0)"/>
+      </g>
+      <!-- evac center -->
+      <g transform="translate(142,232)">
+        <rect x="-13" y="-13" width="26" height="26" rx="3" fill="oklch(0.76 0.18 62)"/>
+        <path d="M-6 -2h12v8h-12z M-2 6v-4h4v4" stroke="oklch(0.16 0.04 55)" stroke-width="1.6" fill="none"/>
+      </g>
+      <!-- user -->
+      <g transform="translate(195,520)">
+        <circle r="24" fill="oklch(0.82 0.13 195 / 0.16)"/>
+        <circle r="8.5" fill="oklch(0.82 0.13 195)" stroke="oklch(0.13 0.012 245)" stroke-width="3"/>
+      </g>
+    </svg>
+  </div>
+
+  <!-- top chrome -->
+  <div style="position:relative;flex-shrink:0;padding:11px 14px;display:flex;align-items:center;gap:9px;">
+    <button style="width:38px;height:38px;border-radius:3px;background:oklch(0.13 0.012 245 / 0.92);border:1.5px solid var(--line);color:var(--paper);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div style="flex:1;display:flex;align-items:center;justify-content:space-between;background:oklch(0.13 0.012 245 / 0.92);border:1.5px solid var(--line);border-radius:3px;height:38px;padding:0 11px;">
+      <span class="mono" style="font-size:10px;font-weight:600;letter-spacing:1.1px;color:var(--paper-2);">RUTA · PUROK 3</span>
+      <span class="mono" style="font-size:10px;font-weight:700;letter-spacing:1.1px;color:var(--s3);">SIGNAL 3</span>
+    </div>
+  </div>
+
+  <!-- offline badge -->
+  <div style="position:relative;flex-shrink:0;padding:0 14px;">
+    <div style="display:inline-flex;align-items:center;gap:7px;background:oklch(0.13 0.012 245 / 0.92);border:1.5px solid var(--line-soft);border-radius:3px;padding:6px 10px;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--caution)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l22 22"/><path d="M16.7 11a10 10 0 0 1 3.3 2"/><path d="M5 12.5a11 11 0 0 1 5.2-2.4"/><path d="M10.7 5A16 16 0 0 1 22.6 9"/><path d="M1.4 9a16 16 0 0 1 4.7-2.9"/><path d="M8.5 16.1a6 6 0 0 1 7 0"/></svg>
+      <span class="mono" style="font-size:9.5px;font-weight:600;letter-spacing:1px;color:var(--paper-2);">OFFLINE · TILES CACHED</span>
+    </div>
+  </div>
+
+  <!-- next-turn instruction: the thing you actually need while walking -->
+  <div style="position:relative;flex-shrink:0;padding:10px 14px 0;">
+    <div style="background:oklch(0.13 0.012 245 / 0.95);border:1.5px solid var(--s3);border-radius:4px;padding:11px 13px;display:flex;align-items:center;gap:12px;">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--s3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M12 21V8"/><path d="M12 8L6 14"/><path d="M12 8l6 6"/></svg>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:15px;font-weight:700;">Diretso sa Rizal St.</div>
+        <div class="mono" style="font-size:10.5px;color:var(--paper-3);letter-spacing:0.6px;margin-top:2px;">TAPOS KALIWA SA MABINI</div>
+      </div>
+      <div class="mono" style="font-size:19px;font-weight:700;color:var(--s3);flex-shrink:0;">180<span style="font-size:11px;"> m</span></div>
+    </div>
+  </div>
+
+  <div style="flex:1;position:relative;">
+    <button style="position:absolute;right:14px;bottom:14px;width:44px;height:44px;border-radius:3px;background:oklch(0.13 0.012 245 / 0.92);border:1.5px solid var(--line);color:var(--hv);display:flex;align-items:center;justify-content:center;">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3.2M12 18.3v3.2M2.5 12h3.2M18.3 12h3.2"/></svg>
+    </button>
+    <!-- legend -->
+    <div style="position:absolute;left:14px;bottom:14px;background:oklch(0.13 0.012 245 / 0.92);border:1.5px solid var(--line-soft);border-radius:3px;padding:9px 11px;display:flex;flex-direction:column;gap:6px;">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="width:11px;height:11px;border:1.5px dashed var(--hv);flex-shrink:0;"></span><span class="mono" style="font-size:9px;letter-spacing:0.7px;color:var(--paper-2);">HANGGANAN</span></div>
+      <div style="display:flex;align-items:center;gap:8px;"><span style="width:11px;height:4px;background:var(--s3);flex-shrink:0;"></span><span class="mono" style="font-size:9px;letter-spacing:0.7px;color:var(--paper-2);">RUTA</span></div>
+      <div style="display:flex;align-items:center;gap:8px;"><span style="width:11px;height:11px;background:var(--alarm);border-radius:2px;flex-shrink:0;"></span><span class="mono" style="font-size:9px;letter-spacing:0.7px;color:var(--paper-2);">PANGANIB</span></div>
+    </div>
+  </div>
+
+  <!-- destination sheet -->
+  <div style="position:relative;flex-shrink:0;background:var(--ink-800);border-top:1.5px solid var(--line);padding:13px 14px 14px;">
+    <!-- hazard warning on this route -->
+    <div style="display:flex;align-items:center;gap:9px;border:1.5px solid var(--alarm);border-radius:3px;padding:8px 10px;margin-bottom:11px;background:oklch(0.63 0.22 28 / 0.1);">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--alarm)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M12 3L2 20h20z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg>
+      <div style="flex:1;font-size:11.5px;font-weight:600;color:var(--paper);">Baha sa Mabini St. — hanggang tuhod</div>
+      <span class="mono" style="font-size:9.5px;font-weight:700;color:var(--alarm);letter-spacing:0.6px;flex-shrink:0;">IWASAN</span>
+    </div>
+
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+      <div style="min-width:0;">
+        <div style="font-family:var(--f-d);font-weight:800;font-size:17px;letter-spacing:0.2px;">BARANGAY GYM</div>
+        <div class="mono" style="font-size:10.5px;color:var(--paper-3);letter-spacing:0.7px;margin-top:3px;">850 M · 12 MIN LAKAD</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div class="lbl" style="font-size:9px;">KAPASIDAD</div>
+        <div class="mono" style="font-size:17px;font-weight:700;color:var(--caution);margin-top:1px;">68<span style="color:var(--paper-3);font-size:12px;">/150</span></div>
+      </div>
+    </div>
+
+    <div style="height:5px;background:var(--ink-600);margin:10px 0 12px;display:flex;">
+      <div style="width:45%;background:var(--caution);"></div>
+    </div>
+
+    <a class="tap" style="width:100%;background:var(--hv);color:var(--hv-ink);font-weight:800;font-size:15px;border-radius:3px;display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:0.2px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V8"/><path d="M12 8L6 14"/><path d="M12 8l6 6"/></svg>
+      Simulan ang Ruta
+    </a>
+  </div>
+
+  <!-- tab bar -->
+  <div style="flex-shrink:0;height:74px;background:var(--ink-800);border-top:1.5px solid var(--line);display:flex;align-items:flex-start;padding-top:9px;position:relative;z-index:2;">
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.4px;">HOME</span>
+    </a>
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--hv);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2V6z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg>
+      <span style="font-size:9.5px;font-weight:800;letter-spacing:0.4px;">MAPA</span>
+    </a>
+    <a style="flex:0 0 66px;display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:-19px;">
+      <div style="width:50px;height:50px;border-radius:4px;background:var(--alarm);display:flex;align-items:center;justify-content:center;color:oklch(0.99 0.01 28);border:2.5px solid var(--ink-800);">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v3"/><path d="M6 21v-6a6 6 0 0 1 12 0v6z"/><path d="M4 21h16"/></svg>
+      </div>
+      <span class="mono" style="font-size:9.5px;font-weight:700;color:var(--alarm);letter-spacing:1px;">SOS</span>
+    </a>
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s7 7.58 7 12a7 7 0 0 1-14 0c0-4.42 7-12 7-12z"/></svg>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.4px;">ULAT</span>
+    </a>
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.4px;">AKO</span>
+    </a>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

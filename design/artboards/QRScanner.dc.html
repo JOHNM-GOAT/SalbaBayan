@@ -1,0 +1,144 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ink-900:oklch(0.13 0.012 245); --ink-800:oklch(0.175 0.014 245); --ink-700:oklch(0.225 0.016 245); --ink-600:oklch(0.29 0.018 245);
+    --line:oklch(0.36 0.02 245); --line-soft:oklch(0.27 0.018 245);
+    --paper:oklch(0.97 0.005 245); --paper-2:oklch(0.78 0.012 245); --paper-3:oklch(0.575 0.014 245);
+    --hv:oklch(0.82 0.13 195); --hv-ink:oklch(0.15 0.04 200);
+    --alarm:oklch(0.63 0.22 28); --caution:oklch(0.82 0.15 85); --clear:oklch(0.74 0.16 148);
+    --f-d:'Archivo','Arial Narrow',Helvetica,sans-serif;
+    --f-b:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+    --f-m:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink-900);}
+  a{color:var(--hv);text-decoration:none;} a:hover{color:var(--paper);}
+  .lbl{font-family:var(--f-m);font-size:10px;font-weight:600;letter-spacing:1.4px;color:var(--paper-3);}
+  .mono{font-family:var(--f-m);font-variant-numeric:tabular-nums;}
+  .panel{background:var(--ink-800);border:1.5px solid var(--line-soft);border-radius:4px;}
+  .tap{min-height:44px;}
+</style>
+</helmet>
+
+<div style="width:390px;height:844px;background:var(--ink-900);color:var(--paper);font-family:var(--f-b);display:flex;flex-direction:column;overflow:hidden;">
+
+  <div style="height:5px;flex-shrink:0;background:var(--hv);"></div>
+
+  <div style="flex-shrink:0;height:54px;display:flex;align-items:center;gap:11px;padding:0 14px;background:var(--ink-800);border-bottom:1.5px solid var(--line);">
+    <button style="width:36px;height:36px;border-radius:3px;background:var(--ink-700);border:1.5px solid var(--line-soft);color:var(--paper);display:flex;align-items:center;justify-content:center;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div style="font-family:var(--f-d);font-weight:800;font-size:17px;letter-spacing:0.4px;flex:1;">CHECK-IN</div>
+    <div style="display:flex;align-items:center;gap:6px;border:1.5px solid var(--hv);border-radius:3px;padding:5px 9px;">
+      <span style="width:5px;height:5px;background:var(--hv);"></span>
+      <span class="mono" style="font-size:9px;font-weight:700;letter-spacing:0.9px;color:var(--hv);">VOLUNTEER</span>
+    </div>
+  </div>
+
+  <!-- viewfinder -->
+  <div style="height:268px;flex-shrink:0;background:oklch(0.10 0.008 245);position:relative;overflow:hidden;border-bottom:1.5px solid var(--line);">
+    <svg width="390" height="268" style="position:absolute;inset:0;display:block;">
+      <rect width="390" height="268" fill="oklch(0.10 0.008 245)"/>
+      <g stroke="oklch(0.16 0.01 245)" stroke-width="1">
+        <path d="M0 60h390M0 120h390M0 180h390M0 240h390M70 0v268M160 0v268M250 0v268M340 0v268"/>
+      </g>
+    </svg>
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:172px;height:172px;">
+      <div style="position:absolute;top:0;left:0;width:36px;height:36px;border-top:3.5px solid var(--clear);border-left:3.5px solid var(--clear);"></div>
+      <div style="position:absolute;top:0;right:0;width:36px;height:36px;border-top:3.5px solid var(--clear);border-right:3.5px solid var(--clear);"></div>
+      <div style="position:absolute;bottom:0;left:0;width:36px;height:36px;border-bottom:3.5px solid var(--clear);border-left:3.5px solid var(--clear);"></div>
+      <div style="position:absolute;bottom:0;right:0;width:36px;height:36px;border-bottom:3.5px solid var(--clear);border-right:3.5px solid var(--clear);"></div>
+      <div style="position:absolute;top:54%;left:4px;right:4px;height:2px;background:var(--clear);"></div>
+    </div>
+    <div style="position:absolute;bottom:0;left:0;right:0;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to top, oklch(0.10 0.008 245), transparent);">
+      <span class="mono" style="font-size:9.5px;letter-spacing:0.9px;color:var(--paper-2);">ITAPAT ANG QR SA KAHON</span>
+      <span class="mono" style="font-size:9.5px;font-weight:700;letter-spacing:0.9px;color:var(--caution);">4 NAKA-QUEUE</span>
+    </div>
+  </div>
+
+  <div style="flex:1;padding:14px;display:flex;flex-direction:column;gap:13px;overflow:hidden;">
+
+    <!-- match, with triage weight up front -->
+    <div class="panel" style="padding:13px;flex-shrink:0;border-left:4px solid var(--alarm);">
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        <div style="width:46px;height:46px;border-radius:3px;background:var(--ink-700);border:1.5px solid var(--line-soft);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--paper-3);">
+          <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:var(--f-d);font-weight:800;font-size:18px;letter-spacing:0.2px;">MARIA SANTOS</div>
+          <div class="mono" style="font-size:10px;color:var(--paper-3);letter-spacing:0.7px;margin-top:3px;">PUROK 3 · RES-0142 · 72 TAON</div>
+        </div>
+      </div>
+      <!-- vulnerability tags: triage colour, not decoration -->
+      <div style="display:flex;gap:6px;margin-top:11px;">
+        <span style="background:oklch(0.63 0.22 28 / 0.16);border:1.5px solid var(--alarm);color:var(--alarm);font-family:var(--f-m);font-size:9.5px;font-weight:700;letter-spacing:0.7px;padding:5px 9px;border-radius:2px;">MEDICAL</span>
+        <span style="background:oklch(0.82 0.15 85 / 0.14);border:1.5px solid var(--caution);color:var(--caution);font-family:var(--f-m);font-size:9.5px;font-weight:700;letter-spacing:0.7px;padding:5px 9px;border-radius:2px;">MATANDA</span>
+        <span style="flex:1;"></span>
+        <span class="mono" style="font-size:9.5px;font-weight:700;color:var(--alarm);align-self:center;letter-spacing:0.6px;">PRAYORIDAD</span>
+      </div>
+    </div>
+
+    <!-- status: large targets, gloved/wet hands -->
+    <div style="flex-shrink:0;">
+      <div class="lbl" style="margin-bottom:9px;">I-LOG ANG STATUS</div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;">
+        <button style="height:74px;background:oklch(0.74 0.16 148 / 0.13);border:1.5px solid var(--clear);border-radius:4px;color:var(--clear);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-family:var(--f-b);">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          <span class="mono" style="font-size:9.5px;font-weight:700;letter-spacing:0.6px;">NANDITO</span>
+        </button>
+        <button style="height:74px;background:var(--ink-800);border:1.5px solid var(--line-soft);border-radius:4px;color:var(--paper-2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-family:var(--f-b);">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+          <span class="mono" style="font-size:9.5px;font-weight:700;letter-spacing:0.6px;">LUMIPAT</span>
+        </button>
+        <button style="height:74px;background:oklch(0.63 0.22 28 / 0.13);border:1.5px solid var(--alarm);border-radius:4px;color:var(--alarm);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-family:var(--f-b);">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 20h20z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg>
+          <span class="mono" style="font-size:9.5px;font-weight:700;letter-spacing:0.6px;">TULONG</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- recent -->
+    <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:7px;overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <span class="lbl">HULING SCAN</span>
+        <span class="mono" style="font-size:9.5px;font-weight:700;color:var(--paper-3);letter-spacing:0.7px;">18 NGAYONG ARAW</span>
+      </div>
+      <div class="panel" style="padding:9px 11px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+          <span style="width:6px;height:6px;background:var(--clear);flex-shrink:0;"></span>
+          <span style="font-size:12.5px;font-weight:600;">Jose Reyes</span>
+        </div>
+        <span class="mono" style="font-size:9.5px;color:var(--paper-3);letter-spacing:0.6px;">3:44 PM</span>
+      </div>
+      <div class="panel" style="padding:9px 11px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+          <span style="width:6px;height:6px;background:var(--caution);flex-shrink:0;"></span>
+          <span style="font-size:12.5px;font-weight:600;">Ana Dela Cruz</span>
+        </div>
+        <span class="mono" style="font-size:9.5px;color:var(--caution);letter-spacing:0.6px;">NAKA-QUEUE</span>
+      </div>
+      <div class="panel" style="padding:9px 11px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+          <span style="width:6px;height:6px;background:var(--clear);flex-shrink:0;"></span>
+          <span style="font-size:12.5px;font-weight:600;">Ric Fernandez</span>
+        </div>
+        <span class="mono" style="font-size:9.5px;color:var(--paper-3);letter-spacing:0.6px;">3:31 PM</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

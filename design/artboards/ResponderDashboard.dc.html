@@ -1,0 +1,233 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ink-900:oklch(0.13 0.012 245); --ink-800:oklch(0.175 0.014 245); --ink-700:oklch(0.225 0.016 245); --ink-600:oklch(0.29 0.018 245);
+    --line:oklch(0.36 0.02 245); --line-soft:oklch(0.27 0.018 245);
+    --paper:oklch(0.97 0.005 245); --paper-2:oklch(0.78 0.012 245); --paper-3:oklch(0.575 0.014 245);
+    --hv:oklch(0.82 0.13 195); --hv-ink:oklch(0.15 0.04 200);
+    --s3:oklch(0.76 0.18 62);
+    --alarm:oklch(0.63 0.22 28); --caution:oklch(0.82 0.15 85); --clear:oklch(0.74 0.16 148);
+    --f-d:'Archivo','Arial Narrow',Helvetica,sans-serif;
+    --f-b:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+    --f-m:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink-900);}
+  a{color:var(--hv);text-decoration:none;} a:hover{color:var(--paper);}
+  .lbl{font-family:var(--f-m);font-size:10px;font-weight:600;letter-spacing:1.4px;color:var(--paper-3);}
+  .mono{font-family:var(--f-m);font-variant-numeric:tabular-nums;}
+  .panel{background:var(--ink-800);border:1.5px solid var(--line-soft);border-radius:4px;}
+  .nav{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:3px;font-size:13px;font-weight:600;color:var(--paper-3);}
+</style>
+</helmet>
+
+<div style="width:1280px;height:800px;background:var(--ink-900);color:var(--paper);font-family:var(--f-b);display:flex;overflow:hidden;">
+
+  <!-- sidebar -->
+  <div style="width:212px;flex-shrink:0;background:var(--ink-800);border-right:1.5px solid var(--line);display:flex;flex-direction:column;padding:16px 12px;">
+    <div style="display:flex;align-items:center;gap:9px;padding:0 4px 18px;">
+      <div style="width:26px;height:26px;border-radius:3px;background:var(--hv);display:flex;align-items:center;justify-content:center;color:var(--hv-ink);flex-shrink:0;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+      </div>
+      <div style="font-family:var(--f-d);font-weight:800;font-size:15px;letter-spacing:0.4px;">SALBABAYAN</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:2px;">
+      <div class="nav" style="background:oklch(0.82 0.13 195 / 0.13);color:var(--hv);border-left:3px solid var(--hv);border-radius:0 3px 3px 0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v3"/><path d="M6 21v-6a6 6 0 0 1 12 0v6z"/><path d="M4 21h16"/></svg>
+        Rescue
+        <span class="mono" style="margin-left:auto;background:var(--alarm);color:oklch(0.99 0.01 28);font-size:10px;font-weight:700;padding:1px 6px;border-radius:2px;">3</span>
+      </div>
+      <div class="nav"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s7 7.58 7 12a7 7 0 0 1-14 0c0-4.42 7-12 7-12z"/></svg>Ulat<span class="mono" style="margin-left:auto;font-size:10px;color:var(--paper-3);">12</span></div>
+      <div class="nav"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 21v-4h6v4"/></svg>Centers</div>
+      <div class="nav"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/></svg>Protocols</div>
+      <div class="nav"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.3 3.1-6 7-6s7 2.7 7 6"/><circle cx="17.5" cy="9" r="2.5"/></svg>Residente</div>
+    </div>
+
+    <!-- shift status -->
+    <div class="panel" style="margin-top:16px;padding:11px;">
+      <div class="lbl" style="font-size:9px;">MGA TEAM SA LABAS</div>
+      <div style="display:flex;flex-direction:column;gap:7px;margin-top:9px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:6px;height:6px;background:var(--caution);flex-shrink:0;"></span>
+          <span style="font-size:11.5px;font-weight:600;flex:1;">Team 1</span>
+          <span class="mono" style="font-size:9.5px;color:var(--paper-3);">DISPATCH</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:6px;height:6px;background:var(--caution);flex-shrink:0;"></span>
+          <span style="font-size:11.5px;font-weight:600;flex:1;">Team 2</span>
+          <span class="mono" style="font-size:9.5px;color:var(--paper-3);">DISPATCH</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="width:6px;height:6px;background:var(--clear);flex-shrink:0;"></span>
+          <span style="font-size:11.5px;font-weight:600;flex:1;">Team 3</span>
+          <span class="mono" style="font-size:9.5px;color:var(--clear);">HANDA</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:auto;display:flex;align-items:center;gap:9px;padding:9px;border:1.5px solid var(--line-soft);border-radius:3px;">
+      <div style="width:30px;height:30px;border-radius:3px;background:var(--ink-700);display:flex;align-items:center;justify-content:center;color:var(--paper-3);flex-shrink:0;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+      </div>
+      <div style="min-width:0;">
+        <div style="font-size:12px;font-weight:700;">Mark Villanueva</div>
+        <div class="mono" style="font-size:9px;color:var(--paper-3);letter-spacing:0.6px;">RESPONDER</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- main -->
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+
+    <div style="height:5px;flex-shrink:0;background:var(--s3);"></div>
+
+    <div style="height:58px;flex-shrink:0;border-bottom:1.5px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:var(--ink-800);">
+      <div>
+        <div style="font-family:var(--f-d);font-weight:800;font-size:17px;letter-spacing:0.3px;">LIVE RESCUE</div>
+        <div class="mono" style="font-size:9.5px;color:var(--paper-3);letter-spacing:0.8px;margin-top:2px;">BRGY. SAN ISIDRO · SIGNAL 3 · BAGYONG IGME</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="display:flex;align-items:center;gap:7px;border:1.5px solid var(--clear);border-radius:3px;padding:6px 10px;">
+          <span style="width:5px;height:5px;background:var(--clear);"></span>
+          <span class="mono" style="font-size:9.5px;font-weight:700;letter-spacing:0.9px;color:var(--clear);">REALTIME</span>
+        </div>
+        <div class="mono" style="background:var(--s3);color:oklch(0.16 0.04 55);font-size:11px;font-weight:700;padding:7px 12px;border-radius:3px;letter-spacing:1px;">SIGNAL 3</div>
+      </div>
+    </div>
+
+    <!-- escalation banner: the oldest unanswered request, always surfaced -->
+    <div style="flex-shrink:0;display:flex;align-items:stretch;border-bottom:1.5px solid var(--line);background:oklch(0.63 0.22 28 / 0.1);">
+      <div style="width:30px;flex-shrink:0;background-image:repeating-linear-gradient(45deg, oklch(0.63 0.22 28) 0 7px, transparent 7px 14px);"></div>
+      <div style="flex:1;padding:9px 16px;display:flex;align-items:center;gap:12px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--alarm)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M12 3L2 20h20z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg>
+        <span style="font-size:13px;font-weight:700;">Roberto Aquino ay 14 minuto nang naghihintay — walang naka-assign na team</span>
+        <span style="flex:1;"></span>
+        <button class="mono" style="background:var(--alarm);color:oklch(0.99 0.01 28);border:none;border-radius:3px;padding:7px 14px;font-size:10.5px;font-weight:700;letter-spacing:0.9px;">MAG-DISPATCH</button>
+      </div>
+    </div>
+
+    <!-- stats -->
+    <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;padding:14px 20px 0;flex-shrink:0;">
+      <div class="panel" style="padding:11px 13px;border-left:3px solid var(--alarm);">
+        <div class="mono" style="font-size:24px;font-weight:700;color:var(--alarm);line-height:1;">3</div>
+        <div class="mono" style="font-size:9px;color:var(--paper-3);letter-spacing:0.9px;margin-top:5px;">NAGHIHINTAY</div>
+      </div>
+      <div class="panel" style="padding:11px 13px;border-left:3px solid var(--caution);">
+        <div class="mono" style="font-size:24px;font-weight:700;color:var(--caution);line-height:1;">2</div>
+        <div class="mono" style="font-size:9px;color:var(--paper-3);letter-spacing:0.9px;margin-top:5px;">NAKUMPIRMA</div>
+      </div>
+      <div class="panel" style="padding:11px 13px;border-left:3px solid var(--clear);">
+        <div class="mono" style="font-size:24px;font-weight:700;color:var(--clear);line-height:1;">11</div>
+        <div class="mono" style="font-size:9px;color:var(--paper-3);letter-spacing:0.9px;margin-top:5px;">NAILIGTAS</div>
+      </div>
+      <div class="panel" style="padding:11px 13px;">
+        <div class="mono" style="font-size:24px;font-weight:700;line-height:1;">08:12</div>
+        <div class="mono" style="font-size:9px;color:var(--paper-3);letter-spacing:0.9px;margin-top:5px;">AVG RESPONSE</div>
+      </div>
+      <div class="panel" style="padding:11px 13px;">
+        <div class="mono" style="font-size:24px;font-weight:700;line-height:1;">247</div>
+        <div class="mono" style="font-size:9px;color:var(--paper-3);letter-spacing:0.9px;margin-top:5px;">NASA CENTERS</div>
+      </div>
+    </div>
+
+    <!-- map + queue -->
+    <div style="flex:1;display:flex;gap:14px;padding:14px 20px 18px;overflow:hidden;">
+
+      <div style="flex:1;border:1.5px solid var(--line);border-radius:4px;overflow:hidden;position:relative;min-width:0;">
+        <svg width="100%" height="100%" viewBox="0 0 700 470" preserveAspectRatio="xMidYMid slice" style="display:block;">
+          <rect width="700" height="470" fill="oklch(0.165 0.012 245)"/>
+          <path d="M0 380 C 120 350, 220 400, 340 372 S 560 340, 700 360 L700 470 L0 470Z" fill="oklch(0.22 0.035 235)"/>
+          <g fill="oklch(0.205 0.013 245)">
+            <rect x="40" y="50" width="150" height="100"/><rect x="220" y="40" width="130" height="86"/>
+            <rect x="400" y="60" width="160" height="110"/><rect x="60" y="200" width="130" height="120"/>
+            <rect x="420" y="210" width="150" height="120"/><rect x="230" y="230" width="120" height="90"/>
+          </g>
+          <g stroke="oklch(0.255 0.014 245)" stroke-width="14" stroke-linecap="square">
+            <path d="M0 175 H700"/><path d="M0 345 H700"/><path d="M205 0 V400"/><path d="M385 0 V400"/><path d="M580 0 V400"/>
+          </g>
+          <polygon points="90,120 480,90 540,330 330,420 110,360" fill="oklch(0.82 0.13 195 / 0.05)" stroke="oklch(0.82 0.13 195 / 0.5)" stroke-width="1.8" stroke-dasharray="8 6"/>
+          <g transform="translate(205,175)"><rect x="-12" y="-12" width="24" height="24" rx="3" fill="oklch(0.76 0.18 62)"/><path d="M-5 -2h10v7h-10z" stroke="oklch(0.16 0.04 55)" stroke-width="1.5" fill="none"/></g>
+        </svg>
+
+        <!-- pins sized by urgency -->
+        <div style="position:absolute;top:32%;left:26%;width:20px;height:20px;border-radius:50%;background:var(--alarm);border:3px solid var(--ink-900);"></div>
+        <div style="position:absolute;top:58%;left:47%;width:20px;height:20px;border-radius:50%;background:var(--alarm);border:3px solid var(--ink-900);"></div>
+        <div style="position:absolute;top:44%;left:36%;width:20px;height:20px;border-radius:50%;background:var(--alarm);border:3px solid var(--ink-900);"></div>
+        <div style="position:absolute;top:24%;left:63%;width:20px;height:20px;border-radius:50%;background:var(--caution);border:3px solid var(--ink-900);"></div>
+        <div style="position:absolute;top:70%;left:20%;width:20px;height:20px;border-radius:50%;background:var(--caution);border:3px solid var(--ink-900);"></div>
+
+        <!-- layer toggles -->
+        <div style="position:absolute;top:12px;left:12px;display:flex;gap:6px;">
+          <span class="mono" style="background:var(--hv);color:var(--hv-ink);font-size:9.5px;font-weight:700;padding:6px 10px;border-radius:3px;letter-spacing:0.8px;">SOS</span>
+          <span class="mono" style="background:oklch(0.13 0.012 245 / 0.9);border:1.5px solid var(--line);color:var(--paper-2);font-size:9.5px;font-weight:700;padding:5px 10px;border-radius:3px;letter-spacing:0.8px;">BAHA</span>
+          <span class="mono" style="background:oklch(0.13 0.012 245 / 0.9);border:1.5px solid var(--line);color:var(--paper-2);font-size:9.5px;font-weight:700;padding:5px 10px;border-radius:3px;letter-spacing:0.8px;">PANGANIB</span>
+          <span class="mono" style="background:oklch(0.13 0.012 245 / 0.9);border:1.5px solid var(--line);color:var(--paper-2);font-size:9.5px;font-weight:700;padding:5px 10px;border-radius:3px;letter-spacing:0.8px;">CENTERS</span>
+        </div>
+
+        <div style="position:absolute;bottom:12px;left:12px;background:oklch(0.13 0.012 245 / 0.92);border:1.5px solid var(--line-soft);border-radius:3px;padding:9px 11px;display:flex;gap:14px;">
+          <div style="display:flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:50%;background:var(--alarm);"></span><span class="mono" style="font-size:9px;letter-spacing:0.7px;color:var(--paper-2);">NAGHIHINTAY</span></div>
+          <div style="display:flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:50%;background:var(--caution);"></span><span class="mono" style="font-size:9px;letter-spacing:0.7px;color:var(--paper-2);">NAKUMPIRMA</span></div>
+          <div style="display:flex;align-items:center;gap:7px;"><span style="width:9px;height:9px;border-radius:2px;background:var(--s3);"></span><span class="mono" style="font-size:9px;letter-spacing:0.7px;color:var(--paper-2);">EVAC CENTER</span></div>
+        </div>
+      </div>
+
+      <!-- triage queue, sorted by wait -->
+      <div style="width:330px;flex-shrink:0;display:flex;flex-direction:column;gap:9px;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+          <span class="lbl">TRIAGE QUEUE</span>
+          <span class="mono" style="font-size:9px;color:var(--paper-3);letter-spacing:0.7px;">AYON SA HABA NG HINTAY</span>
+        </div>
+
+        <div class="panel" style="padding:12px;flex-shrink:0;border-left:4px solid var(--alarm);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span style="font-weight:700;font-size:13.5px;min-width:0;">Roberto Aquino</span>
+            <span class="mono" style="font-size:15px;font-weight:700;color:var(--alarm);flex-shrink:0;">14:02</span>
+          </div>
+          <div class="mono" style="font-size:9.5px;color:var(--paper-3);letter-spacing:0.6px;margin-top:4px;">PUROK 3 · RIZAL ST. · ±8 M</div>
+          <div style="display:flex;gap:5px;margin-top:8px;">
+            <span class="mono" style="border:1.5px solid var(--alarm);color:var(--alarm);font-size:9px;font-weight:700;padding:3px 7px;border-radius:2px;letter-spacing:0.5px;">MEDICAL</span>
+            <span class="mono" style="border:1.5px solid var(--caution);color:var(--caution);font-size:9px;font-weight:700;padding:3px 7px;border-radius:2px;letter-spacing:0.5px;">MATANDA</span>
+          </div>
+          <button class="mono" style="margin-top:10px;width:100%;height:36px;background:var(--hv);color:var(--hv-ink);border:none;border-radius:3px;font-size:10.5px;font-weight:700;letter-spacing:1px;">I-ASSIGN ANG TEAM</button>
+        </div>
+
+        <div class="panel" style="padding:12px;flex-shrink:0;border-left:4px solid var(--alarm);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span style="font-weight:700;font-size:13.5px;color:var(--paper-2);min-width:0;">Hindi rehistrado</span>
+            <span class="mono" style="font-size:15px;font-weight:700;color:var(--alarm);flex-shrink:0;">06:41</span>
+          </div>
+          <div class="mono" style="font-size:9.5px;color:var(--paper-3);letter-spacing:0.6px;margin-top:4px;">PUROK 3 · MALAPIT SA CREEK · ±34 M</div>
+          <div style="display:flex;gap:5px;margin-top:8px;">
+            <span class="mono" style="border:1.5px solid var(--line);color:var(--paper-3);font-size:9px;font-weight:700;padding:3px 7px;border-radius:2px;letter-spacing:0.5px;">WALANG LOGIN</span>
+          </div>
+          <button class="mono" style="margin-top:10px;width:100%;height:36px;background:var(--hv);color:var(--hv-ink);border:none;border-radius:3px;font-size:10.5px;font-weight:700;letter-spacing:1px;">I-ASSIGN ANG TEAM</button>
+        </div>
+
+        <div class="panel" style="padding:12px;flex-shrink:0;border-left:4px solid var(--caution);">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span style="font-weight:700;font-size:13.5px;min-width:0;">Elena Bautista</span>
+            <span class="mono" style="font-size:15px;font-weight:700;color:var(--caution);flex-shrink:0;">11:40</span>
+          </div>
+          <div class="mono" style="font-size:9.5px;color:var(--paper-3);letter-spacing:0.6px;margin-top:4px;">PUROK 3 · MABINI ST. · TEAM 2 PAPUNTA</div>
+          <button class="mono" style="margin-top:10px;width:100%;height:36px;background:transparent;color:var(--clear);border:1.5px solid var(--clear);border-radius:3px;font-size:10.5px;font-weight:700;letter-spacing:1px;">MARKAHANG NAILIGTAS</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

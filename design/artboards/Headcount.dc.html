@@ -1,0 +1,135 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ink-900:oklch(0.13 0.012 245); --ink-800:oklch(0.175 0.014 245); --ink-700:oklch(0.225 0.016 245); --ink-600:oklch(0.29 0.018 245);
+    --line:oklch(0.36 0.02 245); --line-soft:oklch(0.27 0.018 245);
+    --paper:oklch(0.97 0.005 245); --paper-2:oklch(0.78 0.012 245); --paper-3:oklch(0.575 0.014 245);
+    --hv:oklch(0.82 0.13 195); --hv-ink:oklch(0.15 0.04 200);
+    --alarm:oklch(0.63 0.22 28); --caution:oklch(0.82 0.15 85); --clear:oklch(0.74 0.16 148);
+    --f-d:'Archivo','Arial Narrow',Helvetica,sans-serif;
+    --f-b:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+    --f-m:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink-900);}
+  a{color:var(--hv);text-decoration:none;} a:hover{color:var(--paper);}
+  .lbl{font-family:var(--f-m);font-size:10px;font-weight:600;letter-spacing:1.4px;color:var(--paper-3);}
+  .mono{font-family:var(--f-m);font-variant-numeric:tabular-nums;}
+  .panel{background:var(--ink-800);border:1.5px solid var(--line-soft);border-radius:4px;}
+  .tap{min-height:44px;}
+</style>
+</helmet>
+
+<div style="width:390px;height:844px;background:var(--ink-900);color:var(--paper);font-family:var(--f-b);display:flex;flex-direction:column;overflow:hidden;">
+
+  <div style="height:5px;flex-shrink:0;background:var(--caution);"></div>
+
+  <div style="flex-shrink:0;height:60px;display:flex;align-items:center;gap:11px;padding:0 14px;background:var(--ink-800);border-bottom:1.5px solid var(--line);">
+    <button style="width:36px;height:36px;border-radius:3px;background:var(--ink-700);border:1.5px solid var(--line-soft);color:var(--paper);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div style="flex:1;min-width:0;">
+      <div style="font-family:var(--f-d);font-weight:800;font-size:16px;letter-spacing:0.3px;">BARANGAY GYM</div>
+      <div class="mono" style="font-size:9.5px;color:var(--paper-3);letter-spacing:0.8px;margin-top:2px;">EVACUATION CENTER · KAP. 150</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;border:1.5px solid var(--clear);border-radius:3px;padding:5px 9px;flex-shrink:0;">
+      <span style="width:5px;height:5px;background:var(--clear);"></span>
+      <span class="mono" style="font-size:9px;font-weight:700;letter-spacing:0.8px;color:var(--clear);">SYNCED</span>
+    </div>
+  </div>
+
+  <div style="flex:1;padding:16px 14px 0;display:flex;flex-direction:column;gap:13px;overflow:hidden;">
+
+    <!-- the count, as an instrument readout -->
+    <div class="panel" style="padding:20px 16px;flex-shrink:0;display:flex;align-items:center;gap:18px;">
+      <div style="flex:1;min-width:0;">
+        <div class="lbl" style="font-size:9px;">KASALUKUYANG NASA LOOB</div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin-top:4px;">
+          <span class="mono" style="font-size:60px;font-weight:700;line-height:0.85;letter-spacing:-2px;">68</span>
+          <span class="mono" style="font-size:17px;font-weight:600;color:var(--paper-3);">/150</span>
+        </div>
+        <div style="height:7px;background:var(--ink-600);margin-top:14px;display:flex;">
+          <div style="width:45%;background:var(--caution);"></div>
+        </div>
+        <div class="mono" style="font-size:9.5px;color:var(--caution);letter-spacing:0.8px;margin-top:7px;font-weight:700;">45% PUNO · 82 PWEDE PA</div>
+      </div>
+      <div style="width:1.5px;align-self:stretch;background:var(--line-soft);flex-shrink:0;"></div>
+      <div style="flex-shrink:0;display:flex;flex-direction:column;gap:11px;">
+        <div style="text-align:right;">
+          <div class="mono" style="font-size:19px;font-weight:700;color:var(--alarm);">3</div>
+          <div class="mono" style="font-size:8.5px;color:var(--paper-3);letter-spacing:0.7px;">MEDICAL</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="mono" style="font-size:19px;font-weight:700;color:var(--caution);">9</div>
+          <div class="mono" style="font-size:8.5px;color:var(--paper-3);letter-spacing:0.7px;">MATANDA</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="mono" style="font-size:19px;font-weight:700;color:var(--paper-2);">4</div>
+          <div class="mono" style="font-size:8.5px;color:var(--paper-3);letter-spacing:0.7px;">SANGGOL</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- append-only ledger -->
+    <div style="flex:1;min-height:0;display:flex;flex-direction:column;gap:7px;overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <span class="lbl">LEDGER</span>
+        <span class="mono" style="font-size:9px;color:var(--paper-3);letter-spacing:0.7px;">APPEND-ONLY · HINDI NABUBURA</span>
+      </div>
+
+      <div class="panel" style="padding:9px 11px;display:flex;align-items:center;gap:11px;flex-shrink:0;">
+        <span class="mono" style="width:26px;font-size:13px;font-weight:700;color:var(--clear);flex-shrink:0;">+1</span>
+        <span style="flex:1;font-size:12.5px;font-weight:600;min-width:0;">Volunteer Ana</span>
+        <span class="mono" style="font-size:9.5px;color:var(--paper-3);letter-spacing:0.5px;flex-shrink:0;">3:42 PM</span>
+      </div>
+      <div class="panel" style="padding:9px 11px;display:flex;align-items:center;gap:11px;flex-shrink:0;">
+        <span class="mono" style="width:26px;font-size:13px;font-weight:700;color:var(--clear);flex-shrink:0;">+4</span>
+        <span style="flex:1;font-size:12.5px;font-weight:600;min-width:0;">Volunteer Ana <span style="color:var(--paper-3);font-weight:400;">· pamilya</span></span>
+        <span class="mono" style="font-size:9.5px;color:var(--paper-3);letter-spacing:0.5px;flex-shrink:0;">3:40 PM</span>
+      </div>
+      <div class="panel" style="padding:9px 11px;display:flex;align-items:center;gap:11px;flex-shrink:0;">
+        <span class="mono" style="width:26px;font-size:13px;font-weight:700;color:var(--alarm);flex-shrink:0;">-1</span>
+        <span style="flex:1;font-size:12.5px;font-weight:600;min-width:0;">Volunteer Ric</span>
+        <span class="mono" style="font-size:9.5px;color:var(--paper-3);letter-spacing:0.5px;flex-shrink:0;">3:31 PM</span>
+      </div>
+      <div class="panel" style="padding:9px 11px;display:flex;align-items:center;gap:11px;flex-shrink:0;opacity:0.55;">
+        <span class="mono" style="width:26px;font-size:13px;font-weight:700;color:var(--clear);flex-shrink:0;">+2</span>
+        <span style="flex:1;font-size:12.5px;font-weight:600;min-width:0;">Volunteer Ric</span>
+        <span class="mono" style="font-size:9.5px;color:var(--paper-3);letter-spacing:0.5px;flex-shrink:0;">3:28 PM</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- thumb zone: the most-used control gets the most reachable real estate -->
+  <div style="flex-shrink:0;padding:12px 14px 20px;background:var(--ink-800);border-top:1.5px solid var(--line);display:flex;flex-direction:column;gap:9px;">
+    <div style="display:flex;gap:10px;">
+      <button style="flex:1;height:82px;background:oklch(0.63 0.22 28 / 0.13);border:1.5px solid var(--alarm);border-radius:4px;color:var(--alarm);display:flex;align-items:center;justify-content:center;gap:10px;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M5 12h14"/></svg>
+        <span class="mono" style="font-size:20px;font-weight:700;">1</span>
+      </button>
+      <button style="flex:1.45;height:82px;background:var(--clear);border:none;border-radius:4px;color:oklch(0.16 0.05 148);display:flex;align-items:center;justify-content:center;gap:10px;">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <span class="mono" style="font-size:24px;font-weight:700;">1</span>
+      </button>
+    </div>
+    <button class="tap" style="width:100%;min-height:0;height:38px;background:transparent;border:1.5px solid var(--line);border-radius:3px;color:var(--paper-2);font-family:var(--f-b);font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:8px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M8 10h8M8 14h8"/></svg>
+      Maramihang bilang
+    </button>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

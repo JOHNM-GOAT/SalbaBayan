@@ -33,4 +33,4 @@ npm-debug.log*
 yarn-error.log*
 
 # Generated design canvas bundle (large, rebuilt from .dc.html sources)
-wireframes/*-wireframes.html
+design/*-wireframes.html

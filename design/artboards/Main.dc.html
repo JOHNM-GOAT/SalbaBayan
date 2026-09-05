@@ -1,0 +1,282 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ink-900:oklch(0.13 0.012 245); --ink-800:oklch(0.175 0.014 245); --ink-700:oklch(0.225 0.016 245); --ink-600:oklch(0.29 0.018 245);
+    --line:oklch(0.36 0.02 245); --line-soft:oklch(0.27 0.018 245);
+    --paper:oklch(0.97 0.005 245); --paper-2:oklch(0.78 0.012 245); --paper-3:oklch(0.575 0.014 245);
+    --hv:oklch(0.82 0.13 195); --hv-ink:oklch(0.15 0.04 200); --hv-dim:oklch(0.82 0.13 195 / 0.13);
+    --s1:oklch(0.74 0.16 148); --s2:oklch(0.85 0.16 100); --s3:oklch(0.76 0.18 62); --s4:oklch(0.63 0.22 28); --s5:oklch(0.47 0.20 12);
+    --alarm:oklch(0.63 0.22 28); --caution:oklch(0.82 0.15 85); --clear:oklch(0.74 0.16 148);
+    --f-d:'Archivo','Arial Narrow',Helvetica,sans-serif;
+    --f-b:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+    --f-m:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink-900);}
+  a{color:var(--hv);text-decoration:none;} a:hover{color:var(--paper);}
+  .lbl{font-family:var(--f-m);font-size:10px;font-weight:600;letter-spacing:1.4px;color:var(--paper-3);}
+  .mono{font-family:var(--f-m);font-variant-numeric:tabular-nums;}
+  .panel{background:var(--ink-800);border:1.5px solid var(--line-soft);border-radius:4px;}
+  .tap{min-height:44px;}
+</style>
+</helmet>
+
+<div style="width:390px;height:844px;background:var(--ink-900);color:var(--paper);font-family:var(--f-b);display:flex;flex-direction:column;overflow:hidden;">
+
+  <!-- severity rail: ambient signal state, present on every screen -->
+  <div style="height:5px;flex-shrink:0;background:{{sig.color}};"></div>
+
+  <!-- header -->
+  <div style="flex-shrink:0;background:var(--ink-800);border-bottom:1.5px solid var(--line-soft);">
+    <div style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:9px;">
+        <div style="width:26px;height:26px;border-radius:3px;background:var(--hv);display:flex;align-items:center;justify-content:center;color:var(--hv-ink);">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+        </div>
+        <div style="font-family:var(--f-d);font-weight:800;font-size:16px;letter-spacing:0.4px;">SALBABAYAN</div>
+      </div>
+      <button class="tap" style="min-height:0;height:30px;padding:0 10px;background:transparent;border:1.5px solid var(--line);border-radius:3px;color:var(--paper-2);font-family:var(--f-b);font-weight:700;font-size:12px;display:flex;align-items:center;gap:5px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5h11v2"/><path d="M9.5 5v14"/><path d="M7 19h5"/><path d="M16 12h5"/><path d="M18.5 9.5v5"/></svg>
+        A+
+      </button>
+    </div>
+    <!-- persistent connection state: the product's core promise, made visible -->
+    <div style="height:25px;border-top:1.5px solid var(--line-soft);display:flex;align-items:center;padding:0 14px;gap:8px;background:var(--ink-900);">
+      <span style="width:6px;height:6px;background:var(--caution);flex-shrink:0;"></span>
+      <span class="mono" style="font-size:10px;font-weight:600;letter-spacing:0.9px;color:var(--paper-3);">{{t.conn}}</span>
+    </div>
+  </div>
+
+  <!-- purok selector -->
+  <div style="flex-shrink:0;height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:1.5px solid var(--line-soft);background:var(--ink-800);">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--hv)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-7.58 7-13a7 7 0 0 0-14 0c0 5.42 7 13 7 13z"/><circle cx="12" cy="9" r="2.5"/></svg>
+      <span style="font-size:13.5px;font-weight:700;">Purok 3</span>
+      <span style="font-size:13px;color:var(--paper-3);">Brgy. San Isidro</span>
+    </div>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--paper-3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+  </div>
+
+  <!-- content -->
+  <div style="flex:1;padding:14px;display:flex;flex-direction:column;gap:10px;overflow:hidden;">
+
+    <!-- SIGNAL PLACARD -->
+    <div style="background:{{sig.color}};color:{{sig.ink}};border-radius:4px;padding:13px 15px;flex-shrink:0;clip-path:polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 0 100%);">
+      <div class="mono" style="font-size:9.5px;font-weight:700;letter-spacing:1.3px;opacity:0.72;">{{t.bulletin}}</div>
+      <div style="display:flex;align-items:flex-end;gap:13px;margin-top:6px;">
+        <div style="font-family:var(--f-d);font-weight:800;font-size:62px;line-height:0.8;letter-spacing:-2px;">{{sig.num}}</div>
+        <div style="padding-bottom:5px;flex:1;">
+          <div style="font-family:var(--f-d);font-weight:800;font-size:15px;letter-spacing:0.6px;">{{t.signalWord}}</div>
+          <div class="mono" style="font-size:11.5px;font-weight:600;opacity:0.8;margin-top:3px;">{{sig.storm}}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DEADLINE — hazard-stripe banding, used only where safety signage would -->
+    <sc-if value="{{sig.deadline}}" hint-placeholder-val="{{ true }}">
+      <div style="flex-shrink:0;border:1.5px solid {{sig.color}};border-radius:4px;display:flex;align-items:stretch;overflow:hidden;">
+        <div style="width:34px;flex-shrink:0;background-image:repeating-linear-gradient(45deg, {{sig.color}} 0 6px, transparent 6px 12px);"></div>
+        <div style="flex:1;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;background:var(--ink-800);">
+          <div>
+            <div class="lbl" style="font-size:9px;">{{t.leaveBy}}</div>
+            <div class="mono" style="font-size:15px;font-weight:700;margin-top:1px;">6:00 PM</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="lbl" style="font-size:9px;">{{t.remaining}}</div>
+            <div class="mono" style="font-size:15px;font-weight:700;color:{{sig.color}};margin-top:1px;">2h 48m</div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ACTION BLOCK — the single most important thing on the screen -->
+    <div class="panel" style="padding:14px;display:flex;flex-direction:column;gap:11px;flex-shrink:0;border-left:4px solid {{sig.color}};">
+      <div class="lbl">{{t.whatToDo}}</div>
+      <div style="font-family:var(--f-d);font-weight:800;font-size:21px;line-height:1.1;letter-spacing:0.2px;color:{{sig.color}};">{{sig.head}}</div>
+      <div style="font-size:14.5px;font-weight:500;line-height:1.42;color:var(--paper);text-wrap:pretty;">{{sig.action}}</div>
+
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--ink-900);border:1.5px solid var(--line-soft);border-radius:3px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--hv)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h7a4 4 0 0 0 4-4v-1a4 4 0 0 0-4-4H9a4 4 0 0 1-4-4v-1"/></svg>
+        <div style="flex:1;font-size:12.5px;font-weight:600;">Barangay Gym</div>
+        <div class="mono" style="font-size:12px;font-weight:700;color:var(--hv);">850 m</div>
+      </div>
+
+      <div style="display:flex;gap:8px;">
+        <a class="tap" style="flex:1;background:var(--hv);color:var(--hv-ink);font-weight:800;font-size:14px;border-radius:3px;display:flex;align-items:center;justify-content:center;gap:7px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2V6z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg>
+          {{t.openMap}}
+        </a>
+        <a class="tap" style="flex:0 0 118px;background:transparent;border:1.5px solid var(--line);color:var(--paper-2);font-weight:700;font-size:12.5px;border-radius:3px;display:flex;align-items:center;justify-content:center;gap:6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--clear)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          {{t.imSafe}}
+        </a>
+      </div>
+    </div>
+
+    <!-- quick actions -->
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;flex-shrink:0;">
+      <a style="height:56px;background:var(--ink-800);border:1.5px solid var(--line-soft);border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:var(--paper-2);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--hv)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s7 7.58 7 12a7 7 0 0 1-14 0c0-4.42 7-12 7-12z"/></svg>
+        <span style="font-size:9.5px;font-weight:700;letter-spacing:0.2px;">{{t.qReport}}</span>
+      </a>
+      <a style="height:56px;background:var(--ink-800);border:1.5px solid var(--line-soft);border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:var(--paper-2);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--hv)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><path d="M13 13h3v3h-3z"/><path d="M18 18h2v2h-2z"/></svg>
+        <span style="font-size:9.5px;font-weight:700;letter-spacing:0.2px;">{{t.qQr}}</span>
+      </a>
+      <a style="height:56px;background:var(--ink-800);border:1.5px solid var(--line-soft);border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:var(--paper-2);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--hv)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 21v-4h6v4"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2"/></svg>
+        <span style="font-size:9.5px;font-weight:700;letter-spacing:0.2px;">{{t.qCenter}}</span>
+      </a>
+      <a style="height:56px;background:var(--ink-800);border:1.5px solid var(--line-soft);border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:var(--paper-2);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--hv)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+        <span style="font-size:9.5px;font-weight:700;letter-spacing:0.2px;">{{t.qGuide}}</span>
+      </a>
+    </div>
+
+    <!-- live feed -->
+    <div style="flex:1;display:flex;flex-direction:column;gap:7px;overflow:hidden;min-height:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <span class="lbl">{{t.feed}}</span>
+        <span class="mono" style="font-size:10px;font-weight:700;color:var(--hv);letter-spacing:0.6px;">{{t.seeAll}}</span>
+      </div>
+      <div class="panel" style="padding:10px 11px;display:flex;gap:10px;align-items:center;flex-shrink:0;border-left:3px solid var(--alarm);">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--alarm)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M12 3s7 7.58 7 12a7 7 0 0 1-14 0c0-4.42 7-12 7-12z"/></svg>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12.5px;font-weight:600;">{{t.feed1}}</div>
+          <div class="mono" style="font-size:10px;color:var(--paper-3);margin-top:2px;letter-spacing:0.4px;">4 MIN · PUROK 3 · VOLUNTEER</div>
+        </div>
+      </div>
+      <div class="panel" style="padding:10px 11px;display:flex;gap:10px;align-items:center;flex-shrink:0;border-left:3px solid var(--caution);">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--caution)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M4 20l7-12M11 8l3-5M11 8l4 2"/><path d="M2 20h20"/></svg>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12.5px;font-weight:600;">{{t.feed2}}</div>
+          <div class="mono" style="font-size:10px;color:var(--paper-3);margin-top:2px;letter-spacing:0.4px;">22 MIN · PUROK 3 · RESIDENT</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- tab bar -->
+  <div style="flex-shrink:0;height:74px;background:var(--ink-800);border-top:1.5px solid var(--line);display:flex;align-items:flex-start;padding-top:9px;">
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--hv);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      <span style="font-size:9.5px;font-weight:800;letter-spacing:0.4px;">{{t.navHome}}</span>
+    </a>
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2V6z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.4px;">{{t.navMap}}</span>
+    </a>
+    <a style="flex:0 0 66px;display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:-19px;">
+      <div style="width:50px;height:50px;border-radius:4px;background:var(--alarm);display:flex;align-items:center;justify-content:center;color:oklch(0.99 0.01 28);border:2.5px solid var(--ink-800);">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v3"/><path d="M6 21v-6a6 6 0 0 1 12 0v6z"/><path d="M4 21h16"/></svg>
+      </div>
+      <span class="mono" style="font-size:9.5px;font-weight:700;color:var(--alarm);letter-spacing:1px;">SOS</span>
+    </a>
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s7 7.58 7 12a7 7 0 0 1-14 0c0-4.42 7-12 7-12z"/></svg>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.4px;">{{t.navReport}}</span>
+    </a>
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.4px;">{{t.navMe}}</span>
+    </a>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"signal":{"editor":"enum","options":["1","2","3","4","5"],"default":"3","section":"Alert state"},"lang":{"editor":"enum","options":["Tagalog","Cebuano","English"],"default":"Tagalog","section":"Alert state"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const sig = String(this.props.signal ?? '3');
+    const lang = this.props.lang ?? 'Tagalog';
+
+    const RAMP = {
+      '1': { color: 'oklch(0.74 0.16 148)', ink: 'oklch(0.17 0.05 148)' },
+      '2': { color: 'oklch(0.85 0.16 100)', ink: 'oklch(0.19 0.05 100)' },
+      '3': { color: 'oklch(0.76 0.18 62)',  ink: 'oklch(0.16 0.04 55)'  },
+      '4': { color: 'oklch(0.63 0.22 28)',  ink: 'oklch(0.99 0.01 28)'  },
+      '5': { color: 'oklch(0.47 0.20 12)',  ink: 'oklch(0.99 0.01 12)'  }
+    };
+
+    const COPY = {
+      Tagalog: {
+        '1': { head: 'MANATILING ALERTO', action: 'Ihanda ang go-bag. Bantayan ang bagong bulletin.' },
+        '2': { head: 'MAGHANDA NA',       action: 'I-secure ang bahay. Ihanda ang pamilya para lumikas.' },
+        '3': { head: 'LUMIKAS NA',        action: 'Pumunta na sa evacuation center. Huwag hintayin ang dilim.' },
+        '4': { head: 'LUMIKAS AGAD',      action: 'Delikado na sa labas. Umalis ngayon din patungong Barangay Gym.' },
+        '5': { head: 'MANATILI SA LOOB',  action: 'Huwag lumabas. Dapat nasa evacuation center ka na.' }
+      },
+      Cebuano: {
+        '1': { head: 'PAGBANTAY',         action: 'Andama ang go-bag. Paminawa ang bag-ong bulletin.' },
+        '2': { head: 'PANGANDAM NA',      action: 'I-secure ang balay. Andama ang pamilya sa pagbakwit.' },
+        '3': { head: 'BAKWIT NA',         action: 'Adto na sa evacuation center. Ayaw hulata ang kangitngit.' },
+        '4': { head: 'BAKWIT DAYON',      action: 'Delikado na sa gawas. Biya karon dayon padulong sa Barangay Gym.' },
+        '5': { head: 'PABILIN SA SULOD',  action: 'Ayaw paggawas. Naa na dapat ka sa evacuation center.' }
+      },
+      English: {
+        '1': { head: 'STAY ALERT',        action: 'Prepare your go-bag. Watch for the next bulletin.' },
+        '2': { head: 'GET READY',         action: 'Secure your home. Prepare your family to evacuate.' },
+        '3': { head: 'EVACUATE NOW',      action: 'Go to your evacuation center now. Do not wait for dark.' },
+        '4': { head: 'EVACUATE IMMEDIATELY', action: 'Conditions outside are dangerous. Leave now for Barangay Gym.' },
+        '5': { head: 'STAY INSIDE',       action: 'Do not go outside. You should already be at the evacuation center.' }
+      }
+    };
+
+    const UI = {
+      Tagalog: {
+        conn: 'NAKA-CACHE 12 MIN · 2 NAKA-QUEUE', bulletin: 'PAGASA BULLETIN 8 · 2:00 PM',
+        signalWord: 'SIGNAL NO. ' + sig, whatToDo: 'ANO ANG DAPAT GAWIN',
+        leaveBy: 'UMALIS BAGO', remaining: 'NATITIRA', openMap: 'Buksan ang Mapa', imSafe: 'Ligtas Ako',
+        feed: 'MGA ULAT SA PUROK 3', seeAll: 'LAHAT',
+        feed1: 'Tumataas na baha sa kanal', feed2: 'Nabuwal na puno sa daan',
+        qReport: 'MAG-ULAT', qQr: 'QR KO', qCenter: 'CENTERS', qGuide: 'GABAY',
+        navHome: 'HOME', navMap: 'MAPA', navReport: 'ULAT', navMe: 'AKO'
+      },
+      Cebuano: {
+        conn: 'NAKA-CACHE 12 MIN · 2 NAKA-QUEUE', bulletin: 'PAGASA BULLETIN 8 · 2:00 PM',
+        signalWord: 'SIGNAL NO. ' + sig, whatToDo: 'UNSA ANG BUHATON',
+        leaveBy: 'BIYA SA DILI PA', remaining: 'NAHIBILIN', openMap: 'Ablihi ang Mapa', imSafe: 'Luwas Ko',
+        feed: 'MGA REPORT SA PUROK 3', seeAll: 'TANAN',
+        feed1: 'Nagsaka ang baha sa kanal', feed2: 'Natumba nga kahoy sa dalan',
+        qReport: 'REPORT', qQr: 'QR NAKO', qCenter: 'CENTERS', qGuide: 'GIYA',
+        navHome: 'HOME', navMap: 'MAPA', navReport: 'REPORT', navMe: 'AKO'
+      },
+      English: {
+        conn: 'CACHED 12 MIN AGO · 2 QUEUED', bulletin: 'PAGASA BULLETIN 8 · 2:00 PM',
+        signalWord: 'SIGNAL NO. ' + sig, whatToDo: 'WHAT YOU SHOULD DO',
+        leaveBy: 'LEAVE BEFORE', remaining: 'REMAINING', openMap: 'Open the Map', imSafe: 'I am Safe',
+        feed: 'REPORTS IN PUROK 3', seeAll: 'ALL',
+        feed1: 'Rising floodwater at the canal', feed2: 'Fallen tree blocking the road',
+        qReport: 'REPORT', qQr: 'MY QR', qCenter: 'CENTERS', qGuide: 'GUIDE',
+        navHome: 'HOME', navMap: 'MAP', navReport: 'REPORT', navMe: 'ME'
+      }
+    };
+
+    const ramp = RAMP[sig] || RAMP['3'];
+    const copy = (COPY[lang] || COPY.Tagalog)[sig];
+
+    return {
+      sig: {
+        num: sig,
+        color: ramp.color,
+        ink: ramp.ink,
+        head: copy.head,
+        action: copy.action,
+        storm: 'BAGYONG IGME · 175 KPH',
+        deadline: sig === '3' || sig === '4'
+      },
+      t: UI[lang] || UI.Tagalog
+    };
+  }
+}
+</script>
+</body>
+</html>
