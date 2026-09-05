@@ -48,7 +48,7 @@ const buildRevision =
  * after the resident has already visited it once with a connection, which is
  * not a safe assumption for this product.
  */
-const SHELL_ROUTES = ["/", "/coverage"];
+const SHELL_ROUTES = ["/", "/coverage", "/sos", "/responder"];
 
 const serwist = new Serwist({
   precacheEntries: [

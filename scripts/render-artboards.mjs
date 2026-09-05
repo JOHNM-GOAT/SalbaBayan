@@ -134,7 +134,8 @@ function shotOnce(file, { w, h }, out) {
       } catch {
         /* swept up by the OS later */
       }
-      existsSync(out) ? resolve() : reject(new Error("no output"));
+      if (existsSync(out)) resolve();
+      else reject(new Error("no output"));
     });
   });
 }

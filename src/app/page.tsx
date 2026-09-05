@@ -56,12 +56,35 @@ export default function Home() {
 
             {advisory && <ActionCard advisory={advisory} />}
 
+            {/* The SOS control is the largest, reddest thing below the
+                instruction, and it is never more than one tap from the screen
+                the app opens to. */}
             <Link
-              href="/coverage"
-              className="tap mono mt-1 flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
+              href="/sos"
+              className="tap mt-1 flex items-center justify-center gap-2.5 rounded-instrument bg-alarm py-3 font-display text-[16px] font-extrabold tracking-[0.5px] text-[oklch(0.99_0.01_28)]"
             >
-              PROTOCOL COVERAGE
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 2v3" />
+                <path d="M6 21v-6a6 6 0 0 1 12 0v6z" />
+                <path d="M4 21h16" />
+              </svg>
+              SOS
             </Link>
+
+            <div className="mt-1 flex gap-2">
+              <Link
+                href="/coverage"
+                className="tap mono flex flex-1 items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
+              >
+                COVERAGE
+              </Link>
+              <Link
+                href="/responder"
+                className="tap mono flex flex-1 items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
+              >
+                RESPONDER
+              </Link>
+            </div>
           </>
         )}
       </main>

@@ -61,10 +61,23 @@ async function stampOwner(
   return uid ? { ...payload, [column]: uid } : payload;
 }
 
+/**
+ * Inserts create a row; updates change one that already exists.
+ *
+ * The queue was insert-only, which quietly meant every status change had to
+ * bypass it and go straight to Supabase — and those are lost offline. For a
+ * resident cancelling an SOS that is a real harm, not an inconvenience: the
+ * cancel evaporates, and a rescue team is dispatched through a storm to
+ * someone who is already safe, with capacity that someone else needed.
+ */
+export type QueueOp = "insert" | "update";
+
 export interface QueuedWrite {
   /** Stable client-generated id — also the row's primary key server-side. */
   id: string;
   table: QueueTable;
+  /** Absent on rows queued before updates were supported; treated as insert. */
+  op?: QueueOp;
   payload: Record<string, unknown>;
   /** When the user actually acted. Not when it reached the server. */
   createdAt: number;
@@ -172,6 +185,43 @@ export async function enqueueWrite(
 }
 
 /**
+ * Queue a change to a row that already exists.
+ *
+ * Ordering makes this safe even when the row has not been inserted yet: the
+ * insert was queued first, the flush runs in insertion order and stops at the
+ * first retryable failure, so an update can never overtake the insert it
+ * depends on.
+ *
+ * The queue key is derived from the row id, so a second update to the same row
+ * replaces the first rather than stacking — the right behaviour for a status
+ * field, where only the latest value matters.
+ */
+export async function enqueueUpdate(
+  table: QueueTable,
+  id: string,
+  patch: Record<string, unknown>,
+): Promise<WriteOutcome> {
+  const database = getDb();
+  if (!database) {
+    throw new Error("no local storage available for the write queue");
+  }
+
+  await database.queue.put({
+    id: `${id}:update`,
+    table,
+    op: "update",
+    payload: { ...patch, id },
+    createdAt: Date.now(),
+    attempts: 0,
+  });
+
+  notifyQueueChanged();
+  void flushQueue();
+
+  return { id, synced: false };
+}
+
+/**
  * Writes still waiting to be sent. Shown in the UI at all times.
  *
  * Excludes blocked rows deliberately: they are not "waiting", and counting
@@ -273,16 +323,29 @@ export async function flushQueue(): Promise<{ sent: number; remaining: number }>
     for (const item of pending) {
       if (item.blocked) continue; // already stepped over; do not retry or stop
 
-      // Re-stamp: a write queued before the first session existed has no owner
-      // yet. Without this it would sync successfully and then be unreadable by
-      // the person who made it.
-      const payload = await stampOwner(item.table, item.payload);
+      let error;
 
-      // upsert, not insert: if a previous attempt actually landed before the
-      // connection dropped, this collapses to a no-op instead of a duplicate.
-      const { error } = await supabase
-        .from(item.table)
-        .upsert(payload, { onConflict: "id", ignoreDuplicates: true });
+      if (item.op === "update") {
+        // Updates carry only the changed fields plus the row id. The id is
+        // pulled out of the payload rather than sent in it — writing a primary
+        // key back to itself is pointless and some policies forbid it.
+        const { id: rowId, ...patch } = item.payload as { id: string };
+        ({ error } = await supabase
+          .from(item.table)
+          .update(patch)
+          .eq("id", rowId));
+      } else {
+        // Re-stamp: a write queued before the first session existed has no
+        // owner yet. Without this it would sync successfully and then be
+        // unreadable by the person who made it.
+        const payload = await stampOwner(item.table, item.payload);
+
+        // upsert, not insert: if a previous attempt actually landed before the
+        // connection dropped, this collapses to a no-op instead of a duplicate.
+        ({ error } = await supabase
+          .from(item.table)
+          .upsert(payload, { onConflict: "id", ignoreDuplicates: true }));
+      }
 
       if (error) {
         const attempts = item.attempts + 1;

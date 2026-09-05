@@ -58,12 +58,14 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
   | Cache age + queue count visible offline | ✓ `OFFLINE · NAKA-CACHE NGAYON · 3 NAKA-QUEUE` |
 
 ## Phase 3 — SOS & Rescue Map (7.4)
-- [ ] One-tap GPS capture + queued write, no auth
-- [ ] State machine + elapsed timer + responder identity
-- [ ] Hold-to-cancel
-- [!] Responder live map (Realtime, sorted by wait) — blocked on Q3 (Maps API key)
-- [ ] Rate limiting
-- [ ] GATE: offline SOS reaches responder map with correct original-tap timer
+- [x] One-tap GPS capture + queued write, no auth — GPS is warmed on screen open and never gates the tap
+- [x] State machine + elapsed timer + responder identity — timer runs from the tap, online or off
+- [x] Hold-to-cancel (`components/HoldToCancel.tsx`) — 1.8s sustained hold, aborts on release, cancel queues offline
+- [x] Responder live map — MapLibre + OpenFreeMap **dark** style, Realtime, sorted by wait, oldest unassigned escalated
+- [x] Rate limiting — 5 per device per hour, enforced in RLS
+- [x] **GATE: passes.** SOS raised with the network failing; sat queued **122 seconds**; on reconnect the responder map showed **2m**. Arrival time would have shown **0m** for someone who had been waiting over two minutes — that difference is the whole gate.
+
+  Not verified here: the hold-to-cancel *gesture*. It is driven by `requestAnimationFrame`, which browsers pause in a hidden tab, and the Browser pane cannot be un-hidden from this session. The queued-cancel path it triggers was verified through the acknowledge button instead (same code path, plain click). The gesture wants one manual check on a real screen.
 
 ## Phase 4 — Offline Evacuation Map (7.5)
 - [!] MapLibre GPS + boundary + route — blocked on Q4 (real geography + tile source)
@@ -126,7 +128,17 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 
 **Q7 — RESOLVED: Serwist.** `next-pwa` does not support Next.js 16. The PRD and kickoff both fix the stack to `next-pwa`, and the kickoff says not to substitute without asking. But `next-pwa` (shadowwalker) has been unmaintained since 2022, predates the App Router, and will not work with Next 16.3. Options: `@ducanh2912/next-pwa` (maintained App Router fork, same config shape), `serwist` (its official successor), or a hand-written Service Worker with no wrapper. Team chose **Serwist** (the maintained successor). Implemented in `next.config.ts` and `src/app/sw.ts`. Serwist is webpack-based while Next 16 defaults to Turbopack, so the build script is pinned to `next build --webpack`.
 
-**Q3 — Google Maps JavaScript API key.** Required for the Phase 3 responder rescue map (PRD §11 lists it as the one non-open-source dependency). No key provided. Needs a billing-enabled Google Cloud project.
+**Q3 — RESOLVED: MapLibre, not Google Maps.** The responder map originally specified the Google Maps JS API. Google's free tier is genuinely sufficient at this scale (Maps JavaScript API is an Essentials SKU — 10,000 free map loads/month since the March 2025 pricing change, against a demo that might use 200), but it requires a **billing account with a real payment card** even to use the free tier, which a student team should not have to set up for a practice demo.
+
+  More importantly it was never the right dependency. The PRD already committed to MapLibre for the resident map, so the project was carrying two map stacks so that one screen could use a proprietary one. Switching the responder map to MapLibre gives one library, no key, no billing, no quota, and removes the only non-open-source piece in the stack.
+
+  **Split by connectivity, deliberately:**
+  - **Responder map (Phase 3)** — MapLibre + the **OpenFreeMap** public instance. No key, no account, so it can be built immediately. The barangay hall has mains power and a wired connection; this view is not required to work offline (already stated in PRD §17).
+  - **Resident map (Phase 4)** — MapLibre + a **PMTiles** extract. One static file per barangay, read directly by the browser over HTTP range requests and cached by the Service Worker. That *is* the "pre-downloaded tile pack" FR-11.2 asks for, so it closes Q4's tile-source half too. Still needs real geography for the extract.
+
+  **What was given up:** turn-by-turn directions, live traffic, and Places search. None are in scope — the resident route is official-authored GeoJSON (Q6) and the responder view is pins sorted by wait time, not navigation. If routing is ever needed, OSRM and Valhalla are the open equivalents.
+
+  **Licence condition, not a style choice:** all of these are OpenStreetMap-derived and require visible attribution. MapLibre renders it automatically; it must not be removed.
 
 **Q4 — Real geography, or keep the fictional pilot?** PRD-detailed Q1 records the pilot barangay as unconfirmed. The wireframes use fictional "Barangay San Isidro" with hand-drawn SVG streets. Phase 4 needs (a) a real barangay's coordinates and Purok boundary polygons, and (b) a vector tile source/style for the offline packs (self-hosted PMTiles? MapTiler? OpenFreeMap?). Until resolved, Phase 4 can only be built against synthetic GeoJSON.
 
@@ -149,6 +161,20 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 ---
 
 ## Notes / decisions log
+
+- **2026-09-05 — Phase 3 security hole: the SOS rate limit could be bypassed by omitting one field.** `private.recent_rescue_count()` counts rows `where requested_by = auth.uid()`, but nothing required `requested_by` to be set — so a row inserted with a NULL owner counted against nobody and the limit never fired. Confirmed against the live REST API: **seven consecutive inserts all returned 201 against a limit of five**, using nothing more exotic than leaving a field out of the JSON body. Fixed in `0007` by requiring `requested_by = auth.uid()` in the insert policy. This does not reintroduce a login — every caller already holds an anonymous uid — and it moves into the database a rule the client was only following voluntarily. Re-verified: five accepted, sixth and seventh 403, bypass 403.
+
+- **2026-09-05 — I repeated a mistake this file already documented.** `0006` added `revoke all on function private.recent_rescue_count()`, and every SOS insert immediately began failing with 403. Postgres evaluates an RLS policy expression with the *caller's* privileges, so revoking EXECUTE leaves the policy unable to call the helper it depends on — exactly what `0003` had already run into and written down for `is_staff()`. The revoke also bought nothing: what keeps the helper off `/rest/v1/rpc/` is living in the `private` schema. Caught by the RLS suite dropping to 16/18 within a minute of applying the migration.
+
+- **2026-09-05 — Phase 3 bug: the resident's own SOS timer froze at 00:00 while offline.** `myRequests()` reads the server, so with no network the screen had no row to time and displayed a stopped clock on a distress call the person had just raised — the resident-side version of the exact failure the gate checks. Fixed with `queuedRequests()` / `allMyRequests()`, which merge the local write queue into the view; the queued payload already carried the tap time. Verified offline: 00:43 and counting while still queued.
+
+- **2026-09-05 — GPS must never gate the SOS, so `lat`/`lng` are now nullable.** They were `NOT NULL`, which quietly made a satellite fix a precondition for asking for help. Indoors, in a concrete house, during a storm, a first fix can take 30+ seconds or never arrive — precisely the situation the button exists for. The Purok is already known, so "Purok 3, no GPS" still tells responders which street to search, and it is enormously better than no request. The UI shows GPS state as information, never as a reason to wait.
+
+- **2026-09-05 — Two timestamps, deliberately.** `ts` is when the human tapped: client-supplied, may predate arrival by hours, and drives every elapsed timer. `created_at` is when the row reached Postgres: server-stamped, un-forgeable, and used only for rate limiting. They exist separately because `ts` must be trusted for the timer and must *not* be trusted for the limit — a client could backdate it to slip the window.
+
+- **2026-09-05 — The write-path guard caught my own new code, and it was right.** `check-write-paths.mjs` flagged three direct `.update()` calls in `lib/sos.ts` (cancel, acknowledge, mark-rescued). The queue was insert-only, so status changes had no choice but to bypass it — and a resident cancelling offline would have had that cancel evaporate, sending a rescue team through a storm to someone already safe, with capacity somebody else needed. Rather than allowlist the file, the queue gained `enqueueUpdate` and an `op` field. Ordering already guarantees an update cannot overtake the insert it depends on. Verified: an acknowledge made offline queued as an update and applied on reconnect.
+
+- **2026-09-05 — The responder map uses the dark basemap, not the default.** OpenFreeMap's `liberty` renders white, which in a near-black interface read at night both wrecks the reader's dark adaptation and makes the severity-coloured pins harder to pick out. `/styles/dark` exists and was verified to return a near-black background. Not a preference — the same reasoning as the rest of the single dark theme.
 
 - **2026-09-05 — `support.js` was referenced by every artboard but had never been committed.** Opening any `.dc.html` in a browser showed raw `{{...}}` placeholders, and the eight original PNGs could only have been produced by hand. Written now: it resolves placeholders and `<sc-if>`, and reads prop defaults from `data-props` with query-string overrides. The artboards are self-contained again — openable, tweakable, and re-renderable by anyone with a browser.
 

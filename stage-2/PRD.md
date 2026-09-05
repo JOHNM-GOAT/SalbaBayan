@@ -208,7 +208,7 @@ A resident provides a name and Purok once, at registration, for a QR token. No e
 | Barangay officials | Protocols, translations, evac centers, signal level | Authoritative for this barangay; edits are attributable, not signed |
 | PAGASA / NDRRMC | National signal level and bulletins | **Relayed, never derived.** An official reads the bulletin and sets the level manually — no automated feed ingestion in this version |
 | Purok boundary & route geometry | Map overlay data | Entered by officials during protocol setup, not sourced from external GIS in v1 |
-| MapLibre / vector tile packs | Offline base map | Pre-downloaded per barangay, bundled into the Service Worker cache |
+| OpenStreetMap via PMTiles / OpenFreeMap | Base map | Open data. A PMTiles extract is one static file per barangay, cached by the Service Worker; OpenFreeMap serves the connected responder view. Attribution is a licence condition and is rendered by MapLibre automatically |
 
 ---
 
@@ -224,9 +224,9 @@ A resident provides a name and Purok once, at registration, for a QR token. No e
 | Backend | Supabase — Postgres, Auth, Realtime, RLS | No custom backend server |
 | Hosting | Vercel | Zero-config deploy, free tier covers pilot |
 | Offline | `next-pwa` + Dexie.js (IndexedDB) | Standard PWA caching, simple queue API |
-| Offline map | MapLibre GL JS + cached tile packs | Data the device already has |
+| Offline map | MapLibre GL JS + PMTiles tile pack | One static file per barangay, read by the browser and cached by the Service Worker — no tile server |
 | QR check-in | `qrcode` + `jsqr` | Lightweight, no native app, no custom crypto |
-| Rescue map | Geolocation API + Google Maps JS API | One-tap capture plus a live responder view |
+| Rescue map | Geolocation API + MapLibre GL JS + OpenFreeMap tiles | One map stack for both maps; no API key, no billing account, no proprietary dependency |
 
 Role enforcement lives at the database, not the client — RLS holds even against a modified client (§3, §9). **If the backend is unreachable for an entire event:** new information cannot spread between devices at all. **What survives:** every cached read, and every write, queued safely on-device until reconnect. Stated here, not discovered mid-storm.
 
@@ -317,7 +317,6 @@ Targets are proposed, pending confirmation against the pilot barangay's real pop
 **Dependencies**
 - Supabase and Vercel free-tier quotas hold at pilot scale, monitored before storm season with a documented upgrade path.
 - Geolocation permission is granted; a denial degrades to the manual-label fallback (§14).
-- The Google Maps JavaScript API stays available and in-quota — the one non-open-source, non-self-hosted piece here.
 - Barangay staff availability for pre-season configuration; the readiness checklist exists to surface whether this was met.
 
 **Two limits stated rather than designed around.** The system cannot verify a signal level entered by an official actually matches the current bulletin — it relays what is typed, honestly, no more. And the unauthenticated rescue endpoint (§7.4) trades verifiability for accessibility: a request cannot always be tied to a named, verified resident (§9). Both are consequences of choices made deliberately elsewhere in this document, and both are accepted.
