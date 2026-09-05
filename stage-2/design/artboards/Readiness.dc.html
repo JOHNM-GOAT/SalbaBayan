@@ -1,0 +1,210 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ink-900:oklch(0.13 0.012 245); --ink-800:oklch(0.175 0.014 245); --ink-700:oklch(0.225 0.016 245); --ink-600:oklch(0.29 0.018 245);
+    --line:oklch(0.36 0.02 245); --line-soft:oklch(0.27 0.018 245);
+    --paper:oklch(0.97 0.005 245); --paper-2:oklch(0.78 0.012 245); --paper-3:oklch(0.575 0.014 245);
+    --hv:oklch(0.82 0.13 195); --hv-ink:oklch(0.15 0.04 200); --hv-dim:oklch(0.82 0.13 195 / 0.13);
+    --s1:oklch(0.74 0.16 148); --s2:oklch(0.85 0.16 100); --s3:oklch(0.76 0.18 62); --s4:oklch(0.63 0.22 28); --s5:oklch(0.47 0.20 12);
+    --alarm:oklch(0.63 0.22 28); --caution:oklch(0.82 0.15 85); --clear:oklch(0.74 0.16 148);
+    --f-d:'Archivo','Arial Narrow',Helvetica,sans-serif;
+    --f-b:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+    --f-m:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink-900);}
+  a{color:var(--hv);text-decoration:none;}
+  .lbl{font-family:var(--f-m);font-size:10px;font-weight:600;letter-spacing:1.4px;color:var(--paper-3);}
+  .mono{font-family:var(--f-m);font-variant-numeric:tabular-nums;}
+  .panel{background:var(--ink-800);border:1.5px solid var(--line-soft);border-radius:4px;}
+  .tap{min-height:44px;}
+</style>
+</helmet>
+
+<div style="width:390px;height:844px;background:var(--ink-900);color:var(--paper);font-family:var(--f-b);display:flex;flex-direction:column;overflow:hidden;">
+
+  <div style="height:5px;flex-shrink:0;background:var(--s3);"></div>
+
+  <div style="flex-shrink:0;background:var(--ink-800);border-bottom:1.5px solid var(--line-soft);">
+    <div style="height:52px;padding:0 14px;display:flex;align-items:center;gap:11px;">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--paper-2)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M15 18l-6-6 6-6"/></svg>
+      <div style="font-family:var(--f-d);font-weight:800;font-size:16px;letter-spacing:0.4px;flex:1;">PAGHAHANDA</div>
+    </div>
+    <div style="height:25px;border-top:1.5px solid var(--line-soft);display:flex;align-items:center;padding:0 14px;gap:8px;background:var(--ink-900);">
+      <span style="width:6px;height:6px;background:var(--caution);flex-shrink:0;"></span>
+      <span class="mono" style="font-size:10px;font-weight:600;letter-spacing:0.9px;color:var(--paper-3);">NAKA-CACHE 12 MIN · 2 NAKA-QUEUE</span>
+    </div>
+  </div>
+
+  <div style="flex:1;padding:14px;display:flex;flex-direction:column;gap:12px;overflow:hidden;min-height:0;">
+
+    <!-- Progress is stated against the DEADLINE, not as a bare percentage.
+         "9 of 14" means little on its own; "9 of 14, and you have 2h 48m"
+         is a decision. The bar uses caution rather than the signal ramp --
+         readiness is not a storm severity. -->
+    <div class="panel" style="padding:14px;flex-shrink:0;">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;">
+        <div>
+          <div class="lbl">HANDA KA NA BA?</div>
+          <div style="margin-top:5px;display:flex;align-items:baseline;gap:6px;">
+            <span class="mono" style="font-size:30px;font-weight:700;line-height:1;color:var(--caution);">9</span>
+            <span class="mono" style="font-size:15px;font-weight:600;color:var(--paper-3);">/ 14</span>
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div class="lbl" style="font-size:9px;">NATITIRANG ORAS</div>
+          <div class="mono" style="font-size:17px;font-weight:700;color:var(--s3);margin-top:3px;">2h 48m</div>
+        </div>
+      </div>
+      <div style="margin-top:11px;height:7px;border-radius:2px;background:var(--ink-700);overflow:hidden;">
+        <div style="width:64%;height:100%;background:var(--caution);"></div>
+      </div>
+    </div>
+
+    
+    <div style="flex-shrink:0;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:7px;">
+        <span class="lbl">GO-BAG</span>
+        <span class="mono" style="font-size:10px;font-weight:700;color:var(--paper-3);">4/6</span>
+      </div>
+      <div class="panel" style="padding:0;overflow:hidden;">
+      <div class="tap" style="display:flex;align-items:center;gap:11px;padding:0 13px;border-bottom:1.5px solid var(--line-soft);">
+        <div style="width:21px;height:21px;border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--clear);color:oklch(0.17 0.05 148);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:500;color:var(--paper-3);">Tubig — 3 litro kada tao</div>
+          
+        </div>
+      </div>
+      <div class="tap" style="display:flex;align-items:center;gap:11px;padding:0 13px;border-bottom:1.5px solid var(--line-soft);">
+        <div style="width:21px;height:21px;border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--clear);color:oklch(0.17 0.05 148);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:500;color:var(--paper-3);">Pagkaing hindi nasisira — 3 araw</div>
+          
+        </div>
+      </div>
+      <div class="tap" style="display:flex;align-items:center;gap:11px;padding:0 13px;border-bottom:1.5px solid var(--line-soft);">
+        <div style="width:21px;height:21px;border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--clear);color:oklch(0.17 0.05 148);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:500;color:var(--paper-3);">Gamot at reseta</div>
+          <div class="mono" style="font-size:9.5px;color:var(--paper-3);margin-top:2px;letter-spacing:0.4px;">PARA KAY LOLA — 5 ARAW</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;padding:10px 13px;">
+        <div class="mono" style="font-size:10px;letter-spacing:0.8px;color:var(--paper-3);">+3 PA</div>
+      </div></div>
+    </div>
+
+    
+    <div style="flex-shrink:0;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:7px;">
+        <span class="lbl">DOKUMENTO</span>
+        <span class="mono" style="font-size:10px;font-weight:700;color:var(--paper-3);">3/4</span>
+      </div>
+      <div class="panel" style="padding:0;overflow:hidden;">
+      <div class="tap" style="display:flex;align-items:center;gap:11px;padding:0 13px;border-bottom:1.5px solid var(--line-soft);">
+        <div style="width:21px;height:21px;border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--clear);color:oklch(0.17 0.05 148);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:500;color:var(--paper-3);">Mga ID sa selyadong plastik</div>
+          
+        </div>
+      </div>
+      <div class="tap" style="display:flex;align-items:center;gap:11px;padding:0 13px;border-bottom:1.5px solid var(--line-soft);">
+        <div style="width:21px;height:21px;border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--clear);color:oklch(0.17 0.05 148);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:500;color:var(--paper-3);">Larawan ng bahay bago ang bagyo</div>
+          <div class="mono" style="font-size:9.5px;color:var(--paper-3);margin-top:2px;letter-spacing:0.4px;">PARA SA CLAIM PAGKATAPOS</div>
+        </div>
+      </div>
+      <div class="tap" style="display:flex;align-items:center;gap:11px;padding:0 13px;border-bottom:1.5px solid var(--line-soft);">
+        <div style="width:21px;height:21px;border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--line);">
+          
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;color:var(--paper);">Titulo ng lupa o kontrata sa upa</div>
+          
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;padding:10px 13px;">
+        <div class="mono" style="font-size:10px;letter-spacing:0.8px;color:var(--paper-3);">+1 PA</div>
+      </div></div>
+    </div>
+
+    
+    <div style="flex-shrink:0;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:7px;">
+        <span class="lbl">BAHAY</span>
+        <span class="mono" style="font-size:10px;font-weight:700;color:var(--paper-3);">2/4</span>
+      </div>
+      <div class="panel" style="padding:0;overflow:hidden;">
+      <div class="tap" style="display:flex;align-items:center;gap:11px;padding:0 13px;border-bottom:1.5px solid var(--line-soft);">
+        <div style="width:21px;height:21px;border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--clear);color:oklch(0.17 0.05 148);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:500;color:var(--paper-3);">Naitaas ang mga gamit sa mataas na lugar</div>
+          
+        </div>
+      </div>
+      <div class="tap" style="display:flex;align-items:center;gap:11px;padding:0 13px;border-bottom:1.5px solid var(--line-soft);">
+        <div style="width:21px;height:21px;border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--line);">
+          
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;color:var(--paper);">Naitali ang bubong at bintana</div>
+          
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;padding:10px 13px;">
+        <div class="mono" style="font-size:10px;letter-spacing:0.8px;color:var(--paper-3);">+2 PA</div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div style="flex-shrink:0;height:74px;background:var(--ink-800);border-top:1.5px solid var(--line);display:flex;align-items:flex-start;padding-top:9px;">
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--hv);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      <span style="font-size:9.5px;font-weight:800;letter-spacing:0.4px;">HOME</span>
+    </a>
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2V6z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.4px;">MAPA</span>
+    </a>
+    <a style="flex:0 0 66px;display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:-19px;">
+      <div style="width:50px;height:50px;border-radius:4px;background:var(--alarm);display:flex;align-items:center;justify-content:center;color:oklch(0.99 0.01 28);border:2.5px solid var(--ink-800);">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v3"/><path d="M6 21v-6a6 6 0 0 1 12 0v6z"/><path d="M4 21h16"/></svg>
+      </div>
+      <span class="mono" style="font-size:9.5px;font-weight:700;color:var(--alarm);letter-spacing:1px;">SOS</span>
+    </a>
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s7 7.58 7 12a7 7 0 0 1-14 0c0-4.42 7-12 7-12z"/></svg>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.4px;">ULAT</span>
+    </a>
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.4px;">AKO</span>
+    </a>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

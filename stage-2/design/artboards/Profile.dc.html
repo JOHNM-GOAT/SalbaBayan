@@ -1,0 +1,152 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ink-900:oklch(0.13 0.012 245); --ink-800:oklch(0.175 0.014 245); --ink-700:oklch(0.225 0.016 245); --ink-600:oklch(0.29 0.018 245);
+    --line:oklch(0.36 0.02 245); --line-soft:oklch(0.27 0.018 245);
+    --paper:oklch(0.97 0.005 245); --paper-2:oklch(0.78 0.012 245); --paper-3:oklch(0.575 0.014 245);
+    --hv:oklch(0.82 0.13 195); --hv-ink:oklch(0.15 0.04 200); --hv-dim:oklch(0.82 0.13 195 / 0.13);
+    --s1:oklch(0.74 0.16 148); --s2:oklch(0.85 0.16 100); --s3:oklch(0.76 0.18 62); --s4:oklch(0.63 0.22 28); --s5:oklch(0.47 0.20 12);
+    --alarm:oklch(0.63 0.22 28); --caution:oklch(0.82 0.15 85); --clear:oklch(0.74 0.16 148);
+    --f-d:'Archivo','Arial Narrow',Helvetica,sans-serif;
+    --f-b:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+    --f-m:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink-900);}
+  a{color:var(--hv);text-decoration:none;}
+  .lbl{font-family:var(--f-m);font-size:10px;font-weight:600;letter-spacing:1.4px;color:var(--paper-3);}
+  .mono{font-family:var(--f-m);font-variant-numeric:tabular-nums;}
+  .panel{background:var(--ink-800);border:1.5px solid var(--line-soft);border-radius:4px;}
+  .tap{min-height:44px;}
+</style>
+</helmet>
+
+<div style="width:390px;height:844px;background:var(--ink-900);color:var(--paper);font-family:var(--f-b);display:flex;flex-direction:column;overflow:hidden;">
+
+  <div style="height:5px;flex-shrink:0;background:var(--s3);"></div>
+
+  <div style="flex-shrink:0;background:var(--ink-800);border-bottom:1.5px solid var(--line-soft);">
+    <div style="height:52px;padding:0 14px;display:flex;align-items:center;gap:11px;">
+      
+      <div style="font-family:var(--f-d);font-weight:800;font-size:16px;letter-spacing:0.4px;flex:1;">AKO</div>
+    </div>
+    <div style="height:25px;border-top:1.5px solid var(--line-soft);display:flex;align-items:center;padding:0 14px;gap:8px;background:var(--ink-900);">
+      <span style="width:6px;height:6px;background:var(--caution);flex-shrink:0;"></span>
+      <span class="mono" style="font-size:10px;font-weight:600;letter-spacing:0.9px;color:var(--paper-3);">NAKA-CACHE 12 MIN · 2 NAKA-QUEUE</span>
+    </div>
+  </div>
+
+  <div style="flex:1;padding:14px;display:flex;flex-direction:column;gap:12px;overflow:hidden;min-height:0;">
+
+    <!-- Check-in status is the headline, not a name. During an evacuation the
+         question this screen answers is "am I counted?" -- a family looking for
+         someone needs that to be the first thing visible, in one colour. -->
+    <div style="border-radius:4px;background:var(--ink-800);border:1.5px solid var(--clear);padding:14px;flex-shrink:0;display:flex;gap:12px;align-items:center;">
+      <div style="width:42px;height:42px;border-radius:4px;background:var(--clear);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:oklch(0.17 0.05 148);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
+      <div style="flex:1;">
+        <div style="font-family:var(--f-d);font-weight:800;font-size:16px;letter-spacing:0.3px;color:var(--clear);">NAKA-CHECK IN</div>
+        <div class="mono" style="font-size:10.5px;color:var(--paper-2);margin-top:3px;letter-spacing:0.4px;">BARANGAY GYM · 5:12 PM</div>
+      </div>
+    </div>
+
+    <!-- The QR sits on this screen at full size rather than behind a tap. A
+         volunteer working through a queue of arrivals should not have to wait
+         for each person to find a menu item. -->
+    <div class="panel" style="padding:15px;display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
+      <div class="lbl">ANG QR CODE KO</div>
+      <div style="margin-top:11px;width:134px;height:134px;background:var(--paper);border-radius:4px;padding:9px;">
+        <svg viewBox="0 0 29 29" style="width:100%;height:100%;shape-rendering:crispEdges;">
+          <rect width="29" height="29" fill="white"/>
+          <g fill="black"><rect x="0" y="0" width="7" height="7"/><rect x="1" y="1" width="5" height="5" fill="white"/><rect x="2" y="2" width="3" height="3"/><rect x="22" y="0" width="7" height="7"/><rect x="23" y="1" width="5" height="5" fill="white"/><rect x="24" y="2" width="3" height="3"/><rect x="0" y="22" width="7" height="7"/><rect x="1" y="23" width="5" height="5" fill="white"/><rect x="2" y="24" width="3" height="3"/><rect x="8" y="0" width="1" height="1"/><rect x="10" y="0" width="1" height="1"/><rect x="11" y="0" width="1" height="1"/><rect x="12" y="0" width="1" height="1"/><rect x="13" y="0" width="1" height="1"/><rect x="14" y="0" width="1" height="1"/><rect x="15" y="0" width="1" height="1"/><rect x="17" y="0" width="1" height="1"/><rect x="20" y="0" width="1" height="1"/><rect x="12" y="1" width="1" height="1"/><rect x="13" y="1" width="1" height="1"/><rect x="14" y="1" width="1" height="1"/><rect x="15" y="1" width="1" height="1"/><rect x="17" y="1" width="1" height="1"/><rect x="20" y="1" width="1" height="1"/><rect x="9" y="2" width="1" height="1"/><rect x="12" y="2" width="1" height="1"/><rect x="13" y="2" width="1" height="1"/><rect x="14" y="2" width="1" height="1"/><rect x="15" y="2" width="1" height="1"/><rect x="16" y="2" width="1" height="1"/><rect x="17" y="2" width="1" height="1"/><rect x="8" y="3" width="1" height="1"/><rect x="11" y="3" width="1" height="1"/><rect x="13" y="3" width="1" height="1"/><rect x="14" y="3" width="1" height="1"/><rect x="17" y="3" width="1" height="1"/><rect x="20" y="3" width="1" height="1"/><rect x="8" y="4" width="1" height="1"/><rect x="10" y="4" width="1" height="1"/><rect x="11" y="4" width="1" height="1"/><rect x="13" y="4" width="1" height="1"/><rect x="16" y="4" width="1" height="1"/><rect x="17" y="4" width="1" height="1"/><rect x="9" y="5" width="1" height="1"/><rect x="12" y="5" width="1" height="1"/><rect x="13" y="5" width="1" height="1"/><rect x="14" y="5" width="1" height="1"/><rect x="15" y="5" width="1" height="1"/><rect x="19" y="5" width="1" height="1"/><rect x="20" y="5" width="1" height="1"/><rect x="10" y="6" width="1" height="1"/><rect x="13" y="6" width="1" height="1"/><rect x="14" y="6" width="1" height="1"/><rect x="20" y="6" width="1" height="1"/><rect x="9" y="7" width="1" height="1"/><rect x="11" y="7" width="1" height="1"/><rect x="12" y="7" width="1" height="1"/><rect x="15" y="7" width="1" height="1"/><rect x="19" y="7" width="1" height="1"/><rect x="3" y="8" width="1" height="1"/><rect x="5" y="8" width="1" height="1"/><rect x="6" y="8" width="1" height="1"/><rect x="7" y="8" width="1" height="1"/><rect x="8" y="8" width="1" height="1"/><rect x="9" y="8" width="1" height="1"/><rect x="14" y="8" width="1" height="1"/><rect x="16" y="8" width="1" height="1"/><rect x="17" y="8" width="1" height="1"/><rect x="19" y="8" width="1" height="1"/><rect x="21" y="8" width="1" height="1"/><rect x="22" y="8" width="1" height="1"/><rect x="25" y="8" width="1" height="1"/><rect x="26" y="8" width="1" height="1"/><rect x="27" y="8" width="1" height="1"/><rect x="4" y="9" width="1" height="1"/><rect x="5" y="9" width="1" height="1"/><rect x="7" y="9" width="1" height="1"/><rect x="10" y="9" width="1" height="1"/><rect x="11" y="9" width="1" height="1"/><rect x="12" y="9" width="1" height="1"/><rect x="13" y="9" width="1" height="1"/><rect x="15" y="9" width="1" height="1"/><rect x="17" y="9" width="1" height="1"/><rect x="20" y="9" width="1" height="1"/><rect x="22" y="9" width="1" height="1"/><rect x="25" y="9" width="1" height="1"/><rect x="27" y="9" width="1" height="1"/><rect x="28" y="9" width="1" height="1"/><rect x="1" y="10" width="1" height="1"/><rect x="3" y="10" width="1" height="1"/><rect x="4" y="10" width="1" height="1"/><rect x="6" y="10" width="1" height="1"/><rect x="7" y="10" width="1" height="1"/><rect x="8" y="10" width="1" height="1"/><rect x="10" y="10" width="1" height="1"/><rect x="13" y="10" width="1" height="1"/><rect x="14" y="10" width="1" height="1"/><rect x="16" y="10" width="1" height="1"/><rect x="21" y="10" width="1" height="1"/><rect x="22" y="10" width="1" height="1"/><rect x="23" y="10" width="1" height="1"/><rect x="26" y="10" width="1" height="1"/><rect x="2" y="11" width="1" height="1"/><rect x="3" y="11" width="1" height="1"/><rect x="5" y="11" width="1" height="1"/><rect x="7" y="11" width="1" height="1"/><rect x="9" y="11" width="1" height="1"/><rect x="13" y="11" width="1" height="1"/><rect x="15" y="11" width="1" height="1"/><rect x="22" y="11" width="1" height="1"/><rect x="0" y="12" width="1" height="1"/><rect x="1" y="12" width="1" height="1"/><rect x="2" y="12" width="1" height="1"/><rect x="5" y="12" width="1" height="1"/><rect x="6" y="12" width="1" height="1"/><rect x="9" y="12" width="1" height="1"/><rect x="10" y="12" width="1" height="1"/><rect x="16" y="12" width="1" height="1"/><rect x="17" y="12" width="1" height="1"/><rect x="18" y="12" width="1" height="1"/><rect x="19" y="12" width="1" height="1"/><rect x="20" y="12" width="1" height="1"/><rect x="23" y="12" width="1" height="1"/><rect x="25" y="12" width="1" height="1"/><rect x="26" y="12" width="1" height="1"/><rect x="27" y="12" width="1" height="1"/><rect x="28" y="12" width="1" height="1"/><rect x="0" y="13" width="1" height="1"/><rect x="1" y="13" width="1" height="1"/><rect x="3" y="13" width="1" height="1"/><rect x="5" y="13" width="1" height="1"/><rect x="6" y="13" width="1" height="1"/><rect x="7" y="13" width="1" height="1"/><rect x="8" y="13" width="1" height="1"/><rect x="9" y="13" width="1" height="1"/><rect x="11" y="13" width="1" height="1"/><rect x="13" y="13" width="1" height="1"/><rect x="15" y="13" width="1" height="1"/><rect x="17" y="13" width="1" height="1"/><rect x="18" y="13" width="1" height="1"/><rect x="27" y="13" width="1" height="1"/><rect x="28" y="13" width="1" height="1"/><rect x="0" y="14" width="1" height="1"/><rect x="2" y="14" width="1" height="1"/><rect x="3" y="14" width="1" height="1"/><rect x="6" y="14" width="1" height="1"/><rect x="7" y="14" width="1" height="1"/><rect x="14" y="14" width="1" height="1"/><rect x="15" y="14" width="1" height="1"/><rect x="16" y="14" width="1" height="1"/><rect x="17" y="14" width="1" height="1"/><rect x="18" y="14" width="1" height="1"/><rect x="19" y="14" width="1" height="1"/><rect x="20" y="14" width="1" height="1"/><rect x="21" y="14" width="1" height="1"/><rect x="22" y="14" width="1" height="1"/><rect x="26" y="14" width="1" height="1"/><rect x="27" y="14" width="1" height="1"/><rect x="1" y="15" width="1" height="1"/><rect x="2" y="15" width="1" height="1"/><rect x="3" y="15" width="1" height="1"/><rect x="4" y="15" width="1" height="1"/><rect x="8" y="15" width="1" height="1"/><rect x="9" y="15" width="1" height="1"/><rect x="11" y="15" width="1" height="1"/><rect x="15" y="15" width="1" height="1"/><rect x="16" y="15" width="1" height="1"/><rect x="20" y="15" width="1" height="1"/><rect x="21" y="15" width="1" height="1"/><rect x="25" y="15" width="1" height="1"/><rect x="28" y="15" width="1" height="1"/><rect x="1" y="16" width="1" height="1"/><rect x="2" y="16" width="1" height="1"/><rect x="3" y="16" width="1" height="1"/><rect x="4" y="16" width="1" height="1"/><rect x="5" y="16" width="1" height="1"/><rect x="6" y="16" width="1" height="1"/><rect x="7" y="16" width="1" height="1"/><rect x="8" y="16" width="1" height="1"/><rect x="9" y="16" width="1" height="1"/><rect x="10" y="16" width="1" height="1"/><rect x="14" y="16" width="1" height="1"/><rect x="15" y="16" width="1" height="1"/><rect x="16" y="16" width="1" height="1"/><rect x="17" y="16" width="1" height="1"/><rect x="19" y="16" width="1" height="1"/><rect x="21" y="16" width="1" height="1"/><rect x="22" y="16" width="1" height="1"/><rect x="24" y="16" width="1" height="1"/><rect x="27" y="16" width="1" height="1"/><rect x="2" y="17" width="1" height="1"/><rect x="3" y="17" width="1" height="1"/><rect x="5" y="17" width="1" height="1"/><rect x="6" y="17" width="1" height="1"/><rect x="7" y="17" width="1" height="1"/><rect x="12" y="17" width="1" height="1"/><rect x="16" y="17" width="1" height="1"/><rect x="18" y="17" width="1" height="1"/><rect x="19" y="17" width="1" height="1"/><rect x="20" y="17" width="1" height="1"/><rect x="22" y="17" width="1" height="1"/><rect x="26" y="17" width="1" height="1"/><rect x="2" y="18" width="1" height="1"/><rect x="3" y="18" width="1" height="1"/><rect x="4" y="18" width="1" height="1"/><rect x="6" y="18" width="1" height="1"/><rect x="10" y="18" width="1" height="1"/><rect x="12" y="18" width="1" height="1"/><rect x="13" y="18" width="1" height="1"/><rect x="14" y="18" width="1" height="1"/><rect x="15" y="18" width="1" height="1"/><rect x="22" y="18" width="1" height="1"/><rect x="26" y="18" width="1" height="1"/><rect x="1" y="19" width="1" height="1"/><rect x="2" y="19" width="1" height="1"/><rect x="5" y="19" width="1" height="1"/><rect x="8" y="19" width="1" height="1"/><rect x="9" y="19" width="1" height="1"/><rect x="11" y="19" width="1" height="1"/><rect x="12" y="19" width="1" height="1"/><rect x="13" y="19" width="1" height="1"/><rect x="14" y="19" width="1" height="1"/><rect x="15" y="19" width="1" height="1"/><rect x="17" y="19" width="1" height="1"/><rect x="20" y="19" width="1" height="1"/><rect x="21" y="19" width="1" height="1"/><rect x="25" y="19" width="1" height="1"/><rect x="26" y="19" width="1" height="1"/><rect x="28" y="19" width="1" height="1"/><rect x="0" y="20" width="1" height="1"/><rect x="1" y="20" width="1" height="1"/><rect x="2" y="20" width="1" height="1"/><rect x="3" y="20" width="1" height="1"/><rect x="6" y="20" width="1" height="1"/><rect x="11" y="20" width="1" height="1"/><rect x="12" y="20" width="1" height="1"/><rect x="13" y="20" width="1" height="1"/><rect x="14" y="20" width="1" height="1"/><rect x="15" y="20" width="1" height="1"/><rect x="17" y="20" width="1" height="1"/><rect x="18" y="20" width="1" height="1"/><rect x="24" y="20" width="1" height="1"/><rect x="25" y="20" width="1" height="1"/><rect x="12" y="21" width="1" height="1"/><rect x="15" y="21" width="1" height="1"/><rect x="17" y="21" width="1" height="1"/><rect x="18" y="21" width="1" height="1"/><rect x="19" y="21" width="1" height="1"/><rect x="20" y="21" width="1" height="1"/><rect x="22" y="21" width="1" height="1"/><rect x="23" y="21" width="1" height="1"/><rect x="24" y="21" width="1" height="1"/><rect x="25" y="21" width="1" height="1"/><rect x="26" y="21" width="1" height="1"/><rect x="11" y="22" width="1" height="1"/><rect x="13" y="22" width="1" height="1"/><rect x="14" y="22" width="1" height="1"/><rect x="16" y="22" width="1" height="1"/><rect x="19" y="22" width="1" height="1"/><rect x="20" y="22" width="1" height="1"/><rect x="21" y="22" width="1" height="1"/><rect x="22" y="22" width="1" height="1"/><rect x="27" y="22" width="1" height="1"/><rect x="9" y="23" width="1" height="1"/><rect x="11" y="23" width="1" height="1"/><rect x="12" y="23" width="1" height="1"/><rect x="13" y="23" width="1" height="1"/><rect x="16" y="23" width="1" height="1"/><rect x="22" y="23" width="1" height="1"/><rect x="23" y="23" width="1" height="1"/><rect x="28" y="23" width="1" height="1"/><rect x="8" y="24" width="1" height="1"/><rect x="9" y="24" width="1" height="1"/><rect x="11" y="24" width="1" height="1"/><rect x="14" y="24" width="1" height="1"/><rect x="17" y="24" width="1" height="1"/><rect x="26" y="24" width="1" height="1"/><rect x="27" y="24" width="1" height="1"/><rect x="28" y="24" width="1" height="1"/><rect x="10" y="25" width="1" height="1"/><rect x="13" y="25" width="1" height="1"/><rect x="14" y="25" width="1" height="1"/><rect x="15" y="25" width="1" height="1"/><rect x="18" y="25" width="1" height="1"/><rect x="20" y="25" width="1" height="1"/><rect x="21" y="25" width="1" height="1"/><rect x="22" y="25" width="1" height="1"/><rect x="26" y="25" width="1" height="1"/><rect x="27" y="25" width="1" height="1"/><rect x="28" y="25" width="1" height="1"/><rect x="8" y="26" width="1" height="1"/><rect x="10" y="26" width="1" height="1"/><rect x="16" y="26" width="1" height="1"/><rect x="17" y="26" width="1" height="1"/><rect x="19" y="26" width="1" height="1"/><rect x="20" y="26" width="1" height="1"/><rect x="21" y="26" width="1" height="1"/><rect x="24" y="26" width="1" height="1"/><rect x="25" y="26" width="1" height="1"/><rect x="27" y="26" width="1" height="1"/><rect x="9" y="27" width="1" height="1"/><rect x="24" y="27" width="1" height="1"/><rect x="27" y="27" width="1" height="1"/><rect x="28" y="27" width="1" height="1"/><rect x="8" y="28" width="1" height="1"/><rect x="10" y="28" width="1" height="1"/><rect x="12" y="28" width="1" height="1"/><rect x="13" y="28" width="1" height="1"/><rect x="14" y="28" width="1" height="1"/><rect x="20" y="28" width="1" height="1"/><rect x="21" y="28" width="1" height="1"/><rect x="22" y="28" width="1" height="1"/><rect x="26" y="28" width="1" height="1"/></g>
+        </svg>
+      </div>
+      <div class="mono" style="margin-top:11px;font-size:13px;font-weight:700;letter-spacing:2.4px;color:var(--hv);">R3-8F42-91</div>
+      <div style="margin-top:5px;font-size:11px;color:var(--paper-3);text-align:center;line-height:1.4;">Ipakita ito sa volunteer sa evacuation center.</div>
+    </div>
+
+    <div class="panel" style="padding:0;flex-shrink:0;overflow:hidden;">
+      
+      <div class="tap" style="display:flex;align-items:center;gap:11px;padding:0 13px;border-bottom:1.5px solid var(--line-soft);">
+        <div style="flex:1;font-size:13.5px;font-weight:600;">Purok</div>
+        <div class="mono" style="font-size:12px;color:var(--paper-2);">Purok 3</div>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--paper-3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+      
+      <div class="tap" style="display:flex;align-items:center;gap:11px;padding:0 13px;border-bottom:1.5px solid var(--line-soft);">
+        <div style="flex:1;font-size:13.5px;font-weight:600;">Wika</div>
+        <div class="mono" style="font-size:12px;color:var(--paper-2);">Tagalog</div>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--paper-3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+      
+      <div class="tap" style="display:flex;align-items:center;gap:11px;padding:0 13px;border-bottom:1.5px solid var(--line-soft);">
+        <div style="flex:1;font-size:13.5px;font-weight:600;">Mga ulat ko</div>
+        <div class="mono" style="font-size:12px;color:var(--paper-2);">7</div>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--paper-3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+      
+      <div class="tap" style="display:flex;align-items:center;gap:11px;padding:0 13px;">
+        <div style="flex:1;font-size:13.5px;font-weight:600;">Device code</div>
+        <div class="mono" style="font-size:12px;color:var(--paper-2);">D-4K9M</div>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--paper-3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+    </div>
+
+    <div style="flex-shrink:0;">
+      <div class="lbl" style="margin-bottom:7px;">KASAMA SA BAHAY</div>
+      <div class="panel" style="padding:0;overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 13px;border-bottom:1.5px solid var(--line-soft);">
+          <div style="flex:1;font-size:13px;font-weight:600;">Rosario Ugot</div>
+          <div class="mono" style="font-size:9px;font-weight:700;letter-spacing:0.7px;color:var(--caution);border:1.5px solid var(--caution);border-radius:3px;padding:2px 5px;">MATANDA</div>
+          <div class="mono" style="font-size:9px;font-weight:700;letter-spacing:0.7px;color:var(--clear);">CHECKED IN</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 13px;">
+          <div style="flex:1;font-size:13px;font-weight:600;">Miguel Ugot</div>
+          <div class="mono" style="font-size:9px;font-weight:700;letter-spacing:0.7px;color:var(--paper-3);">HINDI PA</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mono" style="margin-top:auto;font-size:9.5px;line-height:1.6;letter-spacing:0.5px;color:var(--paper-3);text-align:center;flex-shrink:0;">
+      WALANG ACCOUNT · WALANG PASSWORD<br>NAKA-IMBAK LAMANG SA TELEPONO MO
+    </div>
+  </div>
+
+  <div style="flex-shrink:0;height:74px;background:var(--ink-800);border-top:1.5px solid var(--line);display:flex;align-items:flex-start;padding-top:9px;">
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.4px;">HOME</span>
+    </a>
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2V6z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.4px;">MAPA</span>
+    </a>
+    <a style="flex:0 0 66px;display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:-19px;">
+      <div style="width:50px;height:50px;border-radius:4px;background:var(--alarm);display:flex;align-items:center;justify-content:center;color:oklch(0.99 0.01 28);border:2.5px solid var(--ink-800);">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v3"/><path d="M6 21v-6a6 6 0 0 1 12 0v6z"/><path d="M4 21h16"/></svg>
+      </div>
+      <span class="mono" style="font-size:9.5px;font-weight:700;color:var(--alarm);letter-spacing:1px;">SOS</span>
+    </a>
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s7 7.58 7 12a7 7 0 0 1-14 0c0-4.42 7-12 7-12z"/></svg>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.4px;">ULAT</span>
+    </a>
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--hv);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+      <span style="font-size:9.5px;font-weight:800;letter-spacing:0.4px;">AKO</span>
+    </a>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

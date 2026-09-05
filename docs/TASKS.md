@@ -130,20 +130,33 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 
 **Q4 — Real geography, or keep the fictional pilot?** PRD-detailed Q1 records the pilot barangay as unconfirmed. The wireframes use fictional "Barangay San Isidro" with hand-drawn SVG streets. Phase 4 needs (a) a real barangay's coordinates and Purok boundary polygons, and (b) a vector tile source/style for the offline packs (self-hosted PMTiles? MapTiler? OpenFreeMap?). Until resolved, Phase 4 can only be built against synthetic GeoJSON.
 
-**Q5 — Screens with no wireframe.** The kickoff prompt says to flag rather than guess. The eight artboards in `design/` cover: advisory home, evacuation map, SOS, hazard/water report, QR check-in, headcount, responder dashboard, protocol admin. The following are required by the PRD but have **no wireframe**:
-  - Resident registration / onboarding (Purok selection, QR issuance) — needed for Phase 8
-  - Sign-in screen for volunteer/official — needed for Phase 0 once Q2 is settled
-  - Full reports feed (home shows a 2-item preview with a "Tingnan lahat" link to a list that does not exist)
-  - Evacuation centre directory (home quick-action "CENTERS" links nowhere)
-  - Profile / "Ako" tab (present in the bottom nav on every phone screen)
-  - Pre-Storm Readiness Checklist as a full view (only a sidebar widget appears in the admin artboard)
-  - Documentation Knowledge Base (Phase 9)
+**Q5 — RESOLVED. All seven missing screens designed.** `stage-2/design/` now holds fifteen artboards. Rendered PNGs, canvas entries and README sections are in place for each:
+
+| Gap | Screen | Note |
+|---|---|---|
+| Resident onboarding | `Onboarding.dc.html` | Language then Purok, one screen, no account |
+| ~~Volunteer/official sign-in~~ | `DeviceRole.dc.html` | **Substituted — see below** |
+| Full reports feed | `ReportsFeed.dc.html` | Filters, resolved state, queued reports shown inline |
+| Evacuation centre directory | `Centers.dc.html` | Assigned centre pinned; closed centre; overflow guidance |
+| Profile / "Ako" tab | `Profile.dc.html` | Check-in status as headline, QR at full size, household |
+| Readiness checklist | `Readiness.dc.html` | Progress counted against the leave-by deadline |
+| Knowledge base | `Guide.dc.html` | Signal-level table pinned first, everything precached |
+
+  **The sign-in screen was deliberately not designed.** That item predates the resolution of Q2. The app uses anonymous auth and never shows a login, so drawing a login form would contradict both the architecture and the team's own "no login-access" requirement. The underlying need is real and was unmet, though: a volunteer has to *become* one. `DeviceRole.dc.html` answers that instead — it shows the device code a person reads out, what each role can do, and how elevation actually happens. Flagging rather than silently drawing the wrong screen.
 
 **Q6 — Route geometry authoring.** PRD §10 says Purok boundaries and `route_geojson` are "entered by officials during protocol setup," but the protocol-admin artboard shows only a *rendered preview* of a route, never an editor for drawing one. Is drawing in-app, or is GeoJSON imported from a file the LGU supplies?
 
 ---
 
 ## Notes / decisions log
+
+- **2026-09-05 — `support.js` was referenced by every artboard but had never been committed.** Opening any `.dc.html` in a browser showed raw `{{...}}` placeholders, and the eight original PNGs could only have been produced by hand. Written now: it resolves placeholders and `<sc-if>`, and reads prop defaults from `data-props` with query-string overrides. The artboards are self-contained again — openable, tweakable, and re-renderable by anyone with a browser.
+
+- **2026-09-05 — The PNGs in `screens/` are now a build output (`npm run render:design`).** Hand-made exports drift from their sources with no way to notice. They are regenerated from `artboards/` at 2x, sized from `canvas.json`, and reviewable as a diff.
+
+- **2026-09-05 — Bug in my own render script: it reported success without rendering anything.** Success was judged by the output file existing, but the script never deleted the target first — so a render that produced nothing "passed" by finding the previous run's PNG. One screen silently kept a stale image across two consecutive "15/15 rendered" runs while its source had changed underneath it, and I only caught it because the stale image was of a browser error page. Fixed by deleting each target before rendering. The retry counts that then appeared (2–3 attempts on nearly every screen) show the underlying flakiness had been there all along, masked.
+
+- **2026-09-05 — Headless screenshotting on Windows needed three accommodations, all found by testing.** `--headless=new` frequently exits 0 having written nothing, so the script uses `--headless=old`; forward-slash output paths are silently ignored, so paths are converted to backslashes; and the file lands slightly after the process exits, so an immediate existence check reports a false failure. Even then roughly one attempt in four produces nothing, with no error — hence up to five attempts per artboard.
 
 - **2026-09-05 — Phase 2 bug: the tap waited on the network, which is the one thing it must never do.** `enqueueWrite` tried Supabase first and fell back to the queue on failure, so acceptance was gated on the network *failing*. Measured at 270ms offline against NFR-3.2's 200ms budget — but the number understates it. Offline you pay a fast rejection; on a tower that is up but saturated, the expected mid-storm condition, you pay a multi-second timeout with nothing yet written down anywhere, while a resident stares at an unconfirmed SOS. The function's own docstring already promised the opposite ("the tap never waits on the network"). Inverted the order: persist to IndexedDB first, return, then flush in the background. Now 7–16ms, and independent of the network by construction rather than by timing. `WriteOutcome.synced` is consequently always false on return, and delivery is reported through the queue count the sync strip already shows.
 

@@ -1,0 +1,171 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ink-900:oklch(0.13 0.012 245); --ink-800:oklch(0.175 0.014 245); --ink-700:oklch(0.225 0.016 245); --ink-600:oklch(0.29 0.018 245);
+    --line:oklch(0.36 0.02 245); --line-soft:oklch(0.27 0.018 245);
+    --paper:oklch(0.97 0.005 245); --paper-2:oklch(0.78 0.012 245); --paper-3:oklch(0.575 0.014 245);
+    --hv:oklch(0.82 0.13 195); --hv-ink:oklch(0.15 0.04 200); --hv-dim:oklch(0.82 0.13 195 / 0.13);
+    --s1:oklch(0.74 0.16 148); --s2:oklch(0.85 0.16 100); --s3:oklch(0.76 0.18 62); --s4:oklch(0.63 0.22 28); --s5:oklch(0.47 0.20 12);
+    --alarm:oklch(0.63 0.22 28); --caution:oklch(0.82 0.15 85); --clear:oklch(0.74 0.16 148);
+    --f-d:'Archivo','Arial Narrow',Helvetica,sans-serif;
+    --f-b:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+    --f-m:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink-900);}
+  a{color:var(--hv);text-decoration:none;}
+  .lbl{font-family:var(--f-m);font-size:10px;font-weight:600;letter-spacing:1.4px;color:var(--paper-3);}
+  .mono{font-family:var(--f-m);font-variant-numeric:tabular-nums;}
+  .panel{background:var(--ink-800);border:1.5px solid var(--line-soft);border-radius:4px;}
+  .tap{min-height:44px;}
+</style>
+</helmet>
+
+<div style="width:390px;height:844px;background:var(--ink-900);color:var(--paper);font-family:var(--f-b);display:flex;flex-direction:column;overflow:hidden;">
+
+  <div style="height:5px;flex-shrink:0;background:var(--s3);"></div>
+
+  <div style="flex-shrink:0;background:var(--ink-800);border-bottom:1.5px solid var(--line-soft);">
+    <div style="height:52px;padding:0 14px;display:flex;align-items:center;gap:11px;">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--paper-2)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M15 18l-6-6 6-6"/></svg>
+      <div style="font-family:var(--f-d);font-weight:800;font-size:16px;letter-spacing:0.4px;flex:1;">EVACUATION CENTERS</div>
+    </div>
+    <div style="height:25px;border-top:1.5px solid var(--line-soft);display:flex;align-items:center;padding:0 14px;gap:8px;background:var(--ink-900);">
+      <span style="width:6px;height:6px;background:var(--caution);flex-shrink:0;"></span>
+      <span class="mono" style="font-size:10px;font-weight:600;letter-spacing:0.9px;color:var(--paper-3);">NAKA-CACHE 12 MIN · 2 NAKA-QUEUE</span>
+    </div>
+  </div>
+
+  <div style="flex:1;padding:12px 14px;display:flex;flex-direction:column;gap:9px;overflow:hidden;min-height:0;">
+
+    <!-- The assigned centre is pinned to the top and visually separated. A
+         directory that makes a resident hunt for their own assignment has
+         failed at the only job that matters during an evacuation. -->
+    <div class="lbl" style="flex-shrink:0;">ITINALAGA SA IYO</div>
+    <div style="border-radius:4px;border-left:4px solid var(--hv);background:var(--ink-800);border-top:1.5px solid var(--line-soft);border-right:1.5px solid var(--line-soft);border-bottom:1.5px solid var(--line-soft);padding:13px;flex-shrink:0;">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <div style="flex:1;">
+          <div style="font-size:15.5px;font-weight:800;font-family:var(--f-d);letter-spacing:0.3px;">Barangay Gym</div>
+          <div class="mono" style="font-size:10px;color:var(--paper-3);margin-top:4px;letter-spacing:0.5px;">PUROK 3 · PUROK 1, 2, 4</div>
+        </div>
+        <div class="mono" style="font-size:9px;font-weight:700;letter-spacing:0.9px;color:var(--clear);border:1.5px solid var(--clear);border-radius:3px;padding:3px 6px;">BUKAS</div>
+      </div>
+
+      <div style="margin-top:12px;display:flex;align-items:baseline;justify-content:space-between;">
+        <span class="lbl" style="font-size:9px;">OKUPADO</span>
+        <span class="mono" style="font-size:15px;font-weight:700;color:var(--caution);">254<span style="color:var(--paper-3);font-weight:600;"> / 300</span></span>
+      </div>
+      <div style="margin-top:5px;height:7px;border-radius:2px;background:var(--ink-700);overflow:hidden;">
+        <div style="width:85%;height:100%;background:var(--caution);"></div>
+      </div>
+
+      <div class="tap" style="margin-top:12px;height:46px;border-radius:4px;background:var(--hv);color:var(--hv-ink);display:flex;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:14px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2V6z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg>
+        Ituro ang Daan
+      </div>
+    </div>
+
+    <div class="lbl" style="margin-top:4px;flex-shrink:0;">IBA PANG CENTERS</div>
+
+    
+    <div class="panel" style="padding:12px 13px;flex-shrink:0;">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:700;">San Roque Chapel</div>
+          <div class="mono" style="font-size:10px;color:var(--paper-3);margin-top:3px;letter-spacing:0.5px;">PUROK 5 · PUROK 5, 6</div>
+        </div>
+        <div class="mono" style="flex-shrink:0;font-size:9px;font-weight:700;letter-spacing:0.9px;color:var(--caution);border:1.5px solid var(--caution);border-radius:3px;padding:3px 6px;">HALOS PUNO</div>
+      </div>
+
+      <div style="margin-top:11px;display:flex;align-items:baseline;justify-content:space-between;">
+        <span class="lbl" style="font-size:9px;">OKUPADO</span>
+        <span class="mono" style="font-size:13px;font-weight:700;color:var(--alarm);">78<span style="color:var(--paper-3);font-weight:600;"> / 80</span></span>
+      </div>
+      <div style="margin-top:5px;height:6px;border-radius:2px;background:var(--ink-700);overflow:hidden;">
+        <div style="width:98%;height:100%;background:var(--alarm);"></div>
+      </div>
+      
+    </div>
+    
+    <div class="panel" style="padding:12px 13px;flex-shrink:0;">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:700;">San Isidro Elementary School</div>
+          <div class="mono" style="font-size:10px;color:var(--paper-3);margin-top:3px;letter-spacing:0.5px;">PUROK 7 · PUROK 7, 8</div>
+        </div>
+        <div class="mono" style="flex-shrink:0;font-size:9px;font-weight:700;letter-spacing:0.9px;color:var(--clear);border:1.5px solid var(--clear);border-radius:3px;padding:3px 6px;">BUKAS</div>
+      </div>
+
+      <div style="margin-top:11px;display:flex;align-items:baseline;justify-content:space-between;">
+        <span class="lbl" style="font-size:9px;">OKUPADO</span>
+        <span class="mono" style="font-size:13px;font-weight:700;color:var(--clear);">96<span style="color:var(--paper-3);font-weight:600;"> / 220</span></span>
+      </div>
+      <div style="margin-top:5px;height:6px;border-radius:2px;background:var(--ink-700);overflow:hidden;">
+        <div style="width:44%;height:100%;background:var(--clear);"></div>
+      </div>
+      
+    </div>
+
+
+    <div class="panel" style="padding:12px 13px;flex-shrink:0;opacity:0.6;">
+      <div style="display:flex;align-items:flex-start;gap:10px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;font-weight:700;">Sitio Ilog Covered Court</div>
+          <div class="mono" style="font-size:10px;color:var(--paper-3);margin-top:3px;letter-spacing:0.5px;">PUROK 2 · MABABANG LUGAR</div>
+        </div>
+        <div class="mono" style="flex-shrink:0;font-size:9px;font-weight:700;letter-spacing:0.9px;color:var(--alarm);border:1.5px solid var(--alarm);border-radius:3px;padding:3px 6px;">SARADO</div>
+      </div>
+      <div style="margin-top:9px;font-size:11.5px;line-height:1.4;color:var(--paper-2);">Binaha noong 3:40 PM. Huwag pumunta rito.</div>
+    </div>
+
+    <div style="margin-top:2px;padding:11px 12px;border-radius:4px;background:var(--ink-800);border-left:3px solid var(--caution);flex-shrink:0;display:flex;gap:9px;align-items:flex-start;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--caution)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M12 9v5"/><path d="M12 17h.01"/><path d="M10.3 3.9L2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+      <div style="flex:1;font-size:11.5px;line-height:1.45;color:var(--paper-2);">Kung puno na ang itinalaga sa iyo, pumunta sa <b style="color:var(--paper);">San Isidro Elementary School</b>. Sabihin sa volunteer na galing ka sa Purok 3.</div>
+    </div>
+
+    <!-- Cache age repeated at the point of use. Occupancy numbers are the most
+         time-sensitive thing on this screen, and a stale count could send a
+         family to a centre that filled an hour ago. -->
+    <div style="margin-top:auto;padding-top:8px;flex-shrink:0;display:flex;align-items:center;gap:7px;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--paper-3)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span class="mono" style="font-size:10px;color:var(--paper-3);letter-spacing:0.6px;">BILANG NOONG 12 MIN ANG NAKARAAN</span>
+    </div>
+  </div>
+
+  <div style="flex-shrink:0;height:74px;background:var(--ink-800);border-top:1.5px solid var(--line);display:flex;align-items:flex-start;padding-top:9px;">
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--hv);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      <span style="font-size:9.5px;font-weight:800;letter-spacing:0.4px;">HOME</span>
+    </a>
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2V6z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.4px;">MAPA</span>
+    </a>
+    <a style="flex:0 0 66px;display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:-19px;">
+      <div style="width:50px;height:50px;border-radius:4px;background:var(--alarm);display:flex;align-items:center;justify-content:center;color:oklch(0.99 0.01 28);border:2.5px solid var(--ink-800);">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v3"/><path d="M6 21v-6a6 6 0 0 1 12 0v6z"/><path d="M4 21h16"/></svg>
+      </div>
+      <span class="mono" style="font-size:9.5px;font-weight:700;color:var(--alarm);letter-spacing:1px;">SOS</span>
+    </a>
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s7 7.58 7 12a7 7 0 0 1-14 0c0-4.42 7-12 7-12z"/></svg>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.4px;">ULAT</span>
+    </a>
+    <a style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--paper-3);">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:0.4px;">AKO</span>
+    </a>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -9,7 +9,8 @@
     "lint": "eslint",
     "check:writes": "node scripts/check-write-paths.mjs",
     "check:rls": "node scripts/rls-test.mjs",
-    "verify": "npm run lint && npm run check:writes && npm run build && npm run check:rls"
+    "verify": "npm run lint && npm run check:writes && npm run build && npm run check:rls",
+    "render:design": "node scripts/render-artboards.mjs"
   },
   "dependencies": {
     "@serwist/next": "^9.5.12",

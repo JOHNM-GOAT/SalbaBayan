@@ -4,16 +4,64 @@
     { "file": "EvacMap.dc.html", "x": 500, "y": 0, "w": 390, "h": 844 },
     { "file": "RescueSOS.dc.html", "x": 1000, "y": 0, "w": 390, "h": 844 },
     { "file": "HazardReport.dc.html", "x": 1500, "y": 0, "w": 390, "h": 844 },
+
     { "file": "QRScanner.dc.html", "x": 0, "y": 1004, "w": 390, "h": 844 },
     { "file": "Headcount.dc.html", "x": 500, "y": 1004, "w": 390, "h": 844 },
     { "file": "ResponderDashboard.dc.html", "x": 1000, "y": 1004, "w": 1280, "h": 800 },
-    { "file": "AdminProtocols.dc.html", "x": 2390, "y": 1004, "w": 1280, "h": 800 }
+    { "file": "AdminProtocols.dc.html", "x": 2390, "y": 1004, "w": 1280, "h": 800 },
+
+    { "file": "Onboarding.dc.html", "x": 0, "y": 2008, "w": 390, "h": 844 },
+    { "file": "DeviceRole.dc.html", "x": 500, "y": 2008, "w": 390, "h": 844 },
+    { "file": "Profile.dc.html", "x": 1000, "y": 2008, "w": 390, "h": 844 },
+    { "file": "ReportsFeed.dc.html", "x": 1500, "y": 2008, "w": 390, "h": 844 },
+
+    { "file": "Centers.dc.html", "x": 0, "y": 3012, "w": 390, "h": 844 },
+    { "file": "Readiness.dc.html", "x": 500, "y": 3012, "w": 390, "h": 844 },
+    { "file": "Guide.dc.html", "x": 1000, "y": 3012, "w": 390, "h": 844 }
   ],
   "annotations": [
-    { "id": "note-resident", "x": 0, "y": -76, "w": 890, "text": "RESIDENTE — Advisory at Ruta\nSignal level and language are live tweaks on the home artboard: switch Signal 1-5 or Tagalog / Cebuano / English to see the whole screen re-colour and re-word." },
-    { "id": "note-resident-2", "x": 1000, "y": -76, "w": 890, "text": "RESIDENTE — SOS at Pag-uulat\nSOS shows queue position and the assigned team. The report form uses a body-referenced depth picker instead of a dropdown." },
-    { "id": "note-volunteer", "x": 0, "y": 928, "w": 890, "text": "VOLUNTEER — Check-in at Headcount\nTriage tags carry colour weight. Counter controls sit in the thumb zone, sized for wet or gloved hands." },
-    { "id": "note-command", "x": 1000, "y": 928, "w": 2670, "text": "RESPONDER AT OPISYAL — Live Rescue at Protocols (desktop)\nThe rescue queue is sorted by wait time with the oldest unanswered request escalated to a banner. Protocols are a Purok x Signal coverage matrix so gaps are visible at a glance." }
+    {
+      "id": "note-resident",
+      "x": 0,
+      "y": -76,
+      "w": 890,
+      "text": "RESIDENTE — Advisory at Ruta\nSignal level and language are live tweaks on the home artboard: switch Signal 1-5 or Tagalog / Cebuano / English to see the whole screen re-colour and re-word."
+    },
+    {
+      "id": "note-resident-2",
+      "x": 1000,
+      "y": -76,
+      "w": 890,
+      "text": "RESIDENTE — SOS at Pag-uulat\nSOS shows queue position and the assigned team. The report form uses a body-referenced depth picker instead of a dropdown."
+    },
+    {
+      "id": "note-volunteer",
+      "x": 0,
+      "y": 928,
+      "w": 890,
+      "text": "VOLUNTEER — Check-in at Headcount\nTriage tags carry colour weight. Counter controls sit in the thumb zone, sized for wet or gloved hands."
+    },
+    {
+      "id": "note-command",
+      "x": 1000,
+      "y": 928,
+      "w": 2670,
+      "text": "RESPONDER AT OPISYAL — Live Rescue at Protocols (desktop)\nThe rescue queue is sorted by wait time with the oldest unanswered request escalated to a banner. Protocols are a Purok x Signal coverage matrix so gaps are visible at a glance."
+    },
+    {
+      "id": "note-entry",
+      "x": 0,
+      "y": 1932,
+      "w": 1890,
+      "text": "PAGPASOK AT PAGKAKAKILANLAN — Onboarding, Device & Role, Profile, Reports (Q5)\nTwo questions and no account: language, then Purok. Device & Role replaces the 'sign-in screen' Q5 asked for — anonymous auth means there is no login, so the screen a volunteer actually needs is the one showing the code an official adds to the roster."
+    },
+    {
+      "id": "note-reference",
+      "x": 0,
+      "y": 2936,
+      "w": 1390,
+      "text": "SANGGUNIAN — Centers, Paghahanda, Gabay (Q5)\nThe directory pins the resident's own assigned centre above the list. The checklist counts against the leave-by deadline rather than showing a bare percentage. Every guide article is precached — a guide that needs a connection is useless in the situation it describes."
+    }
   ],
   "launch": { "view": "canvas" }
 }

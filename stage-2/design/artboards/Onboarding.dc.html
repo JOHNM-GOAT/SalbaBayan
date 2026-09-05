@@ -1,0 +1,136 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ink-900:oklch(0.13 0.012 245); --ink-800:oklch(0.175 0.014 245); --ink-700:oklch(0.225 0.016 245); --ink-600:oklch(0.29 0.018 245);
+    --line:oklch(0.36 0.02 245); --line-soft:oklch(0.27 0.018 245);
+    --paper:oklch(0.97 0.005 245); --paper-2:oklch(0.78 0.012 245); --paper-3:oklch(0.575 0.014 245);
+    --hv:oklch(0.82 0.13 195); --hv-ink:oklch(0.15 0.04 200); --hv-dim:oklch(0.82 0.13 195 / 0.13);
+    --s1:oklch(0.74 0.16 148); --s2:oklch(0.85 0.16 100); --s3:oklch(0.76 0.18 62); --s4:oklch(0.63 0.22 28); --s5:oklch(0.47 0.20 12);
+    --alarm:oklch(0.63 0.22 28); --caution:oklch(0.82 0.15 85); --clear:oklch(0.74 0.16 148);
+    --f-d:'Archivo','Arial Narrow',Helvetica,sans-serif;
+    --f-b:'IBM Plex Sans','Segoe UI',system-ui,sans-serif;
+    --f-m:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ink-900);}
+  .lbl{font-family:var(--f-m);font-size:10px;font-weight:600;letter-spacing:1.4px;color:var(--paper-3);}
+  .mono{font-family:var(--f-m);font-variant-numeric:tabular-nums;}
+  .panel{background:var(--ink-800);border:1.5px solid var(--line-soft);border-radius:4px;}
+  .tap{min-height:44px;}
+</style>
+</helmet>
+
+<div style="width:390px;height:844px;background:var(--ink-900);color:var(--paper);font-family:var(--f-b);display:flex;flex-direction:column;overflow:hidden;">
+
+  <!-- Severity rail is GREY here, not a colour: onboarding runs before any
+       advisory has been fetched, so the signal level is genuinely unknown.
+       Painting it green would tell a first-time user "all clear". -->
+  <div style="height:5px;flex-shrink:0;background:var(--ink-600);"></div>
+
+  <div style="flex:1;padding:26px 20px 20px;display:flex;flex-direction:column;overflow:hidden;">
+
+    <!-- brand -->
+    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+      <div style="width:32px;height:32px;border-radius:4px;background:var(--hv);display:flex;align-items:center;justify-content:center;color:var(--hv-ink);">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+      </div>
+      <div style="font-family:var(--f-d);font-weight:800;font-size:20px;letter-spacing:0.4px;">SALBABAYAN</div>
+    </div>
+
+    <div style="margin-top:16px;font-size:14px;line-height:1.45;color:var(--paper-2);flex-shrink:0;">
+      Dalawang tanong lang. Walang password, walang email.
+    </div>
+
+    <!-- 1 · LANGUAGE
+         First, and before anything else on screen has to be understood.
+         Labels are endonyms so the control is legible to someone who cannot
+         read the language it is currently set to. -->
+    <div style="margin-top:22px;flex-shrink:0;">
+      <div class="lbl">1 · WIKA</div>
+      <div style="margin-top:9px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <div class="tap" style="border-radius:4px;background:var(--hv);color:var(--hv-ink);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13.5px;">Tagalog</div>
+        <div class="tap panel" style="display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13.5px;color:var(--paper-2);">Bisaya</div>
+        <div class="tap panel" style="display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13.5px;color:var(--paper-2);">English</div>
+      </div>
+    </div>
+
+    <!-- 2 · PUROK
+         A tap grid, not a dropdown. This is the single value the entire
+         advisory is keyed on, it is chosen once, and it is chosen by someone
+         who may be standing in the rain holding a phone one-handed. -->
+    <div style="margin-top:22px;flex-shrink:0;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;">
+        <div class="lbl">2 · SAANG PUROK KA?</div>
+        <div class="mono" style="font-size:10px;color:var(--hv);font-weight:700;letter-spacing:0.6px;">BRGY. SAN ISIDRO</div>
+      </div>
+      <div style="margin-top:9px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="tap panel" style="display:flex;align-items:center;padding:0 13px;font-weight:600;font-size:13.5px;color:var(--paper-2);">Purok 1</div>
+        <div class="tap panel" style="display:flex;align-items:center;padding:0 13px;font-weight:600;font-size:13.5px;color:var(--paper-2);">Purok 2</div>
+        <div class="tap" style="border-radius:4px;background:var(--hv-dim);border:1.5px solid var(--hv);display:flex;align-items:center;justify-content:space-between;padding:0 13px;font-weight:700;font-size:13.5px;color:var(--hv);">
+          Purok 3
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <div class="tap panel" style="display:flex;align-items:center;padding:0 13px;font-weight:600;font-size:13.5px;color:var(--paper-2);">Purok 4</div>
+        <div class="tap panel" style="display:flex;align-items:center;padding:0 13px;font-weight:600;font-size:13.5px;color:var(--paper-2);">Purok 5</div>
+        <div class="tap panel" style="display:flex;align-items:center;padding:0 13px;font-weight:600;font-size:13.5px;color:var(--paper-2);">Purok 6</div>
+        <div class="tap panel" style="display:flex;align-items:center;padding:0 13px;font-weight:600;font-size:13.5px;color:var(--paper-2);">Purok 7</div>
+        <div class="tap panel" style="display:flex;align-items:center;padding:0 13px;font-weight:600;font-size:13.5px;color:var(--paper-2);">Purok 8</div>
+      </div>
+    </div>
+
+    <!-- The privacy claim, stated where it is acted on rather than buried in a
+         policy screen nobody opens. It is also literally true of the
+         architecture: anonymous auth, no account, no contact details. -->
+    <div style="margin-top:20px;padding:11px 12px;border-radius:4px;background:var(--ink-800);border-left:3px solid var(--clear);flex-shrink:0;">
+      <div style="display:flex;gap:9px;align-items:flex-start;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--clear)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+        <div style="font-size:11.5px;line-height:1.45;color:var(--paper-2);">
+          Walang hinihinging pangalan, numero, o email. Ang purok mo lang ang kailangan para malaman kung ano ang dapat mong gawin.
+        </div>
+      </div>
+    </div>
+
+    <!-- What the app will actually do, in three lines.
+         A first-time user is installing this before a storm, on the strength of
+         someone telling them to. Saying plainly what they get is what makes the
+         Purok they just tapped feel worth tapping. -->
+    <div style="margin-top:20px;flex-shrink:0;display:flex;flex-direction:column;gap:11px;">
+      <div style="display:flex;gap:10px;align-items:flex-start;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--hv)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M4 18v-4"/><path d="M9 18V9"/><path d="M14 18V6"/><path d="M19 18V3"/></svg>
+        <div style="flex:1;font-size:12.5px;line-height:1.4;color:var(--paper-2);">Sasabihin kung ano ang dapat gawin sa <b style="color:var(--paper);">purok mo</b>, hindi lang ang signal number.</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-start;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--hv)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M12 3v10"/><path d="M8 9l4 4 4-4"/><path d="M4 17v2h16v-2"/></svg>
+        <div style="flex:1;font-size:12.5px;line-height:1.4;color:var(--paper-2);">Gumagana <b style="color:var(--paper);">kahit walang signal</b> — naka-save na ang mapa at tagubilin.</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-start;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--alarm)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;"><path d="M12 2v3"/><path d="M6 21v-6a6 6 0 0 1 12 0v6z"/><path d="M4 21h16"/></svg>
+        <div style="flex:1;font-size:12.5px;line-height:1.4;color:var(--paper-2);">Isang pindot ang <b style="color:var(--paper);">SOS</b>. Papasok pa rin kahit patay ang linya.</div>
+      </div>
+    </div>
+
+    <div style="flex:1;"></div>
+
+    <!-- Primary action in the thumb zone. -->
+    <div class="tap" style="height:52px;border-radius:4px;background:var(--hv);color:var(--hv-ink);display:flex;align-items:center;justify-content:center;gap:9px;font-weight:800;font-size:15.5px;flex-shrink:0;">
+      Simulan
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13"/><path d="M12 5l7 7-7 7"/></svg>
+    </div>
+
+    <div class="mono" style="margin-top:11px;font-size:10px;letter-spacing:0.7px;color:var(--paper-3);text-align:center;flex-shrink:0;">
+      MAAARING BAGUHIN ANG PUROK KAHIT KAILAN
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

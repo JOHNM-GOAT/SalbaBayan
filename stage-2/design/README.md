@@ -1,6 +1,6 @@
 # SalbaBayan — Design
 
-High-fidelity wireframes for the SalbaBayan PWA: eight screens covering the resident, volunteer, and responder/official paths.
+High-fidelity wireframes for the SalbaBayan PWA: fifteen screens covering the resident, volunteer, and responder/official paths.
 
 ```
 design/
@@ -65,6 +65,38 @@ A single high-contrast, near-black interface by design, not a light/dark toggle.
 
 ![Protocol Admin](screens/protocol-admin.png)
 
+### Entry & identity
+
+**Onboarding** — the whole of setup: language, then Purok. No account, no password, no email, because the architecture genuinely does not need one. Purok is a tap grid rather than a dropdown; it is the single value the entire advisory is keyed on, and it is chosen one-handed, possibly in the rain.
+
+![Onboarding](screens/onboarding.png)
+
+**Device & Role** — *replaces the "sign-in screen" originally listed as a gap.* The app uses anonymous authentication and never shows a login, so a login screen would contradict the architecture. The real unmet need is how a volunteer becomes one: they read out a device code, an official adds it to the roster, and the role changes at the next sync. Role limits are enforced by row-level security in Postgres, not by hiding buttons.
+
+![Device & Role](screens/device-role.png)
+
+**Profile** — check-in status is the headline rather than a name, because during an evacuation the question this screen answers is "am I counted?". The QR sits at full size without a tap, so a volunteer working a queue of arrivals is not waiting on each person to find a menu.
+
+![Profile](screens/profile.png)
+
+**Reports Feed** — the full list behind the home screen's preview. *Purok ko* is the default filter: the common question is what is happening on this street, not across the barangay. Queued reports appear inside the feed rather than behind a toast, so someone who filed offline can see it sitting there instead of filing again.
+
+![Reports Feed](screens/reports-feed.png)
+
+### Reference
+
+**Evacuation Centres** — the resident's own assigned centre is pinned above the list. A closed centre states why it closed, and the list ends with where to go if the assigned one fills; a directory that only reports status has stopped short of the decision.
+
+![Evacuation Centres](screens/centers.png)
+
+**Readiness Checklist** — progress counts against the leave-by deadline rather than showing a bare percentage. "9 of 14" means little on its own; "9 of 14, and 2h 48m left" is a decision.
+
+![Readiness](screens/readiness.png)
+
+**Guide** — the offline reference. The signal-level table is pinned first because it is the one number a resident will hear on the radio and want translated into an action. Every article is precached: a guide that needs a connection is useless in the situation it describes.
+
+![Guide](screens/guide.png)
+
 ---
 
 ## Artboard sources
@@ -73,7 +105,13 @@ A single high-contrast, near-black interface by design, not a light/dark toggle.
 
 `Main.dc.html` carries two live tweaks: **signal level (1–5)** and **language (Tagalog / Cebuano / English)**. Changing either re-colours and re-words the whole home screen from the same protocol and translation data the real app would use — the clearest demonstration that the localisation layer is data, not hardcoded copy.
 
-The PNGs in `screens/` are rendered from these sources at 2× device scale.
+The PNGs in `screens/` are a build output, not hand-made exports. Regenerate them with:
+
+```bash
+npm run render:design
+```
+
+This serves `artboards/` locally and screenshots each one through headless Edge at 2× device scale, sized from `canvas.json`. `support.js` is the small runtime that resolves `{{...}}` placeholders and `<sc-if>`, so the artboards also open and render correctly in a plain browser.
 
 ---
 
@@ -81,4 +119,5 @@ The PNGs in `screens/` are rendered from these sources at 2× device scale.
 
 - Sample data throughout (Barangay San Isidro, "Bagyong Igme", resident names) is placeholder, not real barangay data.
 - Screens are static mockups. Only the home artboard has working controls.
+- The seven newest screens close the wireframe gaps recorded as Q5 in [`../../docs/TASKS.md`](../../docs/TASKS.md). One of those gaps — a volunteer/official sign-in screen — was resolved by designing something else instead; see **Device & Role** above.
 - Full product requirements: [`../PRD.md`](../PRD.md).
