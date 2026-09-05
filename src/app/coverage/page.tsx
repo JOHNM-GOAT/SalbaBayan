@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useSync, useT } from "@/components/AppRuntime";
-import { AppHeader } from "@/components/AppHeader";
 import { buildCoverage } from "@/lib/advisory";
 import { signalStyle } from "@/lib/signal";
 
@@ -29,9 +28,7 @@ export default function CoveragePage() {
   );
 
   return (
-    <div className="flex min-h-dvh flex-col bg-ink-900">
-      <AppHeader />
-
+    <>
       <main className="flex flex-1 flex-col gap-3 p-3.5">
         <div className="flex items-center justify-between">
           <h1 className="font-display text-[15px] font-extrabold tracking-[0.5px]">
@@ -113,6 +110,6 @@ export default function CoveragePage() {
           </>
         )}
       </main>
-    </div>
+    </>
   );
 }

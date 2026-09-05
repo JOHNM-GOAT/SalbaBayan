@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Archivo, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { AppRuntime } from "@/components/AppRuntime";
+import { AppHeader } from "@/components/AppHeader";
 
 /*
  * Fonts are self-hosted by next/font rather than linked from the Google Fonts
@@ -65,7 +66,22 @@ export default function RootLayout({
       className={`${archivo.variable} ${plexSans.variable} ${plexMono.variable}`}
     >
       <body className="bg-ink-900 text-paper antialiased">
-        <AppRuntime>{children}</AppRuntime>
+        {/*
+         * The header — severity rail, wordmark, language switch, sync strip —
+         * is rendered HERE rather than by each page.
+         *
+         * PRD §6 and FR-3.5 require cache age and queued-write count to be
+         * visible on every screen, never a toast. Leaving that to each page to
+         * remember makes it a convention that holds until someone adds a route
+         * and forgets. Putting it in the layout makes it structural: a new
+         * screen cannot ship without it.
+         */}
+        <AppRuntime>
+          <div className="flex min-h-dvh flex-col bg-ink-900">
+            <AppHeader />
+            {children}
+          </div>
+        </AppRuntime>
       </body>
     </html>
   );

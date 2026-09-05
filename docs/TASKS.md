@@ -38,9 +38,24 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
 - [x] **GATE: passes.** Production build, server stopped dead (`curl` → `000`), full reload → correct advisory for Purok 3 / Signal 3 / Barangay Gym. Language switched TL → CEB → EN and Purok switched 3 → 5 while offline, both correct, `performance.getEntriesByType('navigation').length` stayed at **1** throughout — no reload.
 
 ## Phase 2 — Offline-First Hardening (7.3)
-- [ ] All write paths confirmed to use offline utility
-- [ ] Cache age / queue count visible on every screen
-- [ ] GATE: airplane-mode test passes
+- [x] All write paths use the offline utility — enforced mechanically by `scripts/check-write-paths.mjs`, not by convention. Verified the guard actually fires by planting a violation.
+- [x] Cache age / queue count visible on every screen — moved into `app/layout.tsx`, so a new route cannot ship without it
+- [x] **Write acceptance no longer waits on the network.** Was 270ms offline (NFR-3.2 requires <200ms); now 7–16ms. See the decisions log — this was a structural fault, not tuning.
+- [x] **Head-of-line blocking fixed.** A row that can never land no longer holds up every write behind it
+- [x] Blocked writes surfaced separately from queued, in alarm colour, with `retry`/`discard`
+- [x] Field diagnostics surface (`window.salbabayan`) — inspect and exercise the queue from a console
+- [x] `npm run verify` — lint + write-path guard + build + RLS suite in one command
+- [x] **GATE: passes.** Full results in the decisions log.
+
+  | Property | Result |
+  |---|---|
+  | Shell boots offline, advisory correct | ✓ Purok 3 / Signal 3 / Barangay Gym |
+  | Write accepted with no network | ✓ 7, 16, 15 ms |
+  | Write durable before any network attempt | ✓ verified in raw IndexedDB |
+  | Queue survives a full reload | ✓ rows intact and in order |
+  | Delivery is exactly-once | ✓ 1 row each after partial flush + reload + repeat flushes |
+  | Poison row cannot block the queue | ✓ valid row behind it delivered; poison blocked after 1 attempt |
+  | Cache age + queue count visible offline | ✓ `OFFLINE · NAKA-CACHE NGAYON · 3 NAKA-QUEUE` |
 
 ## Phase 3 — SOS & Rescue Map (7.4)
 - [ ] One-tap GPS capture + queued write, no auth
@@ -129,6 +144,20 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 ---
 
 ## Notes / decisions log
+
+- **2026-09-05 — Phase 2 bug: the tap waited on the network, which is the one thing it must never do.** `enqueueWrite` tried Supabase first and fell back to the queue on failure, so acceptance was gated on the network *failing*. Measured at 270ms offline against NFR-3.2's 200ms budget — but the number understates it. Offline you pay a fast rejection; on a tower that is up but saturated, the expected mid-storm condition, you pay a multi-second timeout with nothing yet written down anywhere, while a resident stares at an unconfirmed SOS. The function's own docstring already promised the opposite ("the tap never waits on the network"). Inverted the order: persist to IndexedDB first, return, then flush in the background. Now 7–16ms, and independent of the network by construction rather than by timing. `WriteOutcome.synced` is consequently always false on return, and delivery is reported through the queue count the sync strip already shows.
+
+- **2026-09-05 — Phase 2 bug: one undeliverable write could block every write behind it, forever.** `flushQueue` stopped at the first error to preserve ordering (FR-3.2), which is right for a network failure and catastrophic for a row that can never be accepted. A malformed water report would have left a rescue request queued and invisible for the whole storm. Now failures are classified: provably-permanent ones (not-null, FK, check, invalid input, schema mismatch) mark the row `blocked` and the queue steps over it; everything else still stops and preserves order. Deliberately NOT treated as permanent: `42501` (a write queued before the anonymous session existed has no owner and succeeds once it does) and expired-JWT codes. The bias is to keep retrying unless the row provably cannot land — retrying a doomed write costs a request, giving up on a good one loses a resident's report. Verified end to end: a poison row was blocked after 1 attempt and a valid row queued behind it was delivered.
+
+- **2026-09-05 — Blocked writes are counted and worded separately from queued ones.** "3 queued" and "3 failed to send" mean opposite things to someone deciding whether to walk to the barangay hall in a storm. Blocked rows are excluded from the queued count (a number that never falls reads as a broken queue rather than as specific failures), shown in alarm colour, and never deleted automatically. `retry` and `discard` exist because without them one bad row would leave a permanent failure indicator on every screen, and residents would learn to ignore it.
+
+- **2026-09-05 — The write-path rule is enforced by a script, not by review.** `scripts/check-write-paths.mjs` fails the build if any file outside `lib/offlineQueue.ts` performs a Supabase write. It matches `.from(<table>).<verb>(` rather than the verb alone, so `Set.delete` and Dexie's `.update()` do not trip it. The guard was itself verified by planting a violation and confirming it reported the right file and line and exited non-zero — an assertion that has never once failed is not evidence of anything.
+
+- **2026-09-05 — Test methodology correction: stopping the local server does not simulate being offline.** The first Phase 2 gate run appeared to show writes vanishing from the queue after a reload. They had not been lost — they had been *delivered*. Stopping `next start` makes the app shell unreachable but leaves Supabase perfectly reachable, and overriding `navigator.onLine` only changes a JS property that supabase-js never consults. The real test rejects `fetch` to the Supabase origin, which is what a lost connection actually does to the client. Re-run under those conditions, the queue behaved correctly. Recorded because the earlier method looked convincing and proved nothing.
+
+- **2026-09-05 — `window.salbabayan` is a deliberate diagnostics surface, not debug residue.** The queue is the one component whose failure is invisible from the UI — a resident sees "accepted" either way, and only the device knows a row has been stuck for six hours. It adds no attack surface: everything it exposes is device-local data plus calls the page can already make, the anon key ships in the bundle by design, and the real boundary is RLS, which `scripts/rls-test.mjs` holds. It is also what made the Phase 2 gate testable before the Phase 3 write screens exist.
+
+- **Housekeeping — `scripts/rls-test.mjs` leaves rows behind on every run.** It inserts a water report and a rescue request, and the schema has no delete policies by design (append-only ledgers, auditable reports), so the test cannot tidy up after itself. They need clearing with a privileged migration periodically, or the demo data slowly fills with `rls-test` rows.
 
 - **2026-09-05 — `npm run dev` refused to start: Turbopack vs the Serwist webpack config.** Next 16 runs dev on Turbopack by default, and it errors out when it finds a `webpack` config it did not expect. Setting Serwist's `disable: true` in dev was not enough — the plugin still wraps the config with a `webpack` function, so Turbopack still saw one. The fix is to skip the wrapper entirely in dev (`isDev ? nextConfig : withSerwist(nextConfig)`), which keeps Turbopack's fast refresh; `npm run build` stays pinned to `--webpack`, where Serwist actually runs. Verified: dev starts clean on Turbopack, the advisory renders, and `navigator.serviceWorker.getRegistrations()` is empty in dev — the SW is absent by design, so there is no stale precache to debug against.
 

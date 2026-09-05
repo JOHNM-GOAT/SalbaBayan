@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useSync } from "@/components/AppRuntime";
-import { AppHeader } from "@/components/AppHeader";
 import { PurokBar } from "@/components/PurokBar";
 import { SignalPlacard } from "@/components/SignalPlacard";
 import { LeaveByStrip } from "@/components/LeaveByStrip";
@@ -28,8 +27,7 @@ export default function Home() {
   );
 
   return (
-    <div className="flex min-h-dvh flex-col bg-ink-900">
-      <AppHeader />
+    <>
       <PurokBar />
 
       <main className="flex flex-1 flex-col gap-2.5 p-3.5">
@@ -67,6 +65,6 @@ export default function Home() {
           </>
         )}
       </main>
-    </div>
+    </>
   );
 }

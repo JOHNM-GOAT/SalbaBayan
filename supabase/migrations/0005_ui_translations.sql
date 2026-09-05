@@ -111,3 +111,12 @@ on conflict (message_key, language) do update set text = excluded.text;
 delete from public.translations
 where language = 'ceb'
   and message_key in ('action.stay_inside', 'headline.stay_inside');
+
+-- Phase 2: writes the device has given up on. Worded as a failure, never
+-- folded into the queued count — "3 queued" and "3 failed to send" mean
+-- opposite things to someone deciding whether to walk to the barangay hall.
+insert into public.translations (message_key, language, text) values
+  ('ui.blocked','tl','{n} HINDI NAIPADALA'),
+  ('ui.blocked','ceb','{n} WALA MAPADALA'),
+  ('ui.blocked','en','{n} FAILED TO SEND')
+on conflict (message_key, language) do update set text = excluded.text;

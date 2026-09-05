@@ -14,7 +14,7 @@ import { useSync, useT } from "./AppRuntime";
  * src/app/sw.ts for why that matters.
  */
 export function SyncStrip() {
-  const { online, queued, cacheAgeMs } = useSync();
+  const { online, queued, blocked, cacheAgeMs } = useSync();
   const t = useT();
 
   function age(): string {
@@ -48,6 +48,18 @@ export function SyncStrip() {
       <span className="mono text-[10px] font-semibold tracking-[0.9px] text-paper-3">
         {parts.join(" · ")}
       </span>
+
+      {/*
+       * Writes the device has given up on get their own indicator in alarm
+       * colour, never folded into the queued count. "3 queued" and "3 failed"
+       * mean opposite things to someone deciding whether to walk to the
+       * barangay hall and report in person.
+       */}
+      {blocked > 0 && (
+        <span className="mono ml-auto text-[10px] font-bold tracking-[0.9px] text-alarm">
+          {t("ui.blocked", { n: blocked })}
+        </span>
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   flushQueue,
   onQueueChanged,
   queuedCount,
+  blockedCount,
   startQueueFlushListener,
 } from "@/lib/offlineQueue";
 import {
@@ -23,6 +24,7 @@ import {
 } from "@/lib/advisory";
 import { isLanguage, translate, type Language } from "@/lib/i18n";
 import { languagePref, noStoredValue, purokPref } from "@/lib/prefs";
+import { installDiagnostics } from "@/lib/diagnostics";
 
 /**
  * Connection, sync and advisory state, made available to every screen.
@@ -38,6 +40,8 @@ import { languagePref, noStoredValue, purokPref } from "@/lib/prefs";
 export type SyncState = {
   online: boolean;
   queued: number;
+  /** Writes this device gave up on. Distinct from queued — they will not send. */
+  blocked: number;
   /** ms since the last successful *network* read, or null if never synced. */
   cacheAgeMs: number | null;
   userId: string | null;
@@ -55,6 +59,7 @@ export type SyncState = {
 const SyncContext = createContext<SyncState>({
   online: true,
   queued: 0,
+  blocked: 0,
   cacheAgeMs: null,
   userId: null,
   snapshot: null,
@@ -118,6 +123,7 @@ export function AppRuntime({ children }: { children: React.ReactNode }) {
   );
 
   const [queued, setQueued] = useState(0);
+  const [blocked, setBlocked] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<AdvisorySnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -177,6 +183,8 @@ export function AppRuntime({ children }: { children: React.ReactNode }) {
      * Deferring to a microtask makes the asynchrony explicit rather than
      * suppressing the warning, and costs one tick.
      */
+    installDiagnostics();
+
     queueMicrotask(() => void load());
 
     // Refetch the moment connectivity returns, so a resident who regains
@@ -188,7 +196,10 @@ export function AppRuntime({ children }: { children: React.ReactNode }) {
     window.addEventListener("online", onReconnect);
 
     const stopFlush = startQueueFlushListener();
-    const refreshCount = () => void queuedCount().then(setQueued);
+    const refreshCount = () => {
+      void queuedCount().then(setQueued);
+      void blockedCount().then(setBlocked);
+    };
     const unsubscribe = onQueueChanged(refreshCount);
     refreshCount();
 
@@ -225,6 +236,7 @@ export function AppRuntime({ children }: { children: React.ReactNode }) {
   const value: SyncState = {
     online,
     queued,
+    blocked,
     cacheAgeMs: snapshot ? now - snapshot.fetchedAt : null,
     userId,
     snapshot,

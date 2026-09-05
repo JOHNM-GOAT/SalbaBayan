@@ -70,6 +70,13 @@ export interface QueuedWrite {
   createdAt: number;
   attempts: number;
   lastError?: string;
+  /**
+   * Set when the queue has given up on this row — either it provably cannot be
+   * accepted, or it has failed far past any plausible outage. Blocked rows are
+   * stepped over so they cannot hold up the writes behind them, and are kept
+   * (never deleted) so the failure stays visible and inspectable.
+   */
+  blocked?: boolean;
 }
 
 class SalbaBayanDB extends Dexie {
@@ -100,13 +107,19 @@ export function newClientId(): string {
 
 export type WriteOutcome = {
   id: string;
-  /** true = reached Postgres now; false = durably queued on this device. */
+  /**
+   * Always false on return: the write is durable on this device, not yet
+   * delivered. Delivery is deliberately not reported here, because waiting to
+   * find out is the network wait NFR-3.2 forbids. Callers that need to show
+   * delivery subscribe via `onQueueChanged` and watch the count fall — which
+   * is the same signal the always-visible sync strip already uses.
+   */
   synced: boolean;
 };
 
 /**
  * The only supported way to write. Returns as soon as the write is *durable*,
- * which offline means "safely in IndexedDB" — not "delivered".
+ * meaning "safely in IndexedDB" — never "delivered".
  */
 export async function enqueueWrite(
   table: QueueTable,
@@ -115,41 +128,61 @@ export async function enqueueWrite(
   const id = (payload.id as string) ?? newClientId();
   const row = await stampOwner(table, { ...payload, id });
 
-  try {
-    const supabase = getSupabase();
-    if (!supabase) throw new Error("supabase client unavailable");
-
-    const { error } = await supabase.from(table).insert(row);
-    if (error) throw new Error(error.message);
-
-    return { id, synced: true };
-  } catch (err) {
-    const database = getDb();
-    if (!database) {
-      // No IndexedDB (SSR, or a browser with storage disabled). Surface it —
-      // silently dropping a rescue request would be the worst possible bug.
-      throw err;
-    }
-
-    await database.queue.put({
-      id,
-      table,
-      payload: row,
-      createdAt: Date.now(),
-      attempts: 0,
-      lastError: err instanceof Error ? err.message : String(err),
-    });
-
-    notifyQueueChanged();
-    return { id, synced: false };
+  const database = getDb();
+  if (!database) {
+    // No IndexedDB (SSR, or a browser with storage disabled). Surface it —
+    // silently dropping a rescue request would be the worst possible bug.
+    throw new Error("no local storage available for the write queue");
   }
+
+  /*
+   * Persist locally FIRST, then return. The network attempt happens after.
+   *
+   * The original order was the reverse — try Supabase, fall back to the queue
+   * on failure — and it violated NFR-3.2 ("enqueued in < 200ms from tap,
+   * independent of network"), measured at 270ms offline. The reason is
+   * structural rather than a matter of tuning: awaiting the network means the
+   * tap waits for it to FAIL before the write is safe. Offline that is a lost
+   * timeout; on a saturated tower that is still answering slowly — the
+   * expected mid-storm condition — it is several seconds of a resident staring
+   * at an unconfirmed SOS button, with nothing yet written down anywhere.
+   *
+   * Writing to IndexedDB first makes acceptance genuinely independent of the
+   * network, which is what the contract above promises and what the flush
+   * loop is already built to finish.
+   */
+  await database.queue.put({
+    id,
+    table,
+    payload: row,
+    createdAt: Date.now(),
+    attempts: 0,
+  });
+
+  notifyQueueChanged();
+
+  /*
+   * Deliberately not awaited. The row is durable; delivery is the queue's job
+   * from here, and it retries on reconnect and on the poll. Awaiting this
+   * would reintroduce exactly the latency removed above.
+   */
+  void flushQueue();
+
+  return { id, synced: false };
 }
 
-/** Count of writes still waiting on this device. Shown in the UI at all times. */
+/**
+ * Writes still waiting to be sent. Shown in the UI at all times.
+ *
+ * Excludes blocked rows deliberately: they are not "waiting", and counting
+ * them here would leave a number that never falls, which reads as the queue
+ * being broken rather than as specific writes having failed. They get their
+ * own, differently-worded indicator.
+ */
 export async function queuedCount(): Promise<number> {
   const database = getDb();
   if (!database) return 0;
-  return database.queue.count();
+  return database.queue.filter((row) => row.blocked !== true).count();
 }
 
 export async function queuedWrites(): Promise<QueuedWrite[]> {
@@ -161,9 +194,60 @@ export async function queuedWrites(): Promise<QueuedWrite[]> {
 let flushing = false;
 
 /**
- * Drain the queue in insertion order. Stops at the first row that fails so a
- * later row can never overtake an earlier one — ordering is part of the
- * contract (FR-3.2). Safe to call concurrently; overlapping calls no-op.
+ * Postgres SQLSTATEs that mean "this row will never be accepted, no matter how
+ * many times it is retried". Schema and constraint violations only.
+ *
+ * Deliberately NOT in this list:
+ *   - 42501 (insufficient privilege / RLS). It looks permanent but is not: a
+ *     write queued before the anonymous session existed carries no owner, and
+ *     the same row succeeds once there is an identity to stamp it with.
+ *   - PGRST301 and friends (expired JWT). A refresh fixes those.
+ *   - Anything with no code at all — that is a network failure, which is the
+ *     normal case this whole queue exists for.
+ *
+ * The bias is deliberate: keep retrying unless the row provably cannot land.
+ * Retrying a write that will never succeed costs a request; giving up on one
+ * that would have succeeded loses a resident's report.
+ */
+const PERMANENT_FAILURES = new Set([
+  "22003", // numeric value out of range
+  "22007", // invalid datetime format
+  "22P02", // invalid text representation
+  "23502", // not-null violation
+  "23503", // foreign key violation
+  "23514", // check constraint violation
+  "PGRST204", // column not found — client/schema mismatch
+]);
+
+/**
+ * Retry ceiling for failures that are not provably permanent.
+ *
+ * At the 30s poll interval this is roughly ten minutes of continuous failure.
+ * It exists only so an unforeseen poison row cannot block the queue forever;
+ * an ordinary outage never reaches it, because a device with no connectivity
+ * does not attempt a flush at all (see the session check below).
+ */
+const MAX_ATTEMPTS = 20;
+
+function isPermanent(code: string | undefined): boolean {
+  return code !== undefined && PERMANENT_FAILURES.has(code);
+}
+
+/**
+ * Drain the queue in insertion order (FR-3.2). Safe to call concurrently;
+ * overlapping calls no-op.
+ *
+ * Ordering is preserved by stopping at the first row that fails for a
+ * retryable reason — a later row must never overtake an earlier one.
+ *
+ * But stopping unconditionally, which is what this did originally, means one
+ * row that can never succeed blocks every row behind it forever. In this
+ * application that is a safety bug, not a performance one: it would leave a
+ * rescue request stuck behind a malformed water report, queued and invisible,
+ * for the entire storm. So a row that provably cannot land, or that has failed
+ * far past any plausible outage, is marked `blocked` and stepped over. Blocked
+ * rows are never deleted — they stay on the device for inspection and are
+ * surfaced in the UI.
  */
 export async function flushQueue(): Promise<{ sent: number; remaining: number }> {
   const database = getDb();
@@ -176,9 +260,19 @@ export async function flushQueue(): Promise<{ sent: number; remaining: number }>
     const supabase = getSupabase();
     if (!supabase) return { sent: 0, remaining: await queuedCount() };
 
+    /*
+     * Without a session every policy denies the write, so flushing would fail
+     * every row and burn attempts against the ceiling for a reason that has
+     * nothing to do with the rows themselves. Wait for identity instead.
+     */
+    const uid = await getCurrentUserId();
+    if (!uid) return { sent: 0, remaining: await queuedCount() };
+
     const pending = await database.queue.orderBy("createdAt").toArray();
 
     for (const item of pending) {
+      if (item.blocked) continue; // already stepped over; do not retry or stop
+
       // Re-stamp: a write queued before the first session existed has no owner
       // yet. Without this it would sync successfully and then be unreadable by
       // the person who made it.
@@ -191,11 +285,17 @@ export async function flushQueue(): Promise<{ sent: number; remaining: number }>
         .upsert(payload, { onConflict: "id", ignoreDuplicates: true });
 
       if (error) {
+        const attempts = item.attempts + 1;
+        const givingUp = isPermanent(error.code) || attempts >= MAX_ATTEMPTS;
+
         await database.queue.update(item.id, {
-          attempts: item.attempts + 1,
+          attempts,
           lastError: error.message,
+          blocked: givingUp,
         });
-        break; // preserve order — do not skip ahead
+
+        if (givingUp) continue; // step over it — do not hold up the queue
+        break; // retryable: preserve order, try again next flush
       }
 
       await database.queue.delete(item.id);
@@ -207,6 +307,52 @@ export async function flushQueue(): Promise<{ sent: number; remaining: number }>
   }
 
   return { sent, remaining: await queuedCount() };
+}
+
+/**
+ * Writes this device has given up on. Never silently dropped — a resident who
+ * believes they filed a report is owed the truth that it did not land.
+ */
+export async function blockedWrites(): Promise<QueuedWrite[]> {
+  const database = getDb();
+  if (!database) return [];
+  return database.queue.filter((row) => row.blocked === true).toArray();
+}
+
+export async function blockedCount(): Promise<number> {
+  return (await blockedWrites()).length;
+}
+
+/**
+ * Clear a blocked row's flag so the queue will try it again.
+ *
+ * Some "permanent" failures are only permanent until someone fixes the cause —
+ * a foreign key that pointed at a Purok not yet synced, a column added in a
+ * migration the device had not seen. Retrying is a deliberate act, not
+ * automatic, because the alternative is a row that silently cycles forever.
+ */
+export async function retryBlocked(id: string): Promise<void> {
+  const database = getDb();
+  if (!database) return;
+  await database.queue.update(id, { blocked: false, attempts: 0 });
+  notifyQueueChanged();
+}
+
+/**
+ * Permanently discard blocked rows.
+ *
+ * Without this the alarm indicator can never be cleared, so a single bad row
+ * would leave every screen showing a failure forever and residents learning to
+ * ignore it. Discarding is explicit and only ever applies to rows the queue has
+ * already given up on — nothing still pending can be dropped this way.
+ */
+export async function discardBlocked(): Promise<number> {
+  const database = getDb();
+  if (!database) return 0;
+  const stuck = await blockedWrites();
+  await database.queue.bulkDelete(stuck.map((row) => row.id));
+  notifyQueueChanged();
+  return stuck.length;
 }
 
 /* ---------------------------------------------------------------------------
