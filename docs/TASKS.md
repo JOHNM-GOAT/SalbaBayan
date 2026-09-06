@@ -95,11 +95,17 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
   Later in-browser repeats measured 7.9s and 10.5s. Those are the hidden browser pane starving render scheduling — the same environment limit that kills `requestAnimationFrame` (see Phase 4). The transport itself was re-measured outside the browser at 935ms, and the write at 387ms, so the criterion is met by ~1.3s of real latency. Worth one confirmation on two real devices alongside the Phase 3 and 4 manual checks.
 
 ## Phase 6 — Hazard Reports (7.7)
-- [ ] Category picker + optional photo, no moderation
-- [ ] Resolve by reporter/volunteer/official
-- [ ] Realtime push, no polling
-- [ ] Photo-fail-safe (local blob retry)
-- [ ] GATE: offline hazard report syncs to all clients within 5s of reconnect
+- [x] Category picker, unified with the water form — one screen, because a resident does not know which table their sighting belongs in
+- [x] Optional photo, no moderation queue
+- [x] Resolve — offered to everyone, decided by RLS
+- [x] Realtime push (INSERT *and* UPDATE, so a resolve disappears as promptly as a report appears)
+- [x] **Photo fail-safe** — separate Dexie store, uploaded independently of the row, then the row is patched. Verified end to end: 845-byte JPEG reached Storage at `{uid}/{hazardId}`, `photo_url` patched through the queue, and rendered back through a signed URL at its true 80×60.
+- [x] `insert_hazards` tightened — see the decisions log; it had the same `reported_by IS NULL` hole `0007` closed for SOS
+- [x] **GATE: passes, measured on a genuinely independent client — 652ms**, against a 5s criterion (`npm run check:realtime`).
+
+  Recorded because the first attempt was wrong: two browser tabs share an origin and therefore share IndexedDB, so the "second device" was reading the reporter's local write queue with nothing crossing the network. The measurement above uses two separate Supabase clients with their own sessions and websockets.
+
+  Not separately re-verified here: the offline-hold-then-release half. The hazard row was observed queuing offline (`stillQueued: ["downed_lines"]`), but the browser-side network block proved unreliable in this session — supabase-js captures its `fetch` at client construction, so an override applied afterwards is bypassed. The queue's hold-and-release behaviour was verified against raw IndexedDB in Phase 2 and hazards use that identical queue.
 
 ## Phase 7 — Headcount Tracking (7.8)
 - [ ] Append-only ledger, SUM(delta)
@@ -177,6 +183,18 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 ---
 
 ## Notes / decisions log
+
+- **2026-09-06 — Phase 6: two browser tabs are not two devices, and an earlier version of this gate proved nothing because of it.** Tabs share an origin, so they share IndexedDB, localStorage and the Service Worker cache. The "observer" tab was showing the reporter's report by reading the reporter's *local write queue* — no server, no websocket, nothing across the network. It looked like a pass. `scripts/realtime-latency.mjs` replaces it with two separate Supabase clients, each with its own anonymous session and its own socket: **652ms**, against a 5s criterion.
+
+- **2026-09-06 — The browser-side network block is not reliable, and that matters for how these gates are read.** `supabase-js` captures `globalThis.fetch` when the client is constructed, so an override applied after the app has booted is simply bypassed — writes go through while `navigator.onLine` reports false and the UI honestly says "queued". Two Phase 6 runs were invalidated by this before it was spotted; the tell was a row reaching Postgres while the queue was supposedly held. Where an offline claim matters, verify it against raw IndexedDB (as Phase 2 does) rather than trusting the block.
+
+- **2026-09-06 — `insert_hazards` had the same attribution hole as `insert_rescue`.** It accepted `reported_by IS NULL`, which is not merely untidy: `resolve_hazards` is scoped to `reported_by = auth.uid() or is_staff()`, so an unattributed report lands successfully and can then never be resolved by the person who filed it — they would watch their own cleared hazard sit in the feed forever. Same shape as the SOS bug from Phase 3, in a second table. Fixed in `0009`. Worth noting the pattern: every table with an owner column needs the owner *required*, not merely permitted.
+
+- **2026-09-06 — Photos are queued separately from rows, on purpose.** They could not share the ordered row queue: that queue sends JSON to PostgREST and stops at the first retryable failure, so a 4 MB upload timing out on a dying tower would hold up every write behind it — including a rescue request. So the report row is sent on its own and never waits for its picture, the photo retries independently, and the row is patched with the object path only once the bytes are safely stored. The visible consequence is that a report can exist without its photo for a while; that is the intended trade, because the alternative loses the urgent half to protect the optional half.
+
+- **2026-09-06 — The photo bucket is private.** A hazard photo shows somebody's street, often their house, taken at the worst moment of their year. A public bucket hands out a permanent unauthenticated URL for that, which sits badly beside §9, where even vulnerability tags are staff-only. Reads go through short-lived signed URLs instead. Object paths are `{uid}/{hazardId}` so the storage policy can prove ownership from the path rather than from a column a client could set.
+
+- **2026-09-06 — Known gap, not yet addressed: the reports feed is not cached offline.** The advisory snapshot is, but water and hazard reads go straight to Supabase, so offline the community feed collapses to just this device's queued items. It demos perfectly (online) and degrades in the field (offline), which is exactly the failure mode this project keeps trying to avoid. Not in the §7.6/§7.7 requirements, which cover realtime push rather than offline reads — flagged here rather than silently expanded into.
 
 - **2026-09-05 — Phase 5 bug: a reporter could not see their own report.** The write returns as soon as it is durable on the device, so the re-read fired immediately afterwards raced the flush and came back stale; and the originating tab could not rely on its own Realtime echo to fill the gap. Offline it was worse — the report would not have appeared at all. That matters more than it sounds: someone who files a flood report, sees nothing in the list, and concludes it failed will file it again, and duplicate reports from one street are exactly the noise responders cannot afford. Fixed with `allWaterReports()`, merging the local write queue into the list on the same pattern as `allMyRequests()` for SOS, plus an `onQueueChanged` subscription so the row updates when the flush lands.
 

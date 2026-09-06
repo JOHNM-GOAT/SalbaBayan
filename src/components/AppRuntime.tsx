@@ -24,6 +24,7 @@ import {
 } from "@/lib/advisory";
 import { isLanguage, translate, type Language } from "@/lib/i18n";
 import { languagePref, noStoredValue, purokPref } from "@/lib/prefs";
+import { startPhotoFlushListener } from "@/lib/photoQueue";
 import { installDiagnostics } from "@/lib/diagnostics";
 
 /**
@@ -196,6 +197,9 @@ export function AppRuntime({ children }: { children: React.ReactNode }) {
     window.addEventListener("online", onReconnect);
 
     const stopFlush = startQueueFlushListener();
+    // Photos retry on their own schedule — see lib/photoQueue.ts for why they
+    // are not part of the ordered row queue.
+    const stopPhotos = startPhotoFlushListener();
     const refreshCount = () => {
       void queuedCount().then(setQueued);
       void blockedCount().then(setBlocked);
@@ -210,6 +214,7 @@ export function AppRuntime({ children }: { children: React.ReactNode }) {
     return () => {
       window.removeEventListener("online", onReconnect);
       stopFlush();
+      stopPhotos();
       unsubscribe();
       window.clearInterval(tick);
     };
