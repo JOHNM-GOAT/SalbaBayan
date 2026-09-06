@@ -119,11 +119,15 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
   The gate is two-phase because `insert_headcounts` requires staff and roles are granted by an official: `--enrol` prints the uids to grant, `--run` fires the concurrent taps. Both clients are genuinely separate — the Phase 6 lesson about two browser tabs sharing IndexedDB applies here too, and a sequential pair would have passed against a stored counter and proved nothing.
 
 ## Phase 8 — QR Check-In (7.9)
-- [ ] qr_token generation + jsqr scan
-- [ ] Vulnerability tags on scan
-- [ ] Status logging (checked-in/evacuated/needs-help)
-- [ ] Manual entry fallback
-- [ ] GATE: manual entry matches scan result
+- [x] `jsqr` camera scan, with a repeat guard so one card held to the lens files one check-in rather than a dozen
+- [x] Vulnerability tags surfaced on lookup, priority-flagged
+- [x] Status logging — checked-in / evacuated / needs-help, through the write queue
+- [x] Manual entry — present at all times, not revealed only on failure
+- [x] Camera failures distinguish *why*: permission denied, needs HTTPS, or no camera. Verified live — the pane blocks the camera, and the screen said "WALAY TUGOT SA CAMERA — GAMITA ANG MANUAL" rather than showing a black rectangle.
+- [x] Token handling tested: **18/18** (`npm run check:checkin`)
+- [x] **GATE: passes.** Typed `sb0142` and scanned-form `SB-0142` produced **byte-identical** resident cards — `MARIA SANTOS · PUROK 3 · SB-0142 · PRAYORIDAD · MEDICAL · TIGULANG` — and the logged check-in landed attributed (`scanned_by` set).
+
+  Satisfied by construction rather than by comparison: the scanner emits a string and the text box emits a string, and from `normaliseToken` onward there is one path. There is no separate "scan flow" that could drift from the manual one.
 
 ## Phase 9 — Deferred (do not start until Phases 0-8 are all [x])
 - [ ] Pre-Storm Readiness Checklist
@@ -189,6 +193,16 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 ---
 
 ## Notes / decisions log
+
+- **2026-09-06 — Phase 8: the manual fallback is a peer of the camera, not a rescue path.** The §7.9 criterion says a typed token must produce the same result as a scanned one, and the way to get that is to have nothing to compare: the scanner emits a string, the text box emits a string, and from `normaliseToken` onward there is exactly one path. The text box is also on screen at all times rather than appearing after a failure — a volunteer whose camera is failing in the rain should not have to discover that an alternative exists.
+
+- **2026-09-06 — Token normalisation forgives separators but not shape.** A card reads `SB-0142`, and a volunteer at 2am may type `sb0142`, `sb 0142` or `SB_0142` — all of which mean the card in their hand, and all of which would otherwise miss. So punctuation and case are stripped and the printed shape re-formed. What is deliberately NOT forgiven is length or characters: `SB-0143` reshapes to `SB-0143` and still fails to match, because coercing a typo into a neighbouring token would record **the wrong person as safe**. Both halves are tested — five accepted spellings and four rejected near-misses.
+
+- **2026-09-06 — The scanner debounces repeats, and this is a data-integrity guard rather than a UI nicety.** A camera decodes the same card many times a second. Without the two-second guard, one card held to the lens files a dozen check-ins, and the roll — the record used to decide who is unaccounted for after a storm — fills with duplicates of the people who did arrive.
+
+- **2026-09-06 — Camera failures say which failure.** Permission denied, insecure origin and no-camera-present are three different problems with three different remedies, and a scanner that renders a black rectangle for all of them just gets cards held up to it repeatedly. Confirmed live in this session: the browser pane blocks camera access, and the screen correctly reported denial and pointed at manual entry.
+
+- **2026-09-06 — Two more modules split for testability, on the same principle as `ledger.ts`.** `token.ts` and `ledger.ts` hold the pure decisions — does this input mean that person, is this centre full — with no imports, so they run under Node's native TypeScript stripping with no bundler. The I/O modules re-export them so callers still have one import site. The rule that forced it is worth remembering: a test can only import a `.ts` file directly if that file's own imports resolve, so anything reaching `./offlineQueue` is untestable this way.
 
 - **2026-09-06 — The attribution pattern is now closed in all four tables that had it.** `insert_rescue` (0007), `insert_hazards` (0009), and now `insert_headcounts` and `insert_checkins` (0010). Every one permitted a row with no owner, and in every case the consequence was different but never cosmetic: an SOS invisible to its sender, a hazard its reporter could never resolve, and — worst here — a ledger entry attributed to nobody. The headcount screen tells a volunteer the ledger is append-only and cannot be erased, which is precisely why a count assembled by several people in a crowded hall can be trusted; an unattributable entry removes that accountability while still looking like a complete audit trail. The general rule, learned four times: **a column that records who did something must be required, not merely permitted.**
 
