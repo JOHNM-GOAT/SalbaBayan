@@ -25,11 +25,34 @@ export function HoldToCancel({ onCancel }: { onCancel: () => void }) {
   const startedAt = useRef<number | null>(null);
   const frame = useRef<number | null>(null);
 
+  /*
+   * `onCancel` is held in a ref so it is NOT an effect dependency.
+   *
+   * This is the whole bug, and it was not theoretical: the SOS screen runs a
+   * one-second interval for the elapsed timer, so it re-renders every second
+   * and hands down a fresh `onCancel` identity each time. With that identity
+   * in the dependency array the effect tore down and re-ran every second — and
+   * because the effect was also where the clock started, every re-run reset
+   * the hold to zero. A 1.8s hold interrupted every 1.0s can never complete:
+   * the bar filled to about half, snapped back, and started again for as long
+   * as the person kept their thumb down. The one destructive action on the
+   * screen was unreachable, and it looked like the app ignoring them.
+   *
+   * A ref rather than asking the caller for a `useCallback`, deliberately: a
+   * control whose correctness depends on every caller remembering to memoise a
+   * prop is a control that will break again the next time someone uses it.
+   */
+  const onCancelRef = useRef(onCancel);
+  useEffect(() => {
+    onCancelRef.current = onCancel;
+  });
+
   useEffect(() => {
     if (!holding) return;
 
-    startedAt.current = Date.now();
     const tick = () => {
+      // `startedAt` is stamped at pointer-down, not here, so that even a
+      // legitimate re-run of this effect cannot restart the clock.
       const held = Date.now() - (startedAt.current ?? Date.now());
       const next = Math.min(1, held / HOLD_MS);
       setProgress(next);
@@ -37,7 +60,7 @@ export function HoldToCancel({ onCancel }: { onCancel: () => void }) {
       if (next >= 1) {
         setHolding(false);
         setProgress(0);
-        onCancel();
+        onCancelRef.current();
         return;
       }
       frame.current = requestAnimationFrame(tick);
@@ -47,9 +70,15 @@ export function HoldToCancel({ onCancel }: { onCancel: () => void }) {
     return () => {
       if (frame.current !== null) cancelAnimationFrame(frame.current);
     };
-  }, [holding, onCancel]);
+  }, [holding]);
+
+  const start = () => {
+    startedAt.current = Date.now();
+    setHolding(true);
+  };
 
   const stop = () => {
+    startedAt.current = null;
     setHolding(false);
     setProgress(0);
   };
@@ -59,7 +88,7 @@ export function HoldToCancel({ onCancel }: { onCancel: () => void }) {
       type="button"
       // Pointer events cover mouse, touch and pen with one path. `onPointerLeave`
       // matters: dragging a thumb off the control must abort, not complete.
-      onPointerDown={() => setHolding(true)}
+      onPointerDown={start}
       onPointerUp={stop}
       onPointerLeave={stop}
       onPointerCancel={stop}

@@ -14,8 +14,16 @@ import {
   queuedWrites,
 } from "./offlineQueue";
 import { getCurrentUserId, getSupabase } from "./supabase";
+import {
+  mergeRequests,
+  queuedInserts,
+  queuedPatches,
+  type RescueStatus,
+} from "./rescueMerge";
 
-export type RescueStatus = "pending" | "acknowledged" | "rescued" | "cancelled";
+/* Re-exported from the pure module so there is one definition, not two that
+   can drift — the same arrangement as lib/ledger.ts and lib/token.ts. */
+export type { RescueStatus };
 
 export type RescueRequest = {
   id: string;
@@ -174,41 +182,43 @@ export async function myRequests(): Promise<RescueRequest[]> {
  * Status is always `pending` here by definition — a row nobody has received
  * cannot have been acknowledged.
  */
+/** One place that knows how a queued insert becomes a displayable request. */
+const buildQueued = (
+  p: Record<string, unknown>,
+  id: string,
+  ts: string,
+): RescueRequest => ({
+  id,
+  purok_id: (p.purok_id as string) ?? null,
+  lat: (p.lat as number) ?? null,
+  lng: (p.lng as number) ?? null,
+  accuracy_m: (p.accuracy_m as number) ?? null,
+  // A row nobody has received cannot have been acknowledged.
+  status: 'pending' as RescueStatus,
+  ts,
+  notes: (p.notes as string) ?? null,
+  requested_by: (p.requested_by as string) ?? null,
+  acknowledged_by: null,
+});
+
 export async function queuedRequests(): Promise<RescueRequest[]> {
   const rows = await queuedWrites();
-  return rows
-    .filter((row) => row.table === "rescue_requests" && !row.blocked)
-    .map((row) => {
-      const p = row.payload as Partial<RescueRequest>;
-      return {
-        id: row.id,
-        purok_id: p.purok_id ?? null,
-        lat: p.lat ?? null,
-        lng: p.lng ?? null,
-        accuracy_m: p.accuracy_m ?? null,
-        status: "pending" as RescueStatus,
-        ts: p.ts ?? new Date(row.createdAt).toISOString(),
-        notes: p.notes ?? null,
-        requested_by: p.requested_by ?? null,
-        acknowledged_by: null,
-      };
-    });
+  return queuedInserts<RescueRequest>(rows, buildQueued);
 }
 
 /**
- * Everything this device has raised, server rows and still-queued ones
- * together. Server rows win on id collision: once a request has landed, the
- * server knows things the local copy cannot, such as who acknowledged it.
+ * Everything this device has raised, server rows and the queue together.
+ *
+ * See lib/rescueMerge.ts for why queued updates are applied as patches rather
+ * than materialised as requests — doing the latter made a cancelled SOS
+ * reappear with its timer restarting from zero.
  */
 export async function allMyRequests(): Promise<RescueRequest[]> {
-  const [remote, local] = await Promise.all([myRequests(), queuedRequests()]);
-  const byId = new Map<string, RescueRequest>();
-  for (const row of local) byId.set(row.id, row);
-  for (const row of remote) byId.set(row.id, row);
-  return [...byId.values()].sort((a, b) => b.ts.localeCompare(a.ts));
+  const [remote, rows] = await Promise.all([myRequests(), queuedWrites()]);
+  const local = queuedInserts<RescueRequest>(rows, buildQueued);
+  return mergeRequests<RescueRequest>(remote, local, queuedPatches(rows));
 }
 
-/** Active means still needing a responder: pending or acknowledged. */
 export const isActive = (r: RescueRequest) =>
   r.status === "pending" || r.status === "acknowledged";
 
