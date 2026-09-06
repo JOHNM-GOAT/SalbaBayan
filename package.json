@@ -9,10 +9,11 @@
     "lint": "eslint",
     "check:writes": "node scripts/check-write-paths.mjs",
     "check:rls": "node scripts/rls-test.mjs",
-    "verify": "npm run lint && npm run check:writes && npm run check:geo && npm run build && npm run check:rls",
+    "verify": "npm run lint && npm run check:writes && npm run check:geo && npm run check:headcount && npm run build && npm run check:rls",
     "render:design": "node scripts/render-artboards.mjs",
     "check:geo": "node scripts/geo-test.mjs",
-    "check:realtime": "node scripts/realtime-latency.mjs"
+    "check:realtime": "node scripts/realtime-latency.mjs",
+    "check:headcount": "node scripts/headcount-test.mjs"
   },
   "dependencies": {
     "@serwist/next": "^9.5.12",

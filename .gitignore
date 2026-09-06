@@ -72,3 +72,6 @@ yarn-error.log*
 public/sw.js
 public/sw.js.map
 public/swe-worker-*.js
+
+# Session tokens for the headcount concurrency gate (throwaway anon devices)
+/.headcount-test.json

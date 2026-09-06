@@ -91,6 +91,12 @@ export default function Home() {
                 COVERAGE
               </Link>
               <Link
+                href="/headcount"
+                className="tap mono flex flex-1 items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
+              >
+                BILANG
+              </Link>
+              <Link
                 href="/responder"
                 className="tap mono flex flex-1 items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
               >

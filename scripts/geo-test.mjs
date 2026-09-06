@@ -145,4 +145,7 @@ check(
 );
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
-process.exit(fail === 0 ? 0 : 1);
+// Set the code and let Node exit on its own. Calling process.exit() here
+// races the native TypeScript-stripping loader as it tears down and trips a
+// libuv assertion on Windows, which fails the run after the tests passed.
+process.exitCode = fail === 0 ? 0 : 1;

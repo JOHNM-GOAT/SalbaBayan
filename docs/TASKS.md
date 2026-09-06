@@ -108,9 +108,15 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
   Not separately re-verified here: the offline-hold-then-release half. The hazard row was observed queuing offline (`stillQueued: ["downed_lines"]`), but the browser-side network block proved unreliable in this session — supabase-js captures its `fetch` at client construction, so an override applied afterwards is bypassed. The queue's hold-and-release behaviour was verified against raw IndexedDB in Phase 2 and hazards use that identical queue.
 
 ## Phase 7 — Headcount Tracking (7.8)
-- [ ] Append-only ledger, SUM(delta)
-- [ ] Capacity warning + vulnerability breakdown
-- [ ] GATE: concurrency test (two simultaneous +1 taps both land)
+- [x] Append-only ledger, count is `SUM(delta)` — no stored total, so no race to lose
+- [x] Bulk entry (`+2..+6`) — a family arriving together is one entry, not five taps
+- [x] Capacity warning at 75%, and a distinct full state
+- [x] Vulnerability breakdown from check-ins — verified live at **2 medical / 2 elderly / 1 infant**, matching the seeded residents exactly
+- [x] `insert_headcounts` and `insert_checkins` tightened — third and fourth instances of the attribution pattern; the class is now closed across every owner-bearing table
+- [x] Ledger arithmetic tested: **13/13** (`npm run check:headcount`)
+- [x] **GATE: passes, 5 runs out of 5.** Two simultaneous `+1` inserts from two clients with separate anonymous sessions: total moved by exactly 2 each time, from 2 distinct recorders, no insert failures (`node scripts/headcount-concurrency.mjs`).
+
+  The gate is two-phase because `insert_headcounts` requires staff and roles are granted by an official: `--enrol` prints the uids to grant, `--run` fires the concurrent taps. Both clients are genuinely separate — the Phase 6 lesson about two browser tabs sharing IndexedDB applies here too, and a sequential pair would have passed against a stored counter and proved nothing.
 
 ## Phase 8 — QR Check-In (7.9)
 - [ ] qr_token generation + jsqr scan
@@ -183,6 +189,20 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 ---
 
 ## Notes / decisions log
+
+- **2026-09-06 — The attribution pattern is now closed in all four tables that had it.** `insert_rescue` (0007), `insert_hazards` (0009), and now `insert_headcounts` and `insert_checkins` (0010). Every one permitted a row with no owner, and in every case the consequence was different but never cosmetic: an SOS invisible to its sender, a hazard its reporter could never resolve, and — worst here — a ledger entry attributed to nobody. The headcount screen tells a volunteer the ledger is append-only and cannot be erased, which is precisely why a count assembled by several people in a crowded hall can be trusted; an unattributable entry removes that accountability while still looking like a complete audit trail. The general rule, learned four times: **a column that records who did something must be required, not merely permitted.**
+
+- **2026-09-06 — The count is never stored, and that is the whole feature.** A `count` column incremented per tap fails in exactly the conditions this app exists for: two volunteers at one door, both reading 68, both writing 69 — one person gone from a building that may be flooding, with no error anywhere and nothing noticed until a post-storm roll call. `SUM(delta)` over an append-only ledger has no shared value to overwrite, so there is no race. It also makes corrections honest: a mistake is fixed by appending its opposite, never by editing history.
+
+- **2026-09-06 — A sequential test would have proved nothing.** Two `+1`s one after another pass against a stored counter too. The gate fires both inserts in flight together, from two clients with separate sessions, and checks that the total moved by exactly 2 *and* that two distinct recorders appear. Run five times rather than once, because a concurrency test that passes once has only shown that one interleaving works.
+
+- **2026-09-06 — The ledger may legitimately go negative, and is not clamped.** Corrections can outrun entries at a shift change. Clamping to zero would hide a reconciliation error behind a plausible-looking number; showing `-3` makes it visible that something needs fixing. Covered by `check:headcount`.
+
+- **2026-09-06 — The vulnerability breakdown cannot come from the ledger, by design.** A `+1` is deliberately anonymous: a volunteer counting people through a door has no time to ask each one who they are. The breakdown is derived from `checkins` joined to `residents.vulnerability_tags` — Phase 8's data — and is staff-only by RLS, matching §9's treatment of those tags as the most sensitive field in the system. Four check-in fixtures were seeded in `0010` so the panel demonstrates something true rather than three zeros that look like a broken query.
+
+- **2026-09-06 — Two test-harness bugs of my own, both worth noting for the same reason.** A capacity assertion used 112/150 as "75% or more" when 75% of 150 is 112.5, and the Phase 4 geometry test offset a hazard along its route instead of perpendicular to it. Both failed for their own arithmetic rather than the code's. When a new test fails first time, check the test before the implementation.
+
+- **2026-09-06 — `process.exit()` in the TypeScript tests tripped a libuv assertion on Windows.** Calling it races Node's native type-stripping loader as it tears down, and the run failed *after* printing 13/13. Both tests now set `process.exitCode` and let Node exit on its own.
 
 - **2026-09-06 — Phase 6: two browser tabs are not two devices, and an earlier version of this gate proved nothing because of it.** Tabs share an origin, so they share IndexedDB, localStorage and the Service Worker cache. The "observer" tab was showing the reporter's report by reading the reporter's *local write queue* — no server, no websocket, nothing across the network. It looked like a pass. `scripts/realtime-latency.mjs` replaces it with two separate Supabase clients, each with its own anonymous session and its own socket: **652ms**, against a 5s criterion.
 
