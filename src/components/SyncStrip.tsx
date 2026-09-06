@@ -1,6 +1,7 @@
 "use client";
 
 import { useSync, useT } from "./AppRuntime";
+import { useShellWidth } from "./Shell";
 
 /**
  * The persistent connection strip (PRD §6, FR-3.5).
@@ -16,6 +17,7 @@ import { useSync, useT } from "./AppRuntime";
 export function SyncStrip() {
   const { online, queued, blocked, cacheAgeMs } = useSync();
   const t = useT();
+  const width = useShellWidth();
 
   function age(): string {
     if (cacheAgeMs === null) return t("ui.never_synced");
@@ -43,7 +45,8 @@ export function SyncStrip() {
   ].filter(Boolean);
 
   return (
-    <div className="flex h-[25px] shrink-0 items-center gap-2 border-b border-line-soft bg-ink-900 px-3.5">
+    <div className="shrink-0 border-b border-line-soft bg-ink-900">
+      <div className={`mx-auto flex h-[25px] w-full items-center gap-2 px-3.5 ${width}`}>
       <span className={`size-1.5 shrink-0 ${dot}`} aria-hidden />
       <span className="mono text-[10px] font-semibold tracking-[0.9px] text-paper-3">
         {parts.join(" · ")}
@@ -60,6 +63,7 @@ export function SyncStrip() {
           {t("ui.blocked", { n: blocked })}
         </span>
       )}
+      </div>
     </div>
   );
 }

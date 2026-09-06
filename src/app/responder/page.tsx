@@ -146,12 +146,19 @@ export default function ResponderPage() {
         </p>
       )}
 
-      <main className="flex flex-1 flex-col gap-3 p-3.5">
+      {/*
+       * At the barangay hall this is a laptop screen (PRD §4), so the map and
+       * the queue sit side by side and the map stays put while the queue
+       * scrolls. On a phone they stack, map first — the same reading order,
+       * just folded.
+       */}
+      <main className="flex flex-1 flex-col gap-3 p-3.5 lg:grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start lg:gap-4">
         <div
           ref={container}
-          className="h-64 w-full shrink-0 overflow-hidden rounded-instrument border-[1.5px] border-line-soft"
+          className="h-64 w-full shrink-0 overflow-hidden rounded-instrument border-[1.5px] border-line-soft lg:sticky lg:top-3.5 lg:h-[calc(100dvh-10rem)]"
         />
 
+        <div className="flex flex-col gap-3">
         {/* The oldest unanswered request is escalated out of the list, because
             in a long queue the one most at risk is the one easiest to lose. */}
         {oldest && oldest.status === "pending" && (
@@ -217,6 +224,7 @@ export default function ResponderPage() {
             ))}
           </ul>
         )}
+        </div>
       </main>
     </>
   );

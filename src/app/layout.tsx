@@ -3,6 +3,7 @@ import { Archivo, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { AppRuntime } from "@/components/AppRuntime";
 import { AppHeader } from "@/components/AppHeader";
+import { Shell } from "@/components/Shell";
 
 /*
  * Fonts are self-hosted by next/font rather than linked from the Google Fonts
@@ -77,9 +78,15 @@ export default function RootLayout({
          * screen cannot ship without it.
          */}
         <AppRuntime>
+          {/*
+           * The chrome bars stay full-bleed while their contents are held to
+           * the same column as the page below (see Shell). A severity rail
+           * that stopped at 544px on a laptop would stop being the ambient
+           * across-the-room indicator it exists to be.
+           */}
           <div className="flex min-h-dvh flex-col bg-ink-900">
             <AppHeader />
-            {children}
+            <Shell>{children}</Shell>
           </div>
         </AppRuntime>
       </body>

@@ -3,6 +3,7 @@
 import { useSync } from "./AppRuntime";
 import { LanguageSwitch } from "./LanguageSwitch";
 import { SyncStrip } from "./SyncStrip";
+import { useShellWidth } from "./Shell";
 import { signalStyle } from "@/lib/signal";
 
 /**
@@ -17,12 +18,17 @@ export function AppHeader() {
   const { snapshot } = useSync();
   const level = snapshot?.barangay.current_signal_level;
   const rail = level === undefined ? "bg-ink-600" : signalStyle(level).bg;
+  const width = useShellWidth();
 
   return (
     <header className="shrink-0">
+      {/* Full-bleed by design: the rail is read from across a room. */}
       <div className={`h-[5px] shrink-0 ${rail}`} aria-hidden />
 
-      <div className="flex items-center justify-between border-b border-line-soft bg-ink-800 px-3.5 py-3">
+      <div className="border-b border-line-soft bg-ink-800">
+        <div
+          className={`mx-auto flex w-full items-center justify-between px-3.5 py-3 ${width}`}
+        >
         <div className="flex items-center gap-2.5">
           <div className="flex size-6.5 items-center justify-center rounded-[3px] bg-hv text-hv-ink">
             <svg
@@ -46,7 +52,8 @@ export function AppHeader() {
           </span>
         </div>
 
-        <LanguageSwitch />
+          <LanguageSwitch />
+        </div>
       </div>
 
       <SyncStrip />
