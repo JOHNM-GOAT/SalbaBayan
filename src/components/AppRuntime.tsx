@@ -9,7 +9,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { ensureAnonymousSession } from "@/lib/supabase";
+import { ensureAnonymousSession, getMyRole, type UserRole } from "@/lib/supabase";
 import {
   flushQueue,
   onQueueChanged,
@@ -23,7 +23,8 @@ import {
   type AdvisorySnapshot,
 } from "@/lib/advisory";
 import { isLanguage, translate, type Language } from "@/lib/i18n";
-import { languagePref, noStoredValue, purokPref } from "@/lib/prefs";
+import { actorPref, languagePref, noStoredValue, purokPref } from "@/lib/prefs";
+import { actorForRole, isActorId, type ActorId } from "@/lib/actors";
 import { startPhotoFlushListener } from "@/lib/photoQueue";
 import { installDiagnostics } from "@/lib/diagnostics";
 
@@ -53,6 +54,9 @@ export type SyncState = {
   setLanguage: (language: Language) => void;
   purokId: string | null;
   setPurokId: (purokId: string) => void;
+  /** Which actor's screens to present. Presentation only — never a permission. */
+  actor: ActorId;
+  setActor: (actor: ActorId) => void;
   flushNow: () => void;
   refresh: () => void;
 };
@@ -69,6 +73,8 @@ const SyncContext = createContext<SyncState>({
   setLanguage: () => {},
   purokId: null,
   setPurokId: () => {},
+  actor: "resident",
+  setActor: () => {},
   flushNow: () => {},
   refresh: () => {},
 });
@@ -142,6 +148,23 @@ export function AppRuntime({ children }: { children: React.ReactNode }) {
     purokPref.get,
     noStoredValue,
   );
+  const storedActor = useSyncExternalStore(
+    actorPref.subscribe,
+    actorPref.get,
+    noStoredValue,
+  );
+
+  /*
+   * The role RLS actually grants this device, used only to pick which actor a
+   * device starts as. A volunteer's phone should open on the volunteer home
+   * without anyone choosing it. It is a default, not a gate — see lib/actors.
+   */
+  const [deviceRole, setDeviceRole] = useState<UserRole>("resident");
+
+  useEffect(() => {
+    if (!userId) return;
+    void getMyRole().then(setDeviceRole);
+  }, [userId]);
 
   /**
    * Cache-first, then revalidate.
@@ -228,10 +251,19 @@ export function AppRuntime({ children }: { children: React.ReactNode }) {
     purokPref.set(id);
   }, []);
 
+  const setActor = useCallback((next: ActorId) => {
+    actorPref.set(next);
+  }, []);
+
   /**
    * The resident's explicit choice wins; otherwise the barangay's configured
    * default (FR-3.5), not a hard-coded language.
    */
+  /* An explicit choice wins; otherwise the device's own role decides. */
+  const actor: ActorId = isActorId(storedActor)
+    ? storedActor
+    : actorForRole(deviceRole);
+
   const language: Language = useMemo(() => {
     if (isLanguage(storedLanguage)) return storedLanguage;
     const configured = snapshot?.barangay.default_language;
@@ -255,6 +287,8 @@ export function AppRuntime({ children }: { children: React.ReactNode }) {
       snapshot?.puroks[0]?.id ??
       null,
     setPurokId,
+    actor,
+    setActor,
     flushNow: () => void flushQueue(),
     refresh: () => void load(),
   };

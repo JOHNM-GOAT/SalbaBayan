@@ -94,7 +94,7 @@ export default function ReadinessPage() {
 
             {/* Five independent checks read fine as a column on a phone and
                 waste most of a laptop screen; they pair up instead. */}
-            <ul className="grid gap-2 md:grid-cols-2">
+            <ul className="grid gap-2 @2xl:grid-cols-2">
               {checks.map((check) => (
                 <li
                   key={check.id}
@@ -179,7 +179,7 @@ export default function ReadinessPage() {
                      * offline, and the documents here are read for their
                      * content, not their formatting.
                      */
-                    <pre className="max-h-80 overflow-auto border-t border-line-soft px-3.5 py-3 text-[11.5px] leading-relaxed whitespace-pre-wrap text-paper-2 lg:max-h-[32rem]">
+                    <pre className="max-h-80 overflow-auto border-t border-line-soft px-3.5 py-3 text-[11.5px] leading-relaxed whitespace-pre-wrap text-paper-2 @2xl:max-h-[32rem]">
                       {doc.content}
                     </pre>
                   )}

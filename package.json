@@ -9,13 +9,14 @@
     "lint": "eslint",
     "check:writes": "node scripts/check-write-paths.mjs",
     "check:rls": "node scripts/rls-test.mjs",
-    "verify": "npm run lint && npm run check:writes && npm run check:geo && npm run check:headcount && npm run check:checkin && npm run check:readiness && npm run build && npm run check:rls",
+    "verify": "npm run lint && npm run check:writes && npm run check:geo && npm run check:headcount && npm run check:checkin && npm run check:readiness && npm run check:actors && npm run build && npm run check:rls",
     "render:design": "node scripts/render-artboards.mjs",
     "check:geo": "node scripts/geo-test.mjs",
     "check:realtime": "node scripts/realtime-latency.mjs",
     "check:headcount": "node scripts/headcount-test.mjs",
     "check:checkin": "node scripts/checkin-test.mjs",
     "check:readiness": "node scripts/readiness-test.mjs",
+    "check:actors": "node scripts/actors-test.mjs",
     "ingest:docs": "node scripts/ingest-docs.mjs"
   },
   "dependencies": {

@@ -48,7 +48,7 @@ const buildRevision =
  * after the resident has already visited it once with a connection, which is
  * not a safe assumption for this product.
  */
-const SHELL_ROUTES = ["/", "/coverage", "/sos", "/responder", "/map", "/report", "/headcount", "/checkin", "/readiness"];
+const SHELL_ROUTES = ["/", "/coverage", "/sos", "/responder", "/map", "/report", "/headcount", "/checkin", "/readiness", "/volunteer", "/official", "/profile"];
 
 /*
  * Files under `public/` are NOT listed here.

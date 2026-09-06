@@ -90,9 +90,23 @@ export async function getMyRole(): Promise<UserRole> {
   const supabase = getSupabase();
   if (!supabase) return "resident";
 
+  /*
+   * Filtered to the caller's own uid, and that filter is load-bearing rather
+   * than tidiness. `read_own_role` is `user_id = auth.uid() OR is_official()`,
+   * so an official can read the WHOLE table — and `.maybeSingle()` errors with
+   * PGRST116 the moment more than one row comes back. Unfiltered, every
+   * official was silently reported as "resident" as soon as a second staff
+   * member existed, which is exactly what the readiness dashboard tells them
+   * to arrange.
+   */
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth.user?.id;
+  if (!uid) return "resident";
+
   const { data, error } = await supabase
     .from("user_roles")
     .select("role")
+    .eq("user_id", uid)
     .maybeSingle();
 
   if (error || !data?.role) return "resident";

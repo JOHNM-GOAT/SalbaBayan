@@ -68,3 +68,13 @@ export const noStoredValue = () => null;
 
 export const languagePref = createPrefStore("salbabayan.language");
 export const purokPref = createPrefStore("salbabayan.purok");
+
+/*
+ * The chosen actor. Stored the same way and for the same reason: it decides
+ * what the very first paint renders, so reading it in an effect would flash
+ * the resident tab bar before correcting to the official one.
+ *
+ * Storing it does NOT store a permission — see lib/actors.ts. It is a view
+ * preference, and RLS is unaffected by it.
+ */
+export const actorPref = createPrefStore("salbabayan.actor");

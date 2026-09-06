@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { useSync } from "@/components/AppRuntime";
+import { useSync, useT } from "@/components/AppRuntime";
 import { PurokBar } from "@/components/PurokBar";
 import { SignalPlacard } from "@/components/SignalPlacard";
 import { LeaveByStrip } from "@/components/LeaveByStrip";
@@ -17,6 +17,7 @@ import { deriveAdvisory } from "@/lib/advisory";
  */
 export default function Home() {
   const { snapshot, purokId, language, loading } = useSync();
+  const t = useT();
 
   const advisory = useMemo(
     () =>
@@ -39,9 +40,7 @@ export default function Home() {
            * server — so it is told that plainly instead of spinning forever.
            */
           <p className="mono mt-8 text-center text-[11px] leading-relaxed tracking-[0.6px] text-paper-3">
-            {loading
-              ? "..."
-              : "WALANG NAKA-CACHE NA ADVISORY. KAILANGAN MUNA NG KONEKSYON."}
+            {loading ? "..." : t("ui.no_cache")}
           </p>
         ) : (
           <>
@@ -71,56 +70,6 @@ export default function Home() {
               SOS
             </Link>
 
-            {/*
-             * Seven destinations in one flex row gave each about 45px on a
-             * phone — narrower than the 44px minimum target and far narrower
-             * than their own tracked labels, so they truncated. A grid wraps
-             * them instead: three across on a handset, more as there is room.
-             */}
-            <div className="mt-1 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-              <Link
-                href="/map"
-                className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-hv text-[10px] font-bold tracking-[1px] text-hv"
-              >
-                MAPA
-              </Link>
-              <Link
-                href="/report"
-                className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
-              >
-                MAG-ULAT
-              </Link>
-              <Link
-                href="/coverage"
-                className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
-              >
-                COVERAGE
-              </Link>
-              <Link
-                href="/headcount"
-                className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
-              >
-                BILANG
-              </Link>
-              <Link
-                href="/checkin"
-                className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
-              >
-                CHECK-IN
-              </Link>
-              <Link
-                href="/readiness"
-                className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
-              >
-                HANDA
-              </Link>
-              <Link
-                href="/responder"
-                className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
-              >
-                RESPONDER
-              </Link>
-            </div>
           </>
         )}
       </main>

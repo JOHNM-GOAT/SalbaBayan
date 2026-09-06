@@ -4,6 +4,8 @@ import "./globals.css";
 import { AppRuntime } from "@/components/AppRuntime";
 import { AppHeader } from "@/components/AppHeader";
 import { Shell } from "@/components/Shell";
+import { ActorSwitch } from "@/components/ActorSwitch";
+import { BottomNav } from "@/components/BottomNav";
 
 /*
  * Fonts are self-hosted by next/font rather than linked from the Google Fonts
@@ -86,7 +88,14 @@ export default function RootLayout({
            */}
           <div className="flex min-h-dvh flex-col bg-ink-900">
             <AppHeader />
+            <ActorSwitch />
             <Shell>{children}</Shell>
+            {/*
+             * The tab bar lives here for the same reason the sync strip does:
+             * a screen that has to remember to render its own navigation is a
+             * screen someone will ship without it.
+             */}
+            <BottomNav />
           </div>
         </AppRuntime>
       </body>

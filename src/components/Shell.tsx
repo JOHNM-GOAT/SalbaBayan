@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { useSync } from "./AppRuntime";
 
 /**
  * The responsive shell.
@@ -20,25 +20,27 @@ import { usePathname } from "next/navigation";
  * horizontal scroll — so they opt into a wider shell and rearrange into
  * columns at `lg:`. Width is only taken where it is used.
  */
-const WIDE_ROUTES = new Set([
-  "/responder", // dispatch — the rescue queue beside its live map
-  "/coverage", // pre-season configuration — 8 Puroks x 5 levels, no sideways scroll
-  "/readiness", // pre-season configuration — checks in two columns
-  "/map", // a map is worth every pixel it is given, on any device
-]);
-
 /*
- * Deliberately NOT wide: `/headcount` and `/checkin`. Both are operated by a
- * volunteer standing at an evacuation centre holding a phone — the +1/-1
- * controls and the camera framing are the design, and stretching them across a
- * laptop would serve nobody who actually uses those screens. `/`, `/sos` and
- * `/report` are resident screens for the same reason.
+ * Width follows the ACTOR, not the route, and that distinction was learned the
+ * hard way. Route-based widths meant an official moving HOME -> READY -> GRID
+ * watched the column jump between 34rem and 76rem — and since the header and
+ * tab bar align to that column, the navigation resized under their finger
+ * between taps. Nothing about a person's screen should change size because
+ * they looked at a different part of it.
+ *
+ * So: the official works from a laptop at the barangay hall (PRD §4) and gets
+ * the wide shell everywhere. The resident and the volunteer are holding phones
+ * — a resident in the rain, a volunteer at a centre door — and their screens
+ * are designed at that size, so on a larger display they become a centred
+ * column rather than a stretched one. Stretching a 44px control to 1400px does
+ * not make it easier to hit.
  */
+const WIDE_ACTORS = new Set(["official"]);
 
-/** The Tailwind max-width this route's content should be held to. */
+/** The Tailwind max-width this actor's content is held to. */
 export function useShellWidth(): string {
-  const pathname = usePathname();
-  return WIDE_ROUTES.has(pathname) ? "max-w-[76rem]" : "max-w-[34rem]";
+  const { actor } = useSync();
+  return WIDE_ACTORS.has(actor) ? "max-w-[76rem]" : "max-w-[34rem]";
 }
 
 /**
@@ -47,11 +49,18 @@ export function useShellWidth(): string {
  * container — a single `height: auto` anywhere in that chain collapses it to
  * zero and the map renders blank. Adding a level here is safe only because
  * this one keeps the chain intact.
+ *
+ * `@container` is what makes the actor-based width above safe. Pages lay
+ * themselves out against THIS column's width (`@2xl:`, `@4xl:`) rather than
+ * the viewport's, so a two-column grid appears when there are two columns'
+ * worth of room. Viewport breakpoints would have put the responder's map and
+ * queue side by side inside a 34rem column the moment the window passed
+ * 1024px, which is exactly the squashed layout they were added to prevent.
  */
 export function Shell({ children }: { children: React.ReactNode }) {
   const width = useShellWidth();
   return (
-    <div className={`mx-auto flex w-full flex-1 flex-col ${width}`}>
+    <div className={`@container mx-auto flex w-full flex-1 flex-col ${width}`}>
       {children}
     </div>
   );
