@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSync, useT } from "@/components/AppRuntime";
 import { SignalPlacard } from "@/components/SignalPlacard";
+import { RescueLink } from "@/components/RescueLink";
 import { buildCoverage } from "@/lib/advisory";
 import { loadReadiness } from "@/lib/readinessData";
 import { overallStatus, readyCount, type ReadinessCheck } from "@/lib/readiness";
@@ -103,12 +104,7 @@ export default function OfficialHome() {
           </div>
 
           <div className="mt-1 grid grid-cols-2 gap-2">
-            <Link
-              href="/responder"
-              className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-hv text-[10px] font-bold tracking-[1px] text-hv"
-            >
-              {t("nav.rescue")}
-            </Link>
+            <RescueLink variant="primary" />
             <Link
               href="/headcount"
               className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"

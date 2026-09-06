@@ -67,11 +67,22 @@ export const ACTORS: readonly Actor[] = [
     home: "/volunteer",
     nav: [
       { href: "/volunteer", key: "nav.home", icon: "home" },
+      { href: "/checkin", key: "nav.scan", icon: "scan" },
+      /*
+       * Rescue takes the centre slot, not check-in.
+       *
+       * A volunteer is a first responder in this design — the runbook tells
+       * them rescue requests arrive here and that acknowledging one is what
+       * shows the resident they have been seen — and RLS has always let them
+       * read the queue (`is_staff()` covers volunteer). But `/responder` was
+       * in no volunteer tab bar at all, reachable only from a small button on
+       * their home. Someone in the water outranks the next card to scan.
+       *
+       * Cyan, not alarm red: the rule is that red marks a control that RAISES
+       * an alarm, which is the resident's SOS alone. This one answers them.
+       */
+      { href: "/responder", key: "nav.rescue", icon: "sos", raised: true },
       { href: "/headcount", key: "nav.count", icon: "count" },
-      // The volunteer's most-repeated action, so it takes the centre slot —
-      // in cyan, because scanning a card is routine, not an emergency.
-      { href: "/checkin", key: "nav.scan", icon: "scan", raised: true },
-      { href: "/map", key: "nav.map", icon: "map" },
       { href: "/profile", key: "nav.me", icon: "person" },
     ],
   },

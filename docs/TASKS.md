@@ -205,6 +205,18 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 
 ## Notes / decisions log
 
+- **2026-09-07 — A volunteer could always READ the rescue queue; nothing in their navigation went there.** `read_rescue` is `requested_by = auth.uid() OR private.is_staff()`, and `is_staff()` is `role in ('volunteer','official')` — so permission was never the problem. But `/responder` sat in no volunteer tab bar, reachable only from a small button on their home. The runbook tells volunteers that rescue requests arrive on that screen and that acknowledging one is what shows the resident they have been seen; their primary navigation had no route to it and no indication anyone was waiting.
+
+  Rescue is now the volunteer's raised centre tab, and check-in moved to a normal slot: someone in the water outranks the next card to scan. The map left the tab bar to make room and kept a place in the home quick actions, so nothing became unreachable. Still cyan, not alarm red — the rule is that red marks a control which RAISES an alarm, and that remains the resident's SOS alone.
+
+  Deliberately NOT done: plotting rescue pins on the evacuation map. That map's whole value is working with the connection gone, and mixing live-only data into it would make an empty map ambiguous between "nobody needs help" and "you are offline". The responder screen keeps that distinction and says which it is.
+
+- **2026-09-07 — The waiting count refuses to show a number it cannot stand behind.** `RescueLink` renders three states, and two of them are the failure this project has already shipped twice: RLS returns zero rows to a resident rather than an error, and an offline device holds a count that is no longer current. Either would otherwise render as a confident "0" on a control meaning *someone needs rescuing* — the worst possible place for a false all-clear. So a number appears only when the viewer is staff AND online; anything else is `—` with "Count unavailable — offline, or not permitted. It does not mean nobody is waiting."
+
+  All three states verified live rather than reasoned about: role-less device → no badge at all; volunteer online → **6**, matching `select count(*) ... where status in ('pending','acknowledged')` exactly; `navigator.onLine` forced false → `—` plus the explanation, not the stale 6.
+
+- **2026-09-07 — The roster has both roles again.** The barangay had an official (`4cd758f8`) and no volunteer, so no device could exercise the volunteer-only paths at all. The current demo device (`7dcaa79e`) is now `volunteer`. Side effect worth knowing: the readiness dashboard counts every `user_roles` row under "volunteers assigned", so it now reads 2/2 and turns green even though one of the two is an official. The check is doing what it says on the tin — staff assigned — but the label is looser than the number.
+
 - **2026-09-07 — Runtime error on the evacuation map: "Style is not done loading."** `ready` is React state mirroring a mutable MapLibre object, and the two drift the moment the build effect runs twice — which React's development double-invoke does by design: map A is built, its `load` sets `ready` true, the cleanup removes map A, map B is built, and `ready` is still true from A. The paint effect then called `addSource` on a style that had not loaded and MapLibre threw, taking the whole screen rather than one layer.
 
   Fixed by resetting `ready` per instance — on create and in the cleanup — so the flag can never outlive the map it describes, and by additionally asking `m.isStyleLoaded()` in both consumer effects. The second guard is the important one in principle: `ready` is a snapshot of a mutable object, `isStyleLoaded()` is the object itself, and only the object can answer authoritatively.
