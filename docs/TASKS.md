@@ -129,9 +129,19 @@ Source of truth: [`stage-2/PRD.md`](../stage-2/PRD.md) · [`stage-2/PRD-detailed
 
   Satisfied by construction rather than by comparison: the scanner emits a string and the text box emits a string, and from `normaliseToken` onward there is one path. There is no separate "scan flow" that could drift from the manual one.
 
-## Phase 9 — Deferred (do not start until Phases 0-8 are all [x])
-- [ ] Pre-Storm Readiness Checklist
-- [ ] Documentation Knowledge Base
+## Phase 9 — Pre-Storm Readiness & Knowledge Base (5.2 F4, 5.6 F13)
+- [x] `expected_households` baseline added and seeded to 48 (migration 0011). FR-4.3 compares registered residents against expected population, which needs a denominator; without one the check reports `unknown` rather than inventing a percentage.
+- [x] **F4 dashboard at `/readiness`** — protocols configured (FR-4.1), translations complete, volunteers assigned (FR-4.2), residents registered vs expected (FR-4.3), evacuation centres located. Every number is aggregated from the rows the app already runs on, so there is no readiness state anyone has to remember to update.
+- [x] Gaps are actionable (FR-4.5) — an unmet check links to where it is fixed: `/coverage` for the protocol grid, `/map` for centres with no coordinates.
+- [x] `scripts/ingest-docs.mjs` reads every `docs/*.md`, extracts title + content, upserts keyed by filename (FR-13.1; FR-13.2 idempotent by primary key, not by convention).
+- [x] `docs/RUNBOOK.md` written for barangay staff — not for developers — and ingested. It is the document the knowledge base exists for; the rest is project record.
+- [x] Official-only document list on the same screen (FR-13.3). A non-official sees "Officials only", not an error and not an empty list that reads as a bug.
+- [x] Readiness logic tested: **18/18** (`npm run check:readiness`), now part of `npm run verify`.
+- [x] **GATE: passes, with two caveats recorded below.** Every figure was checked against the database directly rather than read off the screen: protocols 33/40, translations 8/10 (the two deliberately untranslated Signal-5 keys), residents 5/48, centres 3/3, and the volunteer roster correctly refusing to answer for a non-official viewer.
+
+  The caveats, stated rather than glossed: the map's **offline rendering is still visually unverified** (`requestAnimationFrame` never fires in this session's browser pane, so no map has been seen to draw here), and the **official-side document read is unverified** — see the decisions log.
+
+- [ ] **Not done — FR-4.4 "app cached on N devices".** Not computable: nothing records per-device install or cache state, and there is no telemetry to derive it from. Inventing a number on a readiness dashboard would be worse than omitting the row, so it is omitted and flagged. Adding it means a device-level heartbeat, which is a privacy decision for the team, not an implementation detail.
 
 ---
 
@@ -193,6 +203,28 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 ---
 
 ## Notes / decisions log
+
+- **2026-09-06 — Phase 9 bug: the readiness dashboard reported the viewer's permissions as the barangay's readiness.** Two of the five checks count RLS-scoped tables, and RLS returns *zero rows*, not an error, to a viewer who may not read them. `read_own_role` shows you only your own row unless you are an official; `read_residents` is staff-only (NFR-4.3). So a resident opening `/readiness` saw **0/2 volunteers** and **0/48 residents**, both in alarm red, for a barangay that has one volunteer and five registered residents — and a volunteer saw **1/2 volunteers**, which is just their own row counted back to them, and would still have read `1` with fifty volunteers on the roster.
+
+  Measured, not inferred: a freshly minted role-less session was asked for both counts over REST and got `0` and `0`. The wrong-way-round failure of the module's own stated principle — it was written to never show green for something it had not checked, and was showing red for something it was not allowed to look at. Before a storm that is the more damaging direction: a dashboard that cries wolf gets ignored, and the one time it is right, it is ignored too.
+
+  Fixed by carrying knowability alongside each count (`staffCountKnown`, `residentCountKnown`) and reporting `unknown` with an explanation — "Only an official can see this count" — instead of a verdict. `scripts/readiness-test.mjs` now pins the invariant in both directions: a hidden roster is `unknown`, an empty roster the viewer *can* read is still `missing`. Suppressing the false alarm must not suppress the true one.
+
+- **2026-09-06 — F4 is a configuration dashboard, not the household go-bag checklist designed in Q5.** `stage-2/design/Readiness.dc.html` shows a resident ticking off water, radio and documents against the leave-by countdown. The PRD's F4 is a different thing entirely — protocols configured, volunteers assigned, residents registered, gaps actionable — an *official* asking whether the barangay is ready, not a household. Built to the PRD and flagging the divergence rather than quietly building one and calling it the other. The designed screen is not wasted: the household checklist is a real feature, it is simply not F4, and it has no requirement behind it yet.
+
+  F13 divides the same way. The `Guide.dc.html` artboard is a resident-facing signal-level guide; FR-13.1–13.3 describe ingesting this repository's own `/docs/*.md` into `documents` for reference during an event. Built as specified.
+
+- **2026-09-06 — The knowledge base currently has no audience: there are zero officials.** The only `user_roles` row in the database is a **volunteer**. FR-13.3 says admin-only and the policy implements that correctly, so today nobody can read the runbook in the app — including the person at the barangay hall it was written for. This is a configuration gap, not a code one, but it is the kind that is only ever discovered during the event it matters in. Someone's uid needs inserting with `role = 'official'`.
+
+  Consequently the **official read path is unverified**. Proving it needs an account with that role; `execute_sql` here is read-only and no service-role key is present, and granting `official` to a throwaway test identity is not something to leave behind in a shared database. The negative is verified — `CANNOT read documents` passes in the RLS suite — and the anonymous session's "Officials only" message was confirmed on screen. The positive is not, and is recorded as such rather than assumed from the policy text.
+
+- **2026-09-06 — Test methodology: a Service Worker from an earlier production build was silently serving stale code on `localhost:3000`.** The readiness fix was verified as *not working* — the page kept rendering the old numbers through a full navigation while the dev server logged recompiles. Dev disables Serwist, so nothing registers a worker; but a worker registered by a previous `npm run build && next start` on the same origin **survives**, keeps controlling the page, and serves its precached chunks to the dev server's HTML. Unregistering it and clearing `caches` made the change appear immediately.
+
+  Worth recording because the failure looks exactly like a bug in the code under test, and because the same origin is used for both. Any dev-mode verification after a production build on this port needs the worker cleared first, or it is testing the previous build.
+
+- **2026-09-06 — The database cannot be rebuilt from this repository.** `supabase/migrations/` holds the eleven schema migrations, but every translation seed (`sos_translations`, `map_translations`, `readiness_translations`, and now `readiness_not_permitted_translations`) was applied straight to the remote project with no local file. The remote list has 43 migrations; the repo has 11. A fresh Supabase project checked out from this repo would come up with the schema and no UI strings — the app would render bare message keys on every screen. Not fixed here because it is not Phase 9 work, but it should be, before anyone tries to stand up a second environment.
+
+- **2026-09-06 — The service-role key is never stored.** `ingest-docs.mjs` reads `SUPABASE_SERVICE_ROLE_KEY` from the environment before `.env.local`, so it can be supplied for one run and never written to disk. Ingest is an administrative act — documents are official-only to write — and that key bypasses RLS entirely, so it must never be committed and must never reach the browser. `RUNBOOK.md` was ingested via a privileged migration instead, for the same reason.
 
 - **2026-09-06 — Phase 8: the manual fallback is a peer of the camera, not a rescue path.** The §7.9 criterion says a typed token must produce the same result as a scanned one, and the way to get that is to have nothing to compare: the scanner emits a string, the text box emits a string, and from `normaliseToken` onward there is exactly one path. The text box is also on screen at all times rather than appearing after a failure — a volunteer whose camera is failing in the rain should not have to discover that an alternative exists.
 

@@ -33,6 +33,7 @@ export type Barangay = {
   wind_kph: number | null;
   evacuate_by: string | null;
   default_language: string;
+  expected_households: number | null;
 };
 
 export type GeoPolygon = { type: "Polygon"; coordinates: number[][][] };
@@ -163,7 +164,7 @@ export async function fetchAdvisory(): Promise<AdvisorySnapshot> {
         // level, and a concatenated string is not a literal type, so it
         // resolves to an error type instead of the row shape.
         .select(
-          "id,name,municipality,province,current_signal_level,signal_set_at,storm_name,bulletin_no,wind_kph,evacuate_by,default_language",
+          "id,name,municipality,province,current_signal_level,signal_set_at,storm_name,bulletin_no,wind_kph,evacuate_by,default_language,expected_households",
         )
         .limit(1),
       supabase
