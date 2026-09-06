@@ -91,6 +91,17 @@ export default function MapPage() {
   useEffect(() => {
     if (!container.current || map.current || !streets) return;
 
+    /*
+     * Reset per instance. `ready` is React state mirroring a mutable map
+     * object, and the two drift the moment this effect runs a second time —
+     * React's development double-invoke does exactly that: the first map is
+     * built, `load` sets `ready` true, the cleanup removes that map, and a
+     * second map is built while `ready` is still true from the first. The
+     * paint effect then fires against a style that has not loaded and
+     * MapLibre throws "Style is not done loading".
+     */
+    setReady(false);
+
     map.current = new maplibregl.Map({
       container: container.current,
       // No `style` URL: an empty style with our own sources means the map has
@@ -143,13 +154,20 @@ export default function MapPage() {
       observer.disconnect();
       map.current?.remove();
       map.current = null;
+      setReady(false);
     };
   }, [streets]);
 
   /* Paint every layer from data already on the device. */
   useEffect(() => {
     const m = map.current;
-    if (!m || !ready || !streets) return;
+    /*
+     * `isStyleLoaded()` is asked as well as `ready`, because only the map can
+     * answer authoritatively. `ready` is a React snapshot of a mutable object;
+     * this is the object itself. Belt and braces on an evacuation map, where a
+     * thrown error costs the whole screen rather than one layer.
+     */
+    if (!m || !ready || !streets || !m.isStyleLoaded()) return;
 
     const setSource = (id: string, data: Feature | FeatureCollection) => {
       const existing = m.getSource(id) as maplibregl.GeoJSONSource | undefined;
@@ -305,7 +323,7 @@ export default function MapPage() {
   /* The resident's own position. */
   useEffect(() => {
     const m = map.current;
-    if (!m || !ready || !fix) return;
+    if (!m || !ready || !fix || !m.isStyleLoaded()) return;
 
     if (!meMarker.current) {
       const dot = document.createElement("div");
