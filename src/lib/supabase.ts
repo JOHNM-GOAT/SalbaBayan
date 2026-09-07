@@ -99,8 +99,13 @@ export async function getMyRole(): Promise<UserRole> {
    * member existed, which is exactly what the readiness dashboard tells them
    * to arrange.
    */
-  const { data: auth } = await supabase.auth.getUser();
-  const uid = auth.user?.id;
+  /*
+   * `getCurrentUserId` reads the stored session; `auth.getUser()` would post
+   * to /auth/v1/user to revalidate the token. This function is called from
+   * nearly every screen, so that would be a network round trip per mount in a
+   * product whose whole premise is working without one.
+   */
+  const uid = await getCurrentUserId();
   if (!uid) return "resident";
 
   const { data, error } = await supabase

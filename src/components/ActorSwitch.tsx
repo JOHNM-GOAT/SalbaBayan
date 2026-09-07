@@ -42,6 +42,18 @@ export function ActorSwitch() {
     router.replace(actorById(actor).home);
   }, [pathname, actor, router]);
 
+  /*
+   * Never on the SOS screen.
+   *
+   * This is a demo affordance that NAVIGATES AWAY, sitting a few millimetres
+   * above the live status of a distress call. A resident watching their own
+   * SOS timer, in the dark, with wet hands, must not be one stray thumb from
+   * an official's dashboard. The request would survive — it is already durable
+   * — but the person would lose the screen telling them help is coming, at the
+   * moment they most need to see it.
+   */
+  if (pathname === "/sos") return null;
+
   return (
     <div className="shrink-0 border-b border-line-soft bg-ink-900">
       <div className={`mx-auto flex w-full items-center gap-2 px-3.5 py-1.5 ${width}`}>

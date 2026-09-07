@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSync, useT } from "./AppRuntime";
 import { activeQueue, subscribeRescue } from "@/lib/sos";
-import { getMyRole } from "@/lib/supabase";
+import { isStaffRole, useMyRole } from "./useMyRole";
 
 /**
  * The route to the rescue queue, carrying how many people are waiting.
@@ -32,22 +32,22 @@ export function RescueLink({ variant }: { variant: "primary" | "muted" }) {
   const t = useT();
 
   const [waiting, setWaiting] = useState<number | null>(null);
-  const [isStaff, setIsStaff] = useState<boolean | null>(null);
+
+  /*
+   * Via the hook, so the role is read once the session exists. Asking on mount
+   * returned "resident" on every cold load — the badge then never appeared for
+   * a volunteer, because nothing re-ran the check.
+   */
+  const isStaff = isStaffRole(useMyRole());
 
   useEffect(() => {
+    // No reset needed when not staff: `showCount` already gates display on
+    // `isStaff`, so a stale count can never be rendered. Setting state here
+    // would just be a cascading render.
+    if (!isStaff) return;
+
     let live = true;
-
     const load = async () => {
-      const role = await getMyRole();
-      if (!live) return;
-
-      const staff = role === "volunteer" || role === "official";
-      setIsStaff(staff);
-      if (!staff) {
-        setWaiting(null);
-        return;
-      }
-
       const queue = await activeQueue();
       if (live) setWaiting(queue.length);
     };
@@ -60,10 +60,10 @@ export function RescueLink({ variant }: { variant: "primary" | "muted" }) {
       live = false;
       stopLive();
     };
-  }, []);
+  }, [isStaff]);
 
   /* A count is only trustworthy if it could be both read and refreshed. */
-  const showCount = isStaff === true && online && waiting !== null;
+  const showCount = isStaff && online && waiting !== null;
 
   return (
     <Link

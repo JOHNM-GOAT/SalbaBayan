@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useSync, useT } from "@/components/AppRuntime";
-import { getMyRole } from "@/lib/supabase";
+import { useMyRole } from "@/components/useMyRole";
 import { loadDocuments, loadReadiness, type DocumentRow } from "@/lib/readinessData";
 import {
   overallStatus,
@@ -28,7 +28,9 @@ export default function ReadinessPage() {
   const [checks, setChecks] = useState<ReadinessCheck[] | null>(null);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [open, setOpen] = useState<string | null>(null);
-  const [isOfficial, setIsOfficial] = useState<boolean | null>(null);
+
+  const role = useMyRole();
+  const isOfficial = role === null ? null : role === "official";
 
   const refresh = useCallback(async () => {
     setChecks(await loadReadiness(snapshot));
@@ -38,7 +40,6 @@ export default function ReadinessPage() {
   useEffect(() => {
     queueMicrotask(() => {
       void refresh();
-      void getMyRole().then((role) => setIsOfficial(role === "official"));
     });
   }, [refresh]);
 

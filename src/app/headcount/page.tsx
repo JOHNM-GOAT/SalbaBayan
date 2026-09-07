@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useSync, useT } from "@/components/AppRuntime";
 import { onQueueChanged } from "@/lib/offlineQueue";
-import { getMyRole } from "@/lib/supabase";
+import { isStaffRole, useMyRole } from "@/components/useMyRole";
 import {
   capacityState,
   clockLabel,
@@ -37,7 +37,6 @@ export default function HeadcountPage() {
     infant: 0,
   });
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [isStaff, setIsStaff] = useState<boolean | null>(null);
 
   const centres = snapshot?.centers ?? [];
   // Derived, not synced into state: the first centre is the default until the
@@ -46,11 +45,12 @@ export default function HeadcountPage() {
   const activeId = centreId ?? centres[0]?.id ?? null;
   const centre = centres.find((c) => c.id === activeId) ?? null;
 
-  useEffect(() => {
-    // A display hint only. The real boundary is insert_headcounts, which
-    // requires staff AND that the recorder is the caller.
-    queueMicrotask(() => void getMyRole().then((role) => setIsStaff(role !== "resident")));
-  }, []);
+  /* A display hint only. The real boundary is insert_headcounts, which
+     requires staff AND that the recorder is the caller. */
+  /* Three states on purpose: null is "not yet known", which must not be
+     rendered as "you are not staff" while the session is still resolving. */
+  const role = useMyRole();
+  const isStaff = role === null ? null : isStaffRole(role);
 
   const refresh = useCallback(async () => {
     if (!activeId) return;

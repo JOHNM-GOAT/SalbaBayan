@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useSync, useT } from "@/components/AppRuntime";
-import { getMyRole, type UserRole } from "@/lib/supabase";
+import { useMyRole } from "@/components/useMyRole";
 
 /**
  * "Ako" — this device (design: `stage-2/design/artboards/DeviceRole.dc.html`).
@@ -23,18 +22,7 @@ export default function ProfilePage() {
   const { userId, snapshot, purokId, queued, blocked, actor } = useSync();
   const t = useT();
 
-  const [role, setRole] = useState<UserRole | null>(null);
-
-  useEffect(() => {
-    let live = true;
-    if (!userId) return;
-    void getMyRole().then((r) => {
-      if (live) setRole(r);
-    });
-    return () => {
-      live = false;
-    };
-  }, [userId]);
+  const role = useMyRole();
 
   const purok = snapshot?.puroks.find((p) => p.id === purokId);
 

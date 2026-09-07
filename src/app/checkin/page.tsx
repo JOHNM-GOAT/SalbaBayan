@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useSync, useT } from "@/components/AppRuntime";
 import { QrScanner } from "@/components/QrScanner";
 import { onQueueChanged } from "@/lib/offlineQueue";
-import { getMyRole } from "@/lib/supabase";
+import { isStaffRole, useMyRole } from "@/components/useMyRole";
 import {
   allCheckins,
   isPriority,
@@ -38,7 +38,11 @@ export default function CheckinPage() {
   const [logged, setLogged] = useState<string | null>(null);
   const [records, setRecords] = useState<CheckinRecord[]>([]);
   const [people, setPeople] = useState<Map<string, Resident>>(new Map());
-  const [isStaff, setIsStaff] = useState<boolean | null>(null);
+
+  /* Three states on purpose: null is "not yet known", which must not be
+     rendered as "you are not staff" while the session is still resolving. */
+  const role = useMyRole();
+  const isStaff = role === null ? null : isStaffRole(role);
 
   const purokName = (id: string) =>
     snapshot?.puroks.find((p) => p.id === id)?.name ?? "";
@@ -52,7 +56,6 @@ export default function CheckinPage() {
   useEffect(() => {
     queueMicrotask(() => {
       void refresh();
-      void getMyRole().then((role) => setIsStaff(role !== "resident"));
     });
     const stopQueue = onQueueChanged(() => void refresh());
     return stopQueue;
