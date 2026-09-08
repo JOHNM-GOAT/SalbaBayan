@@ -30,9 +30,13 @@ export function useMyRole(): UserRole | null {
     if (!userId) return;
 
     let live = true;
-    void getMyRole().then((next) => {
-      if (live) setRole(next);
-    });
+    // .catch: offline, getMyRole can reject rather than resolve. An unhandled
+    // rejection here would surface as a page error over a missing role.
+    void getMyRole()
+      .then((next) => {
+        if (live) setRole(next);
+      })
+      .catch(() => {});
     return () => {
       live = false;
     };

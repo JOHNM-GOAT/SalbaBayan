@@ -205,6 +205,28 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 
 ## Notes / decisions log
 
+- **2026-09-08 — Offline gate run against a production build. Data half PASSES; Service-Worker half could not be run here.**
+
+  Method: production build served on :3001, one warm visit to populate the caches, then a **rebuild pointing `NEXT_PUBLIC_SUPABASE_URL` at a dead host** and a reload. That is a real network failure — the console fills with `ERR_UNSAFE_PORT` — and it is stronger than stopping the app server, which leaves Supabase perfectly reachable and therefore proves nothing about data.
+
+  | Property | Result |
+  |---|---|
+  | Runbook readable with Supabase unreachable | PASS — listed and openable from IndexedDB |
+  | Label tells the truth about its source | PASS — "Readable with no signal" becomes "Nakaimbak sa device na ito" |
+  | Advisory renders from cache with honest age | PASS — "NAKA-CACHE 11 MIN" |
+  | Evacuation map draws with no Supabase | PASS — 9 layers, 5 sources, **28 painted features**, route + boundary + hazard + destination |
+  | Readiness checks computable offline | PASS — protocols 33/40 and translations 8/10 from the snapshot |
+  | Network-only counts stay honest | PASS — volunteers and residents render `—`, not 0 |
+  | App shell served by the Service Worker | **NOT RUN** — see below |
+
+  **The Service-Worker half is unverified and must not be claimed.** Registration fails in this browser pane with "An unknown error occurred when fetching the script", even though the page can `fetch('/sw.js')` and get 200 with the right MIME type. It is an environment limit, like the blocked camera — not a fault in `sw.ts`. So "the shell boots with the app server stopped" still needs one run in a real browser. Everything above was proved without the Service Worker, which means it rests on IndexedDB and the app's own caching rather than on the precache.
+
+- **2026-09-08 — Correction: the readiness checks were not vanishing offline, they were slow.** I reported mid-run that the whole checks block disappeared with the network down. It does not — it waits for the failed count requests to time out, and my sampling window was shorter than that. The block renders in full afterwards. Recorded because I acted on the wrong diagnosis for two commits.
+
+  The work done under that wrong diagnosis was still worth keeping, for a different reason. `loadReadiness` now records whether the counts were actually READ rather than defaulted, so a count that fails on a live connection — a timeout, a 5xx — reports `unknown` instead of a confident `0/2 volunteers` in alarm red. That was an open finding from the code review, and it is now closed. The two loads were also decoupled with `Promise.allSettled`, so a rejection in one cannot silently discard the other.
+
+- **2026-09-08 — Test-rig note: `next start` serves the build it booted with.** Three readings were taken against a stale server because the kill command's `awk` column was wrong and the old process survived; the new `next start` then failed to bind and the old one answered. The tell was the chunk hash — the page loaded `page-9c319a0…` while the build on disk emitted `page-a218571…`. Check the served hash against the built one before trusting any offline reading.
+
 - **2026-09-08 — The knowledge base now honours its own promise: documents are cached on the device.** F13 exists because "an official at a barangay hall during an event has a phone and no repository", and the screen said "Readable with no signal" — while `loadDocuments` read straight from Supabase REST with no local copy, and the Service Worker deliberately does not cache REST. With the connection gone the list came back empty. The one document that has to survive a lost connection was the one that did not.
 
   Documents are now held the way the advisory is: fetched when there is a network, written to IndexedDB (`salbabayan-documents`), and rendered from there. Verified: the cache holds RUNBOOK.md at **3,128 characters**, matching `length(content)` in the database exactly.

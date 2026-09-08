@@ -33,9 +33,19 @@ export default function ReadinessPage() {
   const role = useMyRole();
   const isOfficial = role === null ? null : role === "official";
 
+  /*
+   * Settled independently. These are two unrelated reads, and chaining them
+   * meant a rejection in the first silently discarded the second — offline,
+   * that blanked the whole checks block while the documents were sitting in
+   * IndexedDB ready to render.
+   */
   const refresh = useCallback(async () => {
-    setChecks(await loadReadiness(snapshot));
-    setDocs(await loadDocuments());
+    const [checksResult, docsResult] = await Promise.allSettled([
+      loadReadiness(snapshot),
+      loadDocuments(),
+    ]);
+    if (checksResult.status === "fulfilled") setChecks(checksResult.value);
+    if (docsResult.status === "fulfilled") setDocs(docsResult.value);
   }, [snapshot]);
 
   useEffect(() => {

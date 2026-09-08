@@ -31,8 +31,13 @@ export function useRescueWaiting(): RescueWaiting {
 
     let live = true;
     const load = async () => {
-      const queue = await activeQueue();
-      if (live) setCount(queue.length);
+      try {
+        const queue = await activeQueue();
+        if (live) setCount(queue.length);
+      } catch {
+        // Offline. The badge falls back to "cannot say" rather than zero.
+        if (live) setCount(null);
+      }
     };
 
     void load();
