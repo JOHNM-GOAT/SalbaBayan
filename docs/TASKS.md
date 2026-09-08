@@ -205,6 +205,19 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 
 ## Notes / decisions log
 
+- **2026-09-08 — The knowledge base now honours its own promise: documents are cached on the device.** F13 exists because "an official at a barangay hall during an event has a phone and no repository", and the screen said "Readable with no signal" — while `loadDocuments` read straight from Supabase REST with no local copy, and the Service Worker deliberately does not cache REST. With the connection gone the list came back empty. The one document that has to survive a lost connection was the one that did not.
+
+  Documents are now held the way the advisory is: fetched when there is a network, written to IndexedDB (`salbabayan-documents`), and rendered from there. Verified: the cache holds RUNBOOK.md at **3,128 characters**, matching `length(content)` in the database exactly.
+
+  Two related corrections came with it. Content is fetched only for documents whose `updated_at` changed, so an unchanged runbook is not re-downloaded on every visit — that was a real cost once `ingest:docs` puts TASKS.md in the table too. And an empty list now distinguishes its three causes: not permitted, not downloaded yet, or genuinely empty. Telling an official with no signal "Officials only" claims they lack a permission they hold.
+
+  An empty result from the server is treated as a successful read and DOES clear the cache — deliberately. RLS returns no rows to a non-official, so a device that has lost its official role should not keep the documents sitting on disk.
+
+- **2026-09-08 — Runtime error I introduced one commit earlier: two subscribers to one Realtime channel.** supabase-js hands back the same channel object for a repeated topic, and once `.subscribe()` has run you cannot add further `postgres_changes` bindings — it throws. Harmless while only one screen subscribed; the moment the rescue count moved onto the tab bar the badge subscribed on *every* screen, so `/responder` and `/sos` each had two subscribers to "rescue-live" and the second one took the page down.
+
+  Fixed by multiplexing: one channel, a Set of listeners, created on the first subscriber and removed on the last. Not by giving each caller its own channel name — that would open a second websocket subscription for the same rows, one per mounted component, for no gain. Verified by the round trip that crashed: `/sos` then `/responder`, clean console after a sentinel, badge reading "2 waiting for rescue".
+
+
 - **2026-09-08 — The staff home screens were repeating their own tab bar.** The volunteer home offered SCAN, BILANG, ULAT, MAPA and SAKLOLO as a grid of five near-identical outlined buttons, three of which were already tabs two centimetres below. The official home did the same with RESCUE. It read as a wall of buttons and taught nothing: a person cannot tell which of two identical routes to the same screen is the intended one.
 
   Each home now offers only what its tab bar cannot reach — REPORT and MAP for the volunteer, BILANG and MAP for the official. The official's readiness and coverage cards stay, because those carry NUMBERS rather than being navigation wearing a button's clothes.

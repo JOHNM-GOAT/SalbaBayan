@@ -86,27 +86,3 @@ export async function loadReadiness(
     centreCount: snapshot.centers.length,
   });
 }
-
-export type DocumentRow = {
-  filename: string;
-  title: string;
-  content: string;
-  updated_at: string;
-};
-
-/**
- * The knowledge base (FR-13.3). Official-only by RLS, so a resident who
- * reaches this route gets an empty list rather than an error.
- */
-export async function loadDocuments(): Promise<DocumentRow[]> {
-  const supabase = getSupabase();
-  if (!supabase) return [];
-
-  const { data, error } = await supabase
-    .from("documents")
-    .select("filename,title,content,updated_at")
-    .order("filename");
-
-  if (error) return [];
-  return (data ?? []) as DocumentRow[];
-}

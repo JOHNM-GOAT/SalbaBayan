@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useSync, useT } from "@/components/AppRuntime";
 import { useMyRole } from "@/components/useMyRole";
-import { loadDocuments, loadReadiness, type DocumentRow } from "@/lib/readinessData";
+import { loadReadiness } from "@/lib/readinessData";
+import { loadDocuments, type DocumentsView } from "@/lib/documents";
 import {
   overallStatus,
   readyCount,
@@ -26,7 +27,7 @@ export default function ReadinessPage() {
   const t = useT();
 
   const [checks, setChecks] = useState<ReadinessCheck[] | null>(null);
-  const [documents, setDocuments] = useState<DocumentRow[]>([]);
+  const [docs, setDocs] = useState<DocumentsView | null>(null);
   const [open, setOpen] = useState<string | null>(null);
 
   const role = useMyRole();
@@ -34,7 +35,7 @@ export default function ReadinessPage() {
 
   const refresh = useCallback(async () => {
     setChecks(await loadReadiness(snapshot));
-    setDocuments(await loadDocuments());
+    setDocs(await loadDocuments());
   }, [snapshot]);
 
   useEffect(() => {
@@ -145,18 +146,32 @@ export default function ReadinessPage() {
         <section className="flex flex-col gap-2">
           <div className="flex items-baseline justify-between">
             <span className="lbl">{t("rd.library")}</span>
+            {/* The promise ("Readable with no signal") is only made once it is
+                true. When these rows came from the device rather than the
+                network, that is what it says instead. */}
             <span className="mono text-[9px] tracking-[0.7px] text-paper-3">
-              {t("rd.library_hint")}
+              {docs && !docs.live && docs.rows.length > 0
+                ? t("rd.library_cached")
+                : t("rd.library_hint")}
             </span>
           </div>
 
-          {documents.length === 0 ? (
-            <p className="mono text-[11px] text-paper-3">
-              {isOfficial === false ? t("rd.official_only") : t("rd.library_empty")}
+          {(docs?.rows.length ?? 0) === 0 ? (
+            /*
+             * Three reasons a list can be empty, and they are not the same
+             * thing. Saying "Officials only" to an official whose phone simply
+             * has no signal tells them they lack a permission they hold.
+             */
+            <p className="mono text-[11px] leading-relaxed text-paper-3">
+              {docs && !docs.live
+                ? t("rd.library_offline")
+                : isOfficial === false
+                  ? t("rd.official_only")
+                  : t("rd.library_empty")}
             </p>
           ) : (
             <ul className="flex flex-col gap-2">
-              {documents.map((doc) => (
+              {(docs?.rows ?? []).map((doc) => (
                 <li
                   key={doc.filename}
                   className="overflow-hidden rounded-instrument border-[1.5px] border-line-soft bg-ink-800"

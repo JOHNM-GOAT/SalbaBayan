@@ -13,6 +13,7 @@ import {
   newClientId,
   queuedWrites,
 } from "./offlineQueue";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { getCurrentUserId, getSupabase } from "./supabase";
 import {
   mergeRequests,
@@ -265,21 +266,53 @@ export async function markRescued(id: string): Promise<boolean> {
  * unsubscribe. Falls back to nothing when there is no client — callers keep
  * whatever they last read rather than showing an empty queue.
  */
+let liveChannel: RealtimeChannel | null = null;
+const liveListeners = new Set<() => void>();
+
 export function subscribeRescue(onChange: () => void): () => void {
   const supabase = getSupabase();
   if (!supabase) return () => {};
 
-  const channel = supabase
-    .channel("rescue-live")
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "rescue_requests" },
-      () => onChange(),
-    )
-    .subscribe();
+  /*
+   * ONE channel, many listeners.
+   *
+   * supabase-js hands back the same channel object for a repeated topic, and
+   * once `.subscribe()` has run you cannot add further `postgres_changes`
+   * bindings to it — it throws. That became reachable the moment the rescue
+   * count moved onto the tab bar: the badge subscribes on every screen, so on
+   * `/responder` and `/sos` there are two simultaneous subscribers to
+   * "rescue-live" and the second one blew up the page.
+   *
+   * Multiplexing rather than giving each caller its own channel name: a
+   * per-caller channel would open a second websocket subscription for the same
+   * rows, which costs a Realtime connection per mounted component for no gain.
+   */
+  liveListeners.add(onChange);
+
+  if (!liveChannel) {
+    liveChannel = supabase
+      .channel("rescue-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "rescue_requests" },
+        () => {
+          // Copied first: a listener may unsubscribe while being notified.
+          for (const listener of [...liveListeners]) listener();
+        },
+      )
+      .subscribe();
+  }
 
   return () => {
-    void supabase.removeChannel(channel);
+    liveListeners.delete(onChange);
+
+    // Tear the channel down only when nobody is left, and drop the reference
+    // first so a subscriber arriving mid-teardown builds a fresh one.
+    if (liveListeners.size === 0 && liveChannel) {
+      const channel = liveChannel;
+      liveChannel = null;
+      void supabase.removeChannel(channel);
+    }
   };
 }
 
