@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useSync, useT } from "@/components/AppRuntime";
 import { SignalPlacard } from "@/components/SignalPlacard";
-import { RescueLink } from "@/components/RescueLink";
 
 /**
  * Volunteer home (PRD §4: "operates an evacuation centre ... checks people in,
@@ -52,35 +51,26 @@ export default function VolunteerHome() {
             ))}
           </ul>
 
+          {/*
+           * Only what the tab bar cannot reach. SCAN, BILANG and SAKLOLO all
+           * have tabs, and repeating them here made the home a wall of
+           * identical buttons duplicating the navigation two centimetres
+           * below it. The rescue count moved onto the tab itself, where it is
+           * visible from every screen rather than only this one.
+           */}
           <div className="mt-1 grid grid-cols-2 gap-2">
             <Link
-              href="/checkin"
-              className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-hv text-[10px] font-bold tracking-[1px] text-hv"
-            >
-              {t("nav.scan")}
-            </Link>
-            <Link
-              href="/headcount"
-              className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
-            >
-              {t("nav.count")}
-            </Link>
-            <Link
               href="/report"
-              className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
+              className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-paper-3 transition-colors hover:text-paper text-[10px] font-bold tracking-[1px]"
             >
               {t("nav.report")}
             </Link>
-            {/* The map left the tab bar to make room for rescue, so it keeps a
-                place here — a volunteer directing someone to a centre should
-                not have to go hunting for it. */}
             <Link
               href="/map"
-              className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
+              className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-paper-3 transition-colors hover:text-paper text-[10px] font-bold tracking-[1px]"
             >
               {t("nav.map")}
             </Link>
-            <RescueLink variant="primary" />
           </div>
         </>
       )}

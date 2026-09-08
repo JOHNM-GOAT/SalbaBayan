@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSync, useT } from "@/components/AppRuntime";
 import { SignalPlacard } from "@/components/SignalPlacard";
-import { RescueLink } from "@/components/RescueLink";
 import { buildCoverage } from "@/lib/advisory";
 import { loadReadiness } from "@/lib/readinessData";
 import { overallStatus, readyCount, type ReadinessCheck } from "@/lib/readiness";
@@ -103,13 +102,19 @@ export default function OfficialHome() {
             </Link>
           </div>
 
+          {/* Readiness, coverage and rescue are all tabs; only these are not. */}
           <div className="mt-1 grid grid-cols-2 gap-2">
-            <RescueLink variant="primary" />
             <Link
               href="/headcount"
-              className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3 transition-colors hover:text-paper"
+              className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-paper-3 transition-colors hover:text-paper text-[10px] font-bold tracking-[1px]"
             >
               {t("nav.count")}
+            </Link>
+            <Link
+              href="/map"
+              className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-paper-3 transition-colors hover:text-paper text-[10px] font-bold tracking-[1px]"
+            >
+              {t("nav.map")}
             </Link>
           </div>
         </>

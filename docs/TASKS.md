@@ -205,6 +205,16 @@ POST /auth/v1/signup  ->  {"code":422,"error_code":"anonymous_provider_disabled"
 
 ## Notes / decisions log
 
+- **2026-09-08 — The staff home screens were repeating their own tab bar.** The volunteer home offered SCAN, BILANG, ULAT, MAPA and SAKLOLO as a grid of five near-identical outlined buttons, three of which were already tabs two centimetres below. The official home did the same with RESCUE. It read as a wall of buttons and taught nothing: a person cannot tell which of two identical routes to the same screen is the intended one.
+
+  Each home now offers only what its tab bar cannot reach — REPORT and MAP for the volunteer, BILANG and MAP for the official. The official's readiness and coverage cards stay, because those carry NUMBERS rather than being navigation wearing a button's clothes.
+
+  The deletion had to pay for itself first: the SAKLOLO button was the only thing carrying the rescue waiting count, so removing it would have removed the feature. The count moved onto the raised tab instead, which is strictly better — a volunteer scanning cards at the door now learns someone is waiting without navigating home to ask.  is gone, replaced by  feeding a badge in .
+
+- **2026-09-08 — The tab badge keeps the three states, in the space a tab has.** A number in alarm colour when people are waiting; **nothing** when the count is known to be zero, which is an all-clear this device actually earned; and a hollow caution dot when the count cannot be stated — offline, or not permitted. The dot exists because a tab has no room for "count unavailable" and silence would otherwise mean two different things. The full sentence lives in the tab's accessible name and on the responder screen. Verified live: badge read **1**, matching  exactly, with .
+
+- **2026-09-08 — Note for demos: the browser pane mints a new anonymous uid every time its site data is cleared.** Three times this session a granted role silently stopped applying because the device it was granted to no longer existed. Nothing is wrong with the app — a fresh anonymous identity genuinely has no role — but it makes staff-only behaviour look broken while testing. The volunteer row is re-pointed rather than duplicated each time, so the roster stays at one official and one volunteer. Real phones keep their identity and do not have this problem.
+
 - **2026-09-07 — A volunteer could always READ the rescue queue; nothing in their navigation went there.** `read_rescue` is `requested_by = auth.uid() OR private.is_staff()`, and `is_staff()` is `role in ('volunteer','official')` — so permission was never the problem. But `/responder` sat in no volunteer tab bar, reachable only from a small button on their home. The runbook tells volunteers that rescue requests arrive on that screen and that acknowledging one is what shows the resident they have been seen; their primary navigation had no route to it and no indication anyone was waiting.
 
   Rescue is now the volunteer's raised centre tab, and check-in moved to a normal slot: someone in the water outranks the next card to scan. The map left the tab bar to make room and kept a place in the home quick actions, so nothing became unreachable. Still cyan, not alarm red — the rule is that red marks a control which RAISES an alarm, and that remains the resident's SOS alone.

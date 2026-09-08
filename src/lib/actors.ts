@@ -38,6 +38,13 @@ export type NavItem = {
    * red — it is frequent, not urgent.
    */
   alarm?: boolean;
+  /**
+   * A live count drawn on the tab. It lives here rather than on a home screen
+   * button so it is visible from every screen — a volunteer scanning cards at
+   * the door should learn that someone is waiting without navigating home to
+   * ask.
+   */
+  badge?: "rescue";
 };
 
 export type Actor = {
@@ -81,7 +88,7 @@ export const ACTORS: readonly Actor[] = [
        * Cyan, not alarm red: the rule is that red marks a control that RAISES
        * an alarm, which is the resident's SOS alone. This one answers them.
        */
-      { href: "/responder", key: "nav.rescue", icon: "sos", raised: true },
+      { href: "/responder", key: "nav.rescue", icon: "sos", raised: true, badge: "rescue" },
       { href: "/headcount", key: "nav.count", icon: "count" },
       { href: "/profile", key: "nav.me", icon: "person" },
     ],
@@ -93,7 +100,7 @@ export const ACTORS: readonly Actor[] = [
     nav: [
       { href: "/official", key: "nav.home", icon: "home" },
       { href: "/readiness", key: "nav.ready", icon: "check" },
-      { href: "/responder", key: "nav.rescue", icon: "sos", raised: true },
+      { href: "/responder", key: "nav.rescue", icon: "sos", raised: true, badge: "rescue" },
       { href: "/coverage", key: "nav.coverage", icon: "grid" },
       { href: "/profile", key: "nav.me", icon: "person" },
     ],

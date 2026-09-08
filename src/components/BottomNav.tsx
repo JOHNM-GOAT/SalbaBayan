@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useSync, useT } from "./AppRuntime";
 import { useShellWidth } from "./Shell";
 import { actorById, activeHref, type NavIcon, type NavItem } from "@/lib/actors";
+import { useRescueWaiting } from "./useRescueWaiting";
 
 /**
  * The tab bar (design: `stage-2/design/artboards/Main.dc.html`).
@@ -67,6 +68,48 @@ export function BottomNav() {
 
   const current = actorById(actor);
   const active = activeHref(current, pathname);
+  const rescue = useRescueWaiting();
+
+  /*
+   * Three outcomes, and the difference between the last two is the point:
+   *
+   *   - people waiting  -> the number, in alarm colour
+   *   - nobody waiting  -> nothing, an all-clear this device actually earned
+   *   - cannot say      -> a hollow dot, because offline or unpermitted is NOT
+   *                        the same as zero, and a tab has no room to explain
+   *                        it. The responder screen says which it is.
+   */
+  function badge(item: NavItem) {
+    if (item.badge !== "rescue" || !rescue.isStaff) return null;
+
+    if (rescue.count === null) {
+      return (
+        <span
+          className="absolute -top-1 -right-1 size-2.5 rounded-full border-[1.5px] border-ink-800 bg-caution"
+          aria-hidden
+        />
+      );
+    }
+
+    if (rescue.count === 0) return null;
+
+    return (
+      <span
+        className="mono absolute -top-1.5 -right-1.5 min-w-[17px] rounded-full border-[1.5px] border-ink-800 bg-alarm px-1 text-center text-[9.5px] leading-[14px] font-bold text-[oklch(0.99_0.01_28)]"
+        aria-hidden
+      >
+        {rescue.count}
+      </span>
+    );
+  }
+
+  /** The badge is decorative; the count belongs in the tab's accessible name. */
+  function badgeLabel(item: NavItem): string | null {
+    if (item.badge !== "rescue" || !rescue.isStaff) return null;
+    return rescue.count === null
+      ? `${t(item.key)} — ${t("vol.waiting_unknown")}`
+      : `${t(item.key)} — ${rescue.count} ${t("vol.waiting")}`;
+  }
 
   function tab(item: NavItem) {
     const isActive = item.href === active;
@@ -82,18 +125,19 @@ export function BottomNav() {
         <Link
           key={item.href}
           href={item.href}
-          aria-label={label}
+          aria-label={badgeLabel(item) ?? label}
           aria-current={isActive ? "page" : undefined}
           className="-mt-[19px] flex shrink-0 basis-[66px] flex-col items-center gap-1"
         >
           <span
-            className={`flex size-[50px] items-center justify-center rounded-instrument border-[2.5px] border-ink-800 ${
+            className={`relative flex size-[50px] items-center justify-center rounded-instrument border-[2.5px] border-ink-800 ${
               item.alarm
                 ? "bg-alarm text-[oklch(0.99_0.01_28)]"
                 : "bg-hv text-hv-ink"
             }`}
           >
             <Icon name={item.icon} size={22} />
+            {badge(item)}
           </span>
           <span
             className={`mono text-[9.5px] font-bold tracking-[1px] ${
@@ -110,6 +154,7 @@ export function BottomNav() {
       <Link
         key={item.href}
         href={item.href}
+        aria-label={badgeLabel(item) ?? undefined}
         aria-current={isActive ? "page" : undefined}
         className={`flex flex-1 flex-col items-center gap-1 transition-colors ${
           isActive ? "text-hv" : "text-paper-3 hover:text-paper-2"
