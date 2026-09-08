@@ -81,7 +81,13 @@ export default function ResponderPage() {
       attributionControl: { compact: true },
     });
 
-    map.current.addControl(new maplibregl.NavigationControl(), "top-right");
+    // No compass: both map screens are read north-up, and a control that can
+    // only rotate the barangay away from that is one more thing to undo at
+    // three in the morning. Matches the resident map (`/map`).
+    map.current.addControl(
+      new maplibregl.NavigationControl({ showCompass: false }),
+      "top-right",
+    );
     map.current.on("load", () => setMapReady(true));
 
     return () => {

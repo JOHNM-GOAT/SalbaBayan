@@ -12,7 +12,7 @@
 
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist, NetworkFirst, NetworkOnly, ExpirationPlugin } from "serwist";
+import { Serwist, CacheFirst, NetworkFirst, NetworkOnly, ExpirationPlugin } from "serwist";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -123,6 +123,40 @@ const serwist = new Serwist({
     {
       matcher: ({ url }) => url.pathname.startsWith("/rest/v1/"),
       handler: new NetworkOnly(),
+    },
+
+    /*
+     * OpenFreeMap — the basemap style, its glyphs and sprites, and the vector
+     * tiles themselves. Used by the rescue map (`/responder`) and, when there
+     * is a signal, by the resident's evacuation map (`/map`).
+     *
+     * CacheFirst, unlike the REST rule directly above, and the two are not in
+     * conflict. Serving a stale advisory from cache would forge freshness: the
+     * app would stamp `fetchedAt = now` and claim it had synced when it had
+     * not. A road does not go stale in the same sense — last week's tile of a
+     * street is still that street — so here a cache hit is simply the right
+     * answer, and it is what lets a resident who opened the map at home still
+     * see it after walking out of coverage.
+     *
+     * `maxEntries` is the real control. Vector tiles are small but unbounded in
+     * number, and an evacuation app that fills a cheap handset's storage has
+     * done harm; 400 covers the barangay and its surroundings at the zooms this
+     * view uses. `purgeOnQuotaError` gives the browser permission to reclaim
+     * this cache before it starts evicting the precached app shell, which must
+     * outlive everything else here.
+     */
+    {
+      matcher: ({ url }) => url.hostname === "tiles.openfreemap.org",
+      handler: new CacheFirst({
+        cacheName: "salbabayan-basemap",
+        plugins: [
+          new ExpirationPlugin({
+            maxEntries: 400,
+            maxAgeSeconds: 30 * 24 * 60 * 60,
+            purgeOnQuotaError: true,
+          }),
+        ],
+      }),
     },
     ...defaultCache,
   ],

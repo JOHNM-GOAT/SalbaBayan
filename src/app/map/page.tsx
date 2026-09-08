@@ -8,6 +8,12 @@ import { useSync, useT } from "@/components/AppRuntime";
 import { deriveAdvisory } from "@/lib/advisory";
 import { resolveColour, signalStyle } from "@/lib/signal";
 import { startPositionWatch, type Fix } from "@/lib/sos";
+import {
+  loadStreetStyle,
+  onStyleReady,
+  sketchStyle,
+  type Basemap,
+} from "@/lib/basemap";
 import type { Feature, FeatureCollection } from "geojson";
 import {
   hazardsOnRoute,
@@ -20,16 +26,17 @@ import {
 /**
  * Offline evacuation map (PRD §7.5).
  *
- * Every layer is GeoJSON, and every piece of it is already on the device: the
+ * Every layer that carries an instruction is GeoJSON already on the device: the
  * Purok boundary and route ride in the advisory snapshot cached in IndexedDB,
- * and the street grid is a precached static file. There is no tile server and
- * no network call in this view at all, which is what lets it open, pan and
- * render with the connection gone.
+ * and the hazards ride with them. None of them needs a connection, which is
+ * what lets this view open, pan and render with the network gone.
  *
- * That is also why the base map is drawn rather than fetched: Barangay San
- * Isidro is synthetic (Q4), so no tile source has streets for it. When real
- * geography arrives the same GeoJSON layers sit on top of a PMTiles basemap —
- * one static file per barangay, cached the same way.
+ * The base UNDER those layers is the one part that improves with a signal. The
+ * map is built on the drawn grid, which cannot fail; if the device is online,
+ * the real OpenFreeMap dark basemap — the same one the rescue map uses
+ * (`/responder`) — is fetched and swapped in behind the same overlays, so the
+ * two map screens read as one product. See lib/basemap.ts for why the swap runs
+ * in that order and not the other.
  */
 
 /** Fits the whole synthetic barangay; replaced when real bounds land. */
@@ -43,9 +50,22 @@ export default function MapPage() {
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const meMarker = useRef<maplibregl.Marker | null>(null);
+  /** One basemap-upgrade attempt in flight, and one framing per style, per map
+      instance. Declared with the map itself because that is what they track. */
+  const upgrading = useRef(false);
+  const framed = useRef<string | null>(null);
   const [ready, setReady] = useState(false);
   const [fix, setFix] = useState<Fix | null>(null);
   const [streets, setStreets] = useState<FeatureCollection | null>(null);
+
+  /*
+   * Which base is on screen, and a counter that ticks every time a style
+   * finishes loading. `setStyle` discards every source and layer the map holds,
+   * so the paint effect below has to run again afterwards — and it has no other
+   * way to know that it must.
+   */
+  const [base, setBase] = useState<Basemap>("sketch");
+  const [styleEpoch, setStyleEpoch] = useState(0);
 
   const advisory = useMemo(
     () =>
@@ -74,6 +94,36 @@ export default function MapPage() {
     return nextTurn(route, from);
   }, [route, fix]);
 
+  /*
+   * What the map should frame: the route, the destination AND the Purok
+   * boundary.
+   *
+   * The route alone is not enough, and the failure that caused was not subtle.
+   * These routes follow a street grid, so a route with a single straight leg
+   * has a bounding box of zero height — `fitBounds` then pins the map's centre
+   * onto the route itself and fills the rest of the viewport with whatever lies
+   * beyond it, which for Purok 1 is the empty ground north of the barangay.
+   * Nearly half the map was blank, and it read as a rendering bug rather than
+   * as a framing one. Including the boundary guarantees area in both axes.
+   */
+  const frame = useMemo(() => {
+    const points: Point[] = [...route];
+    if (centre?.lat != null && centre?.lng != null) {
+      points.push([centre.lng, centre.lat]);
+    }
+    for (const ring of purok?.boundary_geojson?.coordinates ?? []) {
+      for (const point of ring) points.push(point as Point);
+    }
+    if (!points.length) return null;
+
+    const lngs = points.map((p) => p[0]);
+    const lats = points.map((p) => p[1]);
+    return [
+      [Math.min(...lngs), Math.min(...lats)],
+      [Math.max(...lngs), Math.max(...lats)],
+    ] as [[number, number], [number, number]];
+  }, [route, centre, purok]);
+
   /* The street grid — a static precached file, never fetched from a tile API. */
   useEffect(() => {
     fetch("/geo/streets.json")
@@ -87,7 +137,7 @@ export default function MapPage() {
     return stop;
   }, []);
 
-  /* Build the map once. */
+  /* Build the map once, always on the style that cannot fail. */
   useEffect(() => {
     if (!container.current || map.current || !streets) return;
 
@@ -101,29 +151,35 @@ export default function MapPage() {
      * MapLibre throws "Style is not done loading".
      */
     setReady(false);
+    setBase("sketch");
+    // One upgrade attempt per map instance, and this is a new instance.
+    upgrading.current = false;
+    framed.current = null;
 
     map.current = new maplibregl.Map({
       container: container.current,
-      // No `style` URL: an empty style with our own sources means the map has
-      // nothing to download and therefore nothing to fail offline.
-      style: {
-        version: 8,
-        // No `glyphs` key at all. Setting it to undefined is not the same as
-        // omitting it — MapLibre validates the style and rejects
-        // "glyphs: string expected, undefined found", which invalidates the
-        // whole style and renders nothing. There are no text layers here, so
-        // no glyph server is needed, which is also what keeps the map offline.
-        sources: {},
-        layers: [
-          { id: "ground", type: "background", paint: { "background-color": "#0b0e12" } },
-        ],
-      },
+      // Not a style URL. The style is built in-process from a module that
+      // cannot fail, so `load` always fires and the instruction layers always
+      // get added — see lib/basemap.ts.
+      style: sketchStyle(),
       center: FALLBACK_CENTRE,
       zoom: 14.4,
+      // Added only once the real basemap is in. Crediting OpenStreetMap for a
+      // grid we drew ourselves would be a false attribution, not a polite one.
       attributionControl: false,
     });
 
-    map.current.on("load", () => setReady(true));
+    // Zoom buttons as well as pinch, matching the rescue map. A resident
+    // reading this one-handed in the rain should not have to pinch.
+    map.current.addControl(
+      new maplibregl.NavigationControl({ showCompass: false }),
+      "top-right",
+    );
+
+    map.current.on("load", () => {
+      setReady(true);
+      setStyleEpoch((n) => n + 1);
+    });
 
     /*
      * Surface MapLibre's own errors. It reports style and layer problems
@@ -158,16 +214,90 @@ export default function MapPage() {
     };
   }, [streets]);
 
+  /*
+   * Upgrade to the real basemap.
+   *
+   * Gated on `online`, and that gate is the interesting part. The Service
+   * Worker caches the style far more readily than it caches every tile around
+   * the barangay, so an offline device can easily hold the style and almost no
+   * tiles — and swapping to it would trade a grid that covers the whole
+   * barangay for a basemap that is mostly empty. Offline, the drawn map is the
+   * better map, not merely the safer one.
+   *
+   * There is deliberately no downgrade when the signal drops later. Tiles for
+   * the view already on screen have already been fetched, and pulling the
+   * ground out from under someone mid-evacuation is worse than a few unpainted
+   * tiles at the edges. The route, boundary, hazards and destination — every
+   * layer that carries the instruction — are identical on either base.
+   */
+  useEffect(() => {
+    if (!ready || !online || upgrading.current) return;
+    const m = map.current;
+    if (!m) return;
+    upgrading.current = true;
+
+    void loadStreetStyle().then((style) => {
+      /*
+       * The map instance IS the lifetime here, which is why this checks
+       * `map.current !== m` rather than a flag the effect's cleanup would clear.
+       *
+       * The flag version looked equivalent and was not: `online` settles a
+       * moment after boot, the dependency change ran the cleanup while the
+       * style fetch was still in flight, and the swap then completed against a
+       * closure that had already declared itself dead. The style loaded, our
+       * layers were discarded with the old one, and nothing ever put them back
+       * — a real map underneath and no route drawn on it.
+       */
+      if (!style || map.current !== m) {
+        // Nothing on screen changed; the sketch is still there. Released so a
+        // later attempt can run, because "no signal now" is not "no signal".
+        upgrading.current = false;
+        return;
+      }
+
+      /*
+       * `diff: false`. Left to itself MapLibre tries to reshape the current
+       * style into the new one, and a diff that succeeds leaves
+       * `isStyleLoaded()` true throughout — so "wait until the style is ready"
+       * answers instantly and describes the style being replaced. A clean swap
+       * makes the transition observable, which is the whole basis of the
+       * re-paint below.
+       */
+      m.setStyle(style, { diff: false });
+
+      // Deliberately not unsubscribed on dependency changes: `map.remove()`
+      // drops every listener it holds, and the swap has to be allowed to finish
+      // even if this effect is torn down while it is in flight.
+      onStyleReady(m, () => {
+        if (map.current !== m) return;
+        // A licence condition of the OpenStreetMap data, not decoration.
+        m.addControl(new maplibregl.AttributionControl({ compact: true }), "top-left");
+        setBase("streets");
+        setStyleEpoch((n) => n + 1);
+      });
+    });
+  }, [ready, online]);
+
   /* Paint every layer from data already on the device. */
   useEffect(() => {
     const m = map.current;
+    if (!m || !ready || !streets) return;
+
     /*
      * `isStyleLoaded()` is asked as well as `ready`, because only the map can
-     * answer authoritatively. `ready` is a React snapshot of a mutable object;
-     * this is the object itself. Belt and braces on an evacuation map, where a
-     * thrown error costs the whole screen rather than one layer.
+     * answer authoritatively — `ready` is a React snapshot of a mutable object,
+     * this is the object itself — and `addLayer` against a style mid-load
+     * throws "Style is not done loading", which costs the whole screen rather
+     * than one layer.
+     *
+     * But it comes back rather than giving up. The snapshot can land while the
+     * basemap is being swapped, and a pass dropped there would only be retried
+     * if some other dependency happened to change later. Ticking the epoch once
+     * the style settles re-runs this effect with the same data.
      */
-    if (!m || !ready || !streets || !m.isStyleLoaded()) return;
+    if (!m.isStyleLoaded()) {
+      return onStyleReady(m, () => setStyleEpoch((n) => n + 1));
+    }
 
     const setSource = (id: string, data: Feature | FeatureCollection) => {
       const existing = m.getSource(id) as maplibregl.GeoJSONSource | undefined;
@@ -175,25 +305,29 @@ export default function MapPage() {
       else m.addSource(id, { type: "geojson", data });
     };
 
-    setSource("streets", streets);
-    if (!m.getLayer("blocks")) {
-      m.addLayer({
-        id: "blocks",
-        type: "fill",
-        source: "streets",
-        filter: ["==", ["get", "kind"], "block"],
-        paint: { "fill-color": "#141922" },
-      });
-      m.addLayer({
-        id: "roads",
-        type: "line",
-        source: "streets",
-        filter: ["!=", ["get", "kind"], "block"],
-        paint: {
-          "line-color": "#222a36",
-          "line-width": ["case", ["==", ["get", "kind"], "main"], 9, 5],
-        },
-      });
+    /* The drawn grid is the base only when there is no surveyed one under it.
+       Both at once would put invented streets over real ones. */
+    if (base === "sketch") {
+      setSource("streets", streets);
+      if (!m.getLayer("blocks")) {
+        m.addLayer({
+          id: "blocks",
+          type: "fill",
+          source: "streets",
+          filter: ["==", ["get", "kind"], "block"],
+          paint: { "fill-color": "#141922" },
+        });
+        m.addLayer({
+          id: "roads",
+          type: "line",
+          source: "streets",
+          filter: ["!=", ["get", "kind"], "block"],
+          paint: {
+            "line-color": "#222a36",
+            "line-width": ["case", ["==", ["get", "kind"], "main"], 9, 5],
+          },
+        });
+      }
     }
 
     /* Purok boundary — dashed, so it reads as an administrative edge rather
@@ -306,19 +440,28 @@ export default function MapPage() {
       }
     }
 
-    /* Frame the route the first time there is one to frame. */
-    if (route.length) {
-      const lngs = route.map((p) => p[0]);
-      const lats = route.map((p) => p[1]);
-      m.fitBounds(
-        [
-          [Math.min(...lngs), Math.min(...lats)],
-          [Math.max(...lngs), Math.max(...lats)],
-        ],
-        { padding: 60, duration: 0, maxZoom: 16.5 },
-      );
-    }
-  }, [ready, streets, purok, route, centre, snapshot, blocking, advisory]);
+  }, [ready, styleEpoch, base, streets, purok, route, centre, snapshot, blocking, advisory]);
+
+  /*
+   * Framing, and only when the thing being framed changes.
+   *
+   * This used to sit at the end of the paint effect, which re-runs on every
+   * snapshot refresh — so a hazard report arriving mid-walk would silently yank
+   * the map back to its default view and undo the resident's pan and zoom. A
+   * map that fights the person reading it is worse than one that never moves.
+   */
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready || !frame) return;
+
+    const key = `${purokId}:${styleEpoch}`;
+    if (framed.current === key) return;
+
+    return onStyleReady(m, () => {
+      framed.current = key;
+      m.fitBounds(frame, { padding: 44, duration: 0, maxZoom: 16.5 });
+    });
+  }, [ready, styleEpoch, frame, purokId]);
 
   /* The resident's own position. */
   useEffect(() => {
@@ -347,6 +490,18 @@ export default function MapPage() {
           ? t("map.turn_right")
           : t("map.straight");
 
+  /*
+   * The base is named, not implied. A drawn schematic and a surveyed street map
+   * look similar enough at a glance to be confused, and a resident deciding
+   * which corner to turn at is entitled to know which of the two they are
+   * reading. Written as two static lookups so `scripts/check-translations.mjs`
+   * can see both keys — a key built from a variable is invisible to it.
+   */
+  const baseLabel =
+    base === "streets" ? t("map.base_streets") : t("map.base_sketch");
+
+  const routeColour = signalStyle(advisory?.signalLevel ?? 0).cssVar;
+
   return (
     <>
       <div className="flex items-center gap-3 px-3.5 py-3">
@@ -365,14 +520,18 @@ export default function MapPage() {
         </span>
       </div>
 
-      {guidance && route.length > 0 && (
-        <div className="mx-3.5 flex items-center gap-3 rounded-instrument border-[1.5px] border-line-soft bg-ink-800 px-3.5 py-3">
+      {/* One rhythm for the whole screen — the same `gap-2.5 p-3.5` column
+          every other page is built on, so the map reads as one card among
+          several rather than as a slab wedged between two loose strips. */}
+      <main className="flex flex-1 flex-col gap-2.5 p-3.5 pt-0">
+        {guidance && route.length > 0 && (
+        <div className="flex items-center gap-3 rounded-instrument border-[1.5px] border-line-soft bg-ink-800 px-3.5 py-3">
           <svg
             width="22"
             height="22"
             viewBox="0 0 24 24"
             fill="none"
-            stroke={signalStyle(advisory?.signalLevel ?? 0).cssVar}
+            stroke={routeColour}
             strokeWidth="2.4"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -398,7 +557,10 @@ export default function MapPage() {
         </div>
       )}
 
-      <div className="relative mx-3.5 mt-2.5 flex-1 overflow-hidden rounded-instrument border-[1.5px] border-line-soft">
+        {/* A floor as well as `flex-1`: on a short viewport the cards below
+            would otherwise squeeze the map to a sliver, and a map too small to
+            show the next corner is not worth the space it holds. */}
+        <div className="relative min-h-56 flex-1 overflow-hidden rounded-instrument border-[1.5px] border-line-soft">
         {/*
           Absolutely positioned, and inline rather than by class. Two separate
           things conspire to collapse this box to zero height, and it needs both
@@ -423,27 +585,36 @@ export default function MapPage() {
           style={{ position: "absolute", inset: 0 }}
         />
 
-        <div className="pointer-events-none absolute bottom-2.5 left-2.5 flex flex-col gap-1.5 rounded-[3px] border-[1.5px] border-line-soft bg-ink-900/90 px-2.5 py-2">
-          <Key colour="#5ee7e0" dashed label={t("map.legend_boundary")} />
-          <Key colour={signalStyle(advisory?.signalLevel ?? 0).cssVar} label={t("map.legend_route")} />
-          <Key colour="#ef4b3a" label={t("map.legend_hazard")} />
-        </div>
-
         <button
           type="button"
           onClick={recentre}
           disabled={!fix}
           aria-label={t("map.recentre")}
-          className="tap absolute right-2.5 bottom-2.5 flex size-11 items-center justify-center rounded-[3px] border-[1.5px] border-line-soft bg-ink-800 disabled:opacity-40"
+          className="tap absolute right-2.5 bottom-11 flex size-11 items-center justify-center rounded-[3px] border-[1.5px] border-line bg-ink-800/95 disabled:opacity-40"
         >
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--color-hv)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <circle cx="12" cy="12" r="3.5" />
             <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
           </svg>
         </button>
-      </div>
 
-      <div className="flex flex-col gap-2.5 p-3.5">
+        {/*
+          The legend, as a status bar across the foot of the map rather than a
+          floating block on top of it. The floating version covered a quarter of
+          the canvas on a phone — on the one screen where the canvas IS the
+          content. This costs no layout height, occludes nothing but the bottom
+          edge, and has room on the right to name the base map.
+        */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-3 border-t border-line-soft bg-ink-900/92 px-2.5 py-1.5">
+          <Key colour="#5ee7e0" dashed label={t("map.legend_boundary")} />
+          <Key colour={routeColour} label={t("map.legend_route")} />
+          <Key colour="#ef4b3a" dot label={t("map.legend_hazard")} />
+          <span className="mono ml-auto truncate text-[9px] font-semibold tracking-[0.7px] text-paper-3">
+            {baseLabel}
+          </span>
+        </div>
+        </div>
+
         {/* The blocked-path warning. Above the destination, because it changes
             whether the destination is reachable at all. */}
         {blocking.length > 0 && (
@@ -461,47 +632,92 @@ export default function MapPage() {
           </div>
         )}
 
+        {/*
+          The destination, as a card rather than as loose text under the map.
+          It is the same fact the advisory card on the home screen ends with, so
+          it is given the same shape: label, name, and the numbers in mono on
+          the right where every other screen puts its numbers.
+        */}
         {centre ? (
-          <div>
-            <div className="flex items-end justify-between gap-3">
-              <h2 className="font-display text-[19px] font-extrabold tracking-[0.3px]">
+          <section className="flex items-center gap-3 rounded-instrument border-[1.5px] border-line-soft bg-ink-800 px-3.5 py-3">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--color-hv)"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0"
+              aria-hidden
+            >
+              <circle cx="6" cy="19" r="2" />
+              <circle cx="18" cy="5" r="2" />
+              <path d="M8 19h7a4 4 0 0 0 4-4v-1a4 4 0 0 0-4-4H9a4 4 0 0 1-4-4v-1" />
+            </svg>
+            <div className="min-w-0 flex-1">
+              <p className="lbl text-[9px]">{t("ui.evac_center")}</p>
+              <h2 className="truncate font-display text-[18px] leading-tight font-extrabold tracking-[0.3px]">
                 {centre.name.toUpperCase()}
               </h2>
-              <span className="mono shrink-0 text-[11px] text-paper-3">
-                {Math.round(routeMetres)} M · {walkMinutes(routeMetres)}{" "}
-                {t("map.walk")}
-              </span>
             </div>
-          </div>
+            <div className="shrink-0 text-right">
+              <p className="mono text-[17px] leading-none font-bold">
+                {Math.round(routeMetres)}
+                <span className="text-[11px] text-paper-3"> M</span>
+              </p>
+              <p className="mono mt-1 text-[9.5px] tracking-[0.6px] text-paper-3">
+                {walkMinutes(routeMetres)} {t("map.walk")}
+              </p>
+            </div>
+          </section>
         ) : (
           <p className="mono text-[11px] text-paper-3">{t("ui.no_protocol")}</p>
         )}
-      </div>
+      </main>
     </>
   );
 }
 
+/**
+ * One legend key. The swatch is drawn the way the layer is drawn — a dashed
+ * rule for the dashed boundary, a dot for the hazard circles — so the legend
+ * can be matched to the map by shape and not only by colour. Roughly a tenth of
+ * Filipino men are red-green colour blind, and this is a map whose two most
+ * important marks are a red one and a green one.
+ */
 function Key({
   colour,
   label,
   dashed,
+  dot,
 }: {
   colour: string;
   label: string;
   dashed?: boolean;
+  dot?: boolean;
 }) {
   return (
-    <span className="flex items-center gap-2">
-      <span
-        className="h-[3px] w-4 shrink-0"
-        style={
-          dashed
-            ? { backgroundImage: `repeating-linear-gradient(90deg, ${colour} 0 4px, transparent 4px 7px)` }
-            : { background: colour }
-        }
-        aria-hidden
-      />
-      <span className="mono text-[9px] font-semibold tracking-[0.8px] text-paper-2">
+    <span className="flex items-center gap-1.5">
+      {dot ? (
+        <span
+          className="size-2 shrink-0 rounded-full"
+          style={{ background: colour }}
+          aria-hidden
+        />
+      ) : (
+        <span
+          className="h-[3px] w-3.5 shrink-0"
+          style={
+            dashed
+              ? { backgroundImage: `repeating-linear-gradient(90deg, ${colour} 0 4px, transparent 4px 7px)` }
+              : { background: colour }
+          }
+          aria-hidden
+        />
+      )}
+      <span className="mono text-[9px] font-semibold tracking-[0.6px] text-paper-2">
         {label}
       </span>
     </span>

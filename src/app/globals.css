@@ -87,3 +87,77 @@ body {
     transparent 6px 12px
   );
 }
+
+/* ---------------------------------------------------------------------------
+ * MapLibre chrome.
+ *
+ * Both map screens — the resident's evacuation route and the hall's rescue map
+ * — ship MapLibre's stock controls, which are white pills with a blue focus
+ * ring. Dropped into a near-black instrument panel they read as somebody
+ * else's UI pasted over ours, and at night the white attribution bar is the
+ * brightest thing on the screen.
+ *
+ * Every selector is prefixed with `.maplibregl-map` on purpose. `maplibre-gl.css`
+ * is imported by the page and so loads AFTER this file; matching its
+ * specificity would lose the cascade, and the symptom would be styles that
+ * look right in review and do nothing in the browser.
+ * ------------------------------------------------------------------------ */
+
+.maplibregl-map .maplibregl-ctrl-group {
+  background: var(--color-ink-800);
+  border: 1.5px solid var(--color-line-soft);
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+.maplibregl-map .maplibregl-ctrl-group button {
+  width: 32px;
+  height: 32px;
+  background-color: transparent;
+}
+
+.maplibregl-map .maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--color-line-soft);
+}
+
+.maplibregl-map .maplibregl-ctrl-group button:hover {
+  background-color: var(--color-ink-700);
+}
+
+/* The icons are dark-stroked SVGs baked into the stylesheet as data URIs, so
+   they cannot be recoloured — only inverted. */
+.maplibregl-map .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: invert(1);
+  opacity: 0.82;
+}
+
+/* Focus stays visible — it is how this is operated without a mouse — but in
+   the interactive accent rather than in MapLibre's blue. */
+.maplibregl-map .maplibregl-ctrl-group button:focus,
+.maplibregl-map .maplibregl-ctrl-group button:focus:not(:focus-visible),
+.maplibregl-map .maplibregl-ctrl-attrib-button:focus {
+  box-shadow: 0 0 0 2px var(--color-hv);
+}
+
+/* Attribution. Legally required wherever OpenStreetMap data is drawn, so it is
+   restyled and never hidden. */
+.maplibregl-map .maplibregl-ctrl-attrib,
+.maplibregl-map .maplibregl-ctrl-attrib.maplibregl-compact {
+  background-color: color-mix(in oklab, var(--color-ink-900) 88%, transparent);
+  border: 1px solid var(--color-line-soft);
+  border-radius: 3px;
+  color: var(--color-paper-3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.3px;
+}
+
+.maplibregl-map .maplibregl-ctrl-attrib a {
+  color: var(--color-paper-2);
+}
+
+.maplibregl-map .maplibregl-ctrl-attrib-button {
+  background-color: transparent;
+  filter: invert(1);
+  opacity: 0.75;
+}
