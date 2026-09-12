@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSync } from "./AppRuntime";
-import { getMyRole, type UserRole } from "@/lib/supabase";
+import { getMyRole, isStaffRole, type UserRole } from "@/lib/supabase";
 
 /**
  * The role RLS grants this device, resolved once the session actually exists.
@@ -45,7 +45,6 @@ export function useMyRole(): UserRole | null {
   return role;
 }
 
-/** Staff is volunteer or official — the same set `private.is_staff()` uses. */
-export function isStaffRole(role: UserRole | null): boolean {
-  return role === "volunteer" || role === "official";
-}
+/* Re-exported so the screens that already import it from here keep working;
+   the definition sits beside UserRole in lib/supabase.ts. */
+export { isStaffRole };

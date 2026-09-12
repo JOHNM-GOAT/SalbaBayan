@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useSync, useT } from "@/components/AppRuntime";
+import { STREET_STYLE_URL } from "@/lib/basemap";
 import {
   acknowledge,
   activeQueue,
@@ -67,14 +68,14 @@ export default function ResponderPage() {
     map.current = new maplibregl.Map({
       container: container.current,
       /*
-       * The dark basemap, not the default light one.
+       * The same basemap as every other map in the app, from one constant.
        *
-       * Not a preference: this view is read at night in a barangay hall, and a
-       * white rectangle in an otherwise near-black interface both wrecks the
-       * reader's dark adaptation and makes the severity-coloured pins harder
-       * to pick out. It also happens to draw less power on an OLED panel.
+       * This screen used to pin the dark style here by hand, with a note about
+       * a white rectangle wrecking a night reader's dark adaptation. The app is
+       * light now, so that reasoning inverted — and a URL written out in each
+       * map screen is how the two of them drift apart in the first place.
        */
-      style: "https://tiles.openfreemap.org/styles/dark",
+      style: STREET_STYLE_URL,
       center: CENTRE,
       zoom: 14,
       // Keep the attribution control; removing it would breach the OSM licence.

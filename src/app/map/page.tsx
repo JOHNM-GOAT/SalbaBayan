@@ -33,7 +33,7 @@ import {
  *
  * The base UNDER those layers is the one part that improves with a signal. The
  * map is built on the drawn grid, which cannot fail; if the device is online,
- * the real OpenFreeMap dark basemap — the same one the rescue map uses
+ * the real OpenFreeMap basemap — the same one the rescue map uses
  * (`/responder`) — is fetched and swapped in behind the same overlays, so the
  * two map screens read as one product. See lib/basemap.ts for why the swap runs
  * in that order and not the other.
@@ -299,6 +299,19 @@ export default function MapPage() {
       return onStyleReady(m, () => setStyleEpoch((n) => n + 1));
     }
 
+    /*
+     * Map colour comes from the design tokens, resolved at paint time, rather
+     * than from hexes typed into each layer. That was already true of the route
+     * (it follows the severity ramp); it is now true of everything, and the
+     * white repaint is why. Every hardcoded value in here was a near-black or a
+     * glowing cyan picked for the old ground, and each one had to be found by
+     * eye. Reading them from the tokens means the next palette change is one
+     * file again.
+     */
+    const ground = resolveColour("var(--color-ink-900)");
+    const accent = resolveColour("var(--color-hv)");
+    const danger = resolveColour("var(--color-alarm)");
+
     const setSource = (id: string, data: Feature | FeatureCollection) => {
       const existing = m.getSource(id) as maplibregl.GeoJSONSource | undefined;
       if (existing) existing.setData(data as FeatureCollection);
@@ -309,22 +322,54 @@ export default function MapPage() {
        Both at once would put invented streets over real ones. */
     if (base === "sketch") {
       setSource("streets", streets);
-      if (!m.getLayer("blocks")) {
+      if (!m.getLayer("roads")) {
+        /*
+         * Casing under fill, and widths that grow with zoom — the two things
+         * that make a set of lines read as streets rather than as a diagram.
+         * Worth the extra layer now that these ARE streets: the file holds the
+         * surveyed road network of Sta. Cruz rather than an invented grid of
+         * identical blocks, and a hierarchy is the only way that much geometry
+         * stays legible on a phone.
+         */
+        const byKind = (
+          main: number,
+          minor: number,
+          path: number,
+        ): maplibregl.ExpressionSpecification => [
+          "match", ["get", "kind"], "main", main, "path", path, minor,
+        ];
+
         m.addLayer({
-          id: "blocks",
-          type: "fill",
+          id: "roads-casing",
+          type: "line",
           source: "streets",
-          filter: ["==", ["get", "kind"], "block"],
-          paint: { "fill-color": "#141922" },
+          layout: { "line-cap": "round", "line-join": "round" },
+          paint: {
+            "line-color": resolveColour("var(--color-line)"),
+            "line-width": [
+              "interpolate", ["linear"], ["zoom"],
+              13, byKind(3.5, 2, 1),
+              17, byKind(18, 11, 5),
+            ],
+          },
         });
         m.addLayer({
           id: "roads",
           type: "line",
           source: "streets",
-          filter: ["!=", ["get", "kind"], "block"],
+          layout: { "line-cap": "round", "line-join": "round" },
           paint: {
-            "line-color": "#222a36",
-            "line-width": ["case", ["==", ["get", "kind"], "main"], 9, 5],
+            "line-color": [
+              "match", ["get", "kind"],
+              "main", resolveColour("var(--color-ink-600)"),
+              "path", resolveColour("var(--color-ink-700)"),
+              resolveColour("var(--color-ink-600)"),
+            ],
+            "line-width": [
+              "interpolate", ["linear"], ["zoom"],
+              13, byKind(2, 1.2, 0.6),
+              17, byKind(14, 8, 3.5),
+            ],
           },
         });
       }
@@ -344,14 +389,14 @@ export default function MapPage() {
           id: "boundary-fill",
           type: "fill",
           source: "boundary",
-          paint: { "fill-color": "#5ee7e0", "fill-opacity": 0.05 },
+          paint: { "fill-color": accent, "fill-opacity": 0.07 },
         });
         m.addLayer({
           id: "boundary-line",
           type: "line",
           source: "boundary",
           paint: {
-            "line-color": "#5ee7e0",
+            "line-color": accent,
             "line-width": 2,
             "line-dasharray": [3, 2],
           },
@@ -374,7 +419,7 @@ export default function MapPage() {
           id: "route-casing",
           type: "line",
           source: "route",
-          paint: { "line-color": "#0b0e12", "line-width": 11 },
+          paint: { "line-color": ground, "line-width": 11 },
           layout: { "line-cap": "round", "line-join": "round" },
         });
         m.addLayer({
@@ -410,8 +455,8 @@ export default function MapPage() {
         source: "hazards",
         paint: {
           "circle-radius": ["case", ["get", "onRoute"], 9, 6],
-          "circle-color": "#ef4b3a",
-          "circle-stroke-color": "#0b0e12",
+          "circle-color": danger,
+          "circle-stroke-color": ground,
           "circle-stroke-width": 2.5,
         },
       });
@@ -432,8 +477,8 @@ export default function MapPage() {
           source: "centre",
           paint: {
             "circle-radius": 10,
-            "circle-color": "#5ee7e0",
-            "circle-stroke-color": "#0b0e12",
+            "circle-color": accent,
+            "circle-stroke-color": ground,
             "circle-stroke-width": 3,
           },
         });
@@ -470,8 +515,17 @@ export default function MapPage() {
 
     if (!meMarker.current) {
       const dot = document.createElement("div");
-      dot.style.cssText =
-        "width:18px;height:18px;border-radius:50%;background:#5ee7e0;border:3px solid #0b0e12;box-shadow:0 0 0 6px rgba(94,231,224,0.25)";
+      const accent = resolveColour("var(--color-hv)");
+      dot.style.cssText = [
+        "width:18px",
+        "height:18px",
+        "border-radius:50%",
+        `background:${accent}`,
+        `border:3px solid ${resolveColour("var(--color-ink-900)")}`,
+        // A halo, so the fix stays findable on a pale basemap where a plain dot
+        // the size of a fingertip does not.
+        `box-shadow:0 0 0 6px color-mix(in oklab, ${accent} 28%, transparent)`,
+      ].join(";");
       meMarker.current = new maplibregl.Marker({ element: dot });
     }
     meMarker.current.setLngLat([fix.lng, fix.lat]).addTo(m);
@@ -501,6 +555,8 @@ export default function MapPage() {
     base === "streets" ? t("map.base_streets") : t("map.base_sketch");
 
   const routeColour = signalStyle(advisory?.signalLevel ?? 0).cssVar;
+  const accentColour = "var(--color-hv)";
+  const dangerColour = "var(--color-alarm)";
 
   return (
     <>
@@ -606,9 +662,9 @@ export default function MapPage() {
           edge, and has room on the right to name the base map.
         */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-3 border-t border-line-soft bg-ink-900/92 px-2.5 py-1.5">
-          <Key colour="#5ee7e0" dashed label={t("map.legend_boundary")} />
+          <Key colour={accentColour} dashed label={t("map.legend_boundary")} />
           <Key colour={routeColour} label={t("map.legend_route")} />
-          <Key colour="#ef4b3a" dot label={t("map.legend_hazard")} />
+          <Key colour={dangerColour} dot label={t("map.legend_hazard")} />
           <span className="mono ml-auto truncate text-[9px] font-semibold tracking-[0.7px] text-paper-3">
             {baseLabel}
           </span>

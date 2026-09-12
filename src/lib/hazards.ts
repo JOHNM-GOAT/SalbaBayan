@@ -9,9 +9,11 @@
  * what keep it accountable instead.
  */
 
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { enqueueUpdate, enqueueWrite, newClientId, queuedWrites } from "./offlineQueue";
 import { queuePhoto } from "./photoQueue";
-import { getCurrentUserId, getSupabase } from "./supabase";
+import { getCurrentUserId, getMyRole, getSupabase, type UserRole } from "./supabase";
+import { canResolveHazard as decide } from "./hazardPermission";
 import { currentFix } from "./sos";
 
 /**
@@ -169,28 +171,72 @@ export async function allOpenHazards(limit = 30): Promise<Hazard[]> {
  * Listens for UPDATE as well as INSERT — a resolve has to disappear from every
  * feed as promptly as a new report appears in it.
  */
+let liveChannel: RealtimeChannel | null = null;
+const liveListeners = new Set<() => void>();
+
 export function subscribeHazards(onChange: () => void): () => void {
   const supabase = getSupabase();
   if (!supabase) return () => {};
 
-  const channel = supabase
-    .channel("hazards-live")
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "hazard_reports" },
-      () => onChange(),
-    )
-    .subscribe();
+  /*
+   * One channel, many listeners — the same shape `subscribeRescue` uses, and
+   * for the same reason it had to grow one.
+   *
+   * A channel name is global to the client. This used to build a new
+   * `hazards-live` per caller, which was fine while exactly one screen watched
+   * hazards. The hazard sheet is mounted in the layout, so it now watches on
+   * every route — and the moment the report screen subscribed alongside it,
+   * supabase-js threw outright:
+   *
+   *   cannot add `postgres_changes` callbacks for realtime:hazards-live
+   *   after `subscribe()`
+   *
+   * The second caller reaches for a channel that already exists and is already
+   * subscribed. Multiplexing here means callers never have to know how many
+   * other screens are listening, which is the only version of this that stays
+   * correct as screens are added.
+   */
+  liveListeners.add(onChange);
+
+  if (!liveChannel) {
+    liveChannel = supabase
+      .channel("hazards-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "hazard_reports" },
+        () => {
+          // Copied before notifying: a listener may unsubscribe in response.
+          for (const listener of [...liveListeners]) listener();
+        },
+      )
+      .subscribe();
+  }
 
   return () => {
-    void supabase.removeChannel(channel);
+    liveListeners.delete(onChange);
+
+    // Tear the channel down only when nobody is left, and drop the reference
+    // first so a subscriber arriving mid-teardown builds a fresh one.
+    if (liveListeners.size === 0 && liveChannel) {
+      const channel = liveChannel;
+      liveChannel = null;
+      void supabase.removeChannel(channel);
+    }
   };
 }
 
-/** Whether this device may resolve a given report (mirrors `resolve_hazards`). */
+/*
+ * The rule itself lives in lib/hazardPermission.ts — no imports, so it can be
+ * tested in Node without dragging Dexie and a Supabase client along. Re-exported
+ * here because this is where callers already look for it.
+ */
+export { canResolveHazard } from "./hazardPermission";
+
+/** Async convenience for callers that hold neither the uid nor the role. */
 export async function canResolve(hazard: Hazard): Promise<boolean> {
-  const uid = await getCurrentUserId();
-  // Staff can resolve anything, but the client cannot prove staff-ness — RLS
-  // decides. This only controls whether the button is worth showing.
-  return !!uid && hazard.reported_by === uid;
+  const [uid, role] = await Promise.all([
+    getCurrentUserId(),
+    getMyRole().catch((): UserRole | null => null),
+  ]);
+  return decide(hazard, uid, role);
 }

@@ -18,6 +18,7 @@ import {
 } from "@/lib/water";
 import {
   allOpenHazards,
+  canResolveHazard,
   resolveHazard,
   submitHazard,
   subscribeHazards,
@@ -25,6 +26,7 @@ import {
   type Category,
   type Hazard,
 } from "@/lib/hazards";
+import { useMyRole } from "@/components/useMyRole";
 import { pendingPhotoCount } from "@/lib/photoQueue";
 
 /**
@@ -37,8 +39,9 @@ import { pendingPhotoCount } from "@/lib/photoQueue";
  * optional photo.
  */
 export default function ReportPage() {
-  const { purokId, snapshot, online } = useSync();
+  const { purokId, snapshot, online, userId } = useSync();
   const t = useT();
+  const role = useMyRole();
 
   const [category, setCategory] = useState<Category | null>(null);
   const [depth, setDepth] = useState<Depth | null>(null);
@@ -297,6 +300,7 @@ export default function ReportPage() {
                     hazard={entry.hazard}
                     now={now}
                     purokName={purokName}
+                    canFix={canResolveHazard(entry.hazard, userId ?? null, role)}
                     onResolve={async () => {
                       await resolveHazard(entry.hazard.id);
                       void refresh();
@@ -316,11 +320,13 @@ function HazardRow({
   hazard,
   now,
   purokName,
+  canFix,
   onResolve,
 }: {
   hazard: Hazard;
   now: number;
   purokName: (id: string) => string;
+  canFix: boolean;
   onResolve: () => void;
 }) {
   const t = useT();
@@ -332,7 +338,7 @@ function HazardRow({
         tone === "alarm" ? "border-alarm" : "border-caution"
       }`}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         <span
           className={`mono shrink-0 text-[11px] font-bold tracking-[0.7px] ${
             tone === "alarm" ? "text-alarm" : "text-caution"
@@ -340,33 +346,54 @@ function HazardRow({
         >
           {t(`cat.${hazard.category}`)}
         </span>
-        <span className="flex-1 truncate text-[12.5px]">
-          {hazard.description ?? purokName(hazard.purok_id)}
+
+        {/*
+          The state, stated.
+
+          This row used to carry no status at all and a control labelled
+          "Resolved" / "Ayos na" — so every new report appeared with a green
+          tick reading RESOLVED underneath it, and the feed looked like it was
+          closing reports the instant they were filed. The row was `status:
+          'open'` in the database the whole time; the screen was just describing
+          a state where it should have been naming an action. The chip says what
+          is true, and the button below now says what tapping it does.
+        */}
+        <span className="mono shrink-0 rounded-[3px] border border-caution px-1.5 py-0.5 text-[8.5px] font-bold tracking-[0.7px] text-caution">
+          {t("hazard.unresolved")}
         </span>
-        <span className="mono shrink-0 text-[10px] text-paper-3">
+
+        <span className="mono ml-auto shrink-0 text-[10px] text-paper-3">
           {agoLabel(hazard.ts, now)}
         </span>
       </div>
 
+      <p className="mt-1.5 truncate text-[12.5px]">
+        {hazard.description ?? purokName(hazard.purok_id)}
+      </p>
+
       {hazard.photo_url && <HazardPhoto path={hazard.photo_url} />}
 
       {/*
-        Resolve is offered to everyone (FR-7.2 allows reporter, volunteer or
-        official). The client cannot prove which of those it is, so it does not
-        try — RLS decides, and a resident tapping it on someone else's report
-        simply gets nothing. Hiding the button by guessing the role would be a
-        worse lie than showing it.
+        Offered only to someone it can work for — see `canResolveHazard`. RLS is
+        still the decision; this just stops the app from presenting an action
+        that will silently do nothing.
       */}
-      <button
-        type="button"
-        onClick={onResolve}
-        className="mono mt-2 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.7px] text-clear"
-      >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M20 6L9 17l-5-5" />
-        </svg>
-        {t("hazard.resolve")}
-      </button>
+      {canFix ? (
+        <button
+          type="button"
+          onClick={onResolve}
+          className="mono mt-2 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.7px] text-clear"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
+          {t("hazard.resolve")}
+        </button>
+      ) : (
+        <p className="mono mt-2 text-[9.5px] leading-relaxed tracking-[0.5px] text-paper-3">
+          {t("hz.only_volunteer")}
+        </p>
+      )}
     </li>
   );
 }

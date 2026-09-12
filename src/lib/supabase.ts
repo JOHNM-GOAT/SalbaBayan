@@ -82,6 +82,19 @@ export async function getCurrentUserId(): Promise<string | null> {
 export type UserRole = "resident" | "volunteer" | "official";
 
 /**
+ * Staff is volunteer or official — the same set `private.is_staff()` uses, and
+ * the set the team calls "verified": an official granting the volunteer role IS
+ * the verification, so there is no second flag to check.
+ *
+ * Lives here rather than in components/useMyRole.ts because plain library code
+ * needs it too, and a "use client" module is the wrong place to reach for a
+ * three-line predicate over a type declared in this file.
+ */
+export function isStaffRole(role: UserRole | null): boolean {
+  return role === "volunteer" || role === "official";
+}
+
+/**
  * Reads the caller's role. Defaults to `resident` — the least-privileged
  * answer — whenever the role cannot be established, including offline.
  * This is a display hint only. The real boundary is RLS.

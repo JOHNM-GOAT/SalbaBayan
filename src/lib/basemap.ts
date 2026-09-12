@@ -10,7 +10,7 @@ import type { Map as MapLibreMap, StyleSpecification } from "maplibre-gl";
  *               in it can fail, and it is complete for the whole barangay with
  *               the connection gone. It is what the map is BUILT with, always.
  *
- *   `streets` — the same OpenFreeMap dark basemap the rescue map already uses
+ *   `streets` — the same OpenFreeMap basemap the rescue map already uses
  *               (`/responder`), so the two map screens read as one product.
  *
  * The order matters more than the choice. The map is constructed on the sketch,
@@ -26,8 +26,17 @@ import type { Map as MapLibreMap, StyleSpecification } from "maplibre-gl";
  */
 export type Basemap = "sketch" | "streets";
 
-/** Same basemap as the rescue map. No API key, no billing account (Q3). */
-export const STREET_STYLE_URL = "https://tiles.openfreemap.org/styles/dark";
+/**
+ * Same basemap as the rescue map. No API key, no billing account (Q3).
+ *
+ * Positron, not the dark style both maps used to carry. The basemap is the
+ * largest single area of colour on these screens, and a dark rectangle in an
+ * otherwise white interface stops reading as a map and starts reading as a
+ * hole. Positron is also the quietest of OpenFreeMap's light styles, which
+ * matters more here than it would elsewhere: everything drawn ON the map — the
+ * route, the boundary, the hazard pins — has to stay louder than the map.
+ */
+export const STREET_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 
 /**
  * Bounded so a tower that accepts the connection and then stalls cannot leave
@@ -37,7 +46,7 @@ export const STREET_STYLE_URL = "https://tiles.openfreemap.org/styles/dark";
 const FETCH_TIMEOUT_MS = 8000;
 
 /** The ground colour, matching `--color-ink-900`, for the sketch's background. */
-const GROUND = "#0b0e12";
+const GROUND = "#ffffff";
 
 /**
  * The style that cannot fail.

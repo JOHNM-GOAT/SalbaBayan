@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { Shell } from "@/components/Shell";
 import { ActorSwitch } from "@/components/ActorSwitch";
 import { BottomNav } from "@/components/BottomNav";
+import { HazardSheet } from "@/components/HazardSheet";
 
 /*
  * Fonts are self-hosted by next/font rather than linked from the Google Fonts
@@ -91,10 +92,13 @@ export default function RootLayout({
             <ActorSwitch />
             <Shell>{children}</Shell>
             {/*
-             * The tab bar lives here for the same reason the sync strip does:
-             * a screen that has to remember to render its own navigation is a
-             * screen someone will ship without it.
+             * The hazard map and the tab bar live here for the same reason the
+             * sync strip does: a screen that has to remember to render its own
+             * navigation is a screen someone will ship without it. The sheet
+             * being mounted once, above the nav, is also what makes "one map,
+             * reachable from every page" true rather than twelve maps.
              */}
+            <HazardSheet />
             <BottomNav />
           </div>
         </AppRuntime>

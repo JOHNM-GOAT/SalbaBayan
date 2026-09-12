@@ -5,38 +5,67 @@
  *
  * Two rules govern colour here and they are load-bearing:
  *   1. The signal ramp (signal-1..5) means SEVERITY and nothing else.
- *   2. `hv` (high-visibility cyan) means INTERACTIVE and nothing else.
+ *   2. `hv` (high-visibility accent) means INTERACTIVE and nothing else.
  * Never use a signal colour for a button, or hv for a hazard state.
+ *
+ * ---------------------------------------------------------------------------
+ * LIGHT THEME
+ *
+ * This was a near-black instrument panel until the team asked for a clean white
+ * one. Read `ink` and `paper` as ROLES rather than as colours: `ink-*` is the
+ * ground, darkest-numbered first in the original and now lightest, and
+ * `paper-*` is the figure drawn on it. Every screen is painted from these two
+ * scales, so flipping the values here repaints the whole app at once — which is
+ * the only reason a change this size is a few dozen lines instead of a thousand.
+ *
+ * What could NOT simply be flipped is the accent and the ramp. On a near-black
+ * ground the bright end of a hue is the readable end; on white it is the
+ * invisible one. The old high-vis cyan (L 0.82) sits at about 1.5:1 against
+ * white — unreadable as text, and it was carrying every interactive label in
+ * the product. So each of these is re-chosen for contrast on white rather than
+ * lightened or darkened mechanically, and the hues are kept so the product
+ * still reads as itself.
+ *
+ * One thing genuinely got worse and is worth writing down rather than
+ * discovering later: this app is read outdoors at night, during a typhoon, on a
+ * phone whose battery may be the last one in the house. A white screen wrecks
+ * dark adaptation and costs more power on an OLED panel. That was the reason
+ * for the original palette. The team chose white anyway, with that stated.
  */
 @theme {
-  /* ground — near-black, single theme by design, not a toggle */
-  --color-ink-900: oklch(0.13 0.012 245);
-  --color-ink-800: oklch(0.175 0.014 245);
-  --color-ink-700: oklch(0.225 0.016 245);
-  --color-ink-600: oklch(0.29 0.018 245);
+  /* ground — white, single theme by design, not a toggle */
+  --color-ink-900: oklch(1 0 0);
+  --color-ink-800: oklch(0.985 0.002 245);
+  --color-ink-700: oklch(0.955 0.004 245);
+  --color-ink-600: oklch(0.91 0.006 245);
 
-  --color-line: oklch(0.36 0.02 245);
-  --color-line-soft: oklch(0.27 0.018 245);
+  --color-line: oklch(0.82 0.009 245);
+  --color-line-soft: oklch(0.9 0.006 245);
 
-  --color-paper: oklch(0.97 0.005 245);
-  --color-paper-2: oklch(0.78 0.012 245);
-  --color-paper-3: oklch(0.575 0.014 245);
+  /* figure — near-black, and two steps down for supporting text. `paper-3`
+     carries the small tracked labels, so it stops well short of grey-on-grey. */
+  --color-paper: oklch(0.21 0.014 245);
+  --color-paper-2: oklch(0.41 0.014 245);
+  --color-paper-3: oklch(0.55 0.014 245);
 
-  /* interactive accent — never used for severity */
-  --color-hv: oklch(0.82 0.13 195);
-  --color-hv-ink: oklch(0.15 0.04 200);
+  /* interactive accent — never used for severity. Deep teal rather than the
+     old high-vis cyan, which was chosen to glow on black and disappears here. */
+  --color-hv: oklch(0.52 0.11 218);
+  --color-hv-ink: oklch(0.99 0.005 218);
 
-  /* severity ramp — never used for anything but signal level */
-  --color-signal-1: oklch(0.74 0.16 148);
-  --color-signal-2: oklch(0.85 0.16 100);
-  --color-signal-3: oklch(0.76 0.18 62);
-  --color-signal-4: oklch(0.63 0.22 28);
-  --color-signal-5: oklch(0.47 0.20 12);
+  /* severity ramp — never used for anything but signal level. Darkened so the
+     ramp is legible AS TEXT on white; level 1 stays clearly green and level 5
+     clearly the deepest, because the order is the information. */
+  --color-signal-1: oklch(0.52 0.14 148);
+  --color-signal-2: oklch(0.57 0.13 92);
+  --color-signal-3: oklch(0.55 0.16 55);
+  --color-signal-4: oklch(0.52 0.21 28);
+  --color-signal-5: oklch(0.42 0.18 14);
 
   /* state colours */
-  --color-alarm: oklch(0.63 0.22 28);
-  --color-caution: oklch(0.82 0.15 85);
-  --color-clear: oklch(0.74 0.16 148);
+  --color-alarm: oklch(0.52 0.21 28);
+  --color-caution: oklch(0.55 0.13 78);
+  --color-clear: oklch(0.5 0.14 148);
 
   /* type — self-hosted via next/font so they survive offline */
   --font-display: var(--font-archivo), "Arial Narrow", Helvetica, sans-serif;
@@ -48,7 +77,7 @@
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
@@ -92,10 +121,10 @@ body {
  * MapLibre chrome.
  *
  * Both map screens — the resident's evacuation route and the hall's rescue map
- * — ship MapLibre's stock controls, which are white pills with a blue focus
- * ring. Dropped into a near-black instrument panel they read as somebody
- * else's UI pasted over ours, and at night the white attribution bar is the
- * brightest thing on the screen.
+ * — plus the hazard sheet ship MapLibre's stock controls, which come with their
+ * own radii, shadow and a blue focus ring. Left alone they read as somebody
+ * else's UI pasted over ours: rounded pills with drop shadows in an interface
+ * built on 4px corners and hairline borders.
  *
  * Every selector is prefixed with `.maplibregl-map` on purpose. `maplibre-gl.css`
  * is imported by the page and so loads AFTER this file; matching its
@@ -124,11 +153,10 @@ body {
   background-color: var(--color-ink-700);
 }
 
-/* The icons are dark-stroked SVGs baked into the stylesheet as data URIs, so
-   they cannot be recoloured — only inverted. */
 .maplibregl-map .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
-  filter: invert(1);
-  opacity: 0.82;
+  /* No invert: MapLibre ships these icons as dark strokes, which is now the
+     correct colour. They were inverted only to survive the near-black panel. */
+  opacity: 0.75;
 }
 
 /* Focus stays visible — it is how this is operated without a mouse — but in
@@ -158,6 +186,5 @@ body {
 
 .maplibregl-map .maplibregl-ctrl-attrib-button {
   background-color: transparent;
-  filter: invert(1);
-  opacity: 0.75;
+  opacity: 0.6;
 }
