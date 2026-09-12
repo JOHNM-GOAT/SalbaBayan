@@ -14,6 +14,7 @@ import { enqueueUpdate, enqueueWrite, newClientId, queuedWrites } from "./offlin
 import { queuePhoto } from "./photoQueue";
 import { getCurrentUserId, getMyRole, getSupabase, type UserRole } from "./supabase";
 import { canResolveHazard as decide } from "./hazardPermission";
+import { mergeHazards, queuedInserts, queuedPatches } from "./hazardMerge";
 import { currentFix } from "./sos";
 
 /**
@@ -44,6 +45,8 @@ export type Hazard = {
   lat: number | null;
   lng: number | null;
   reported_by: string | null;
+  /** Carries a local change the server has not accepted yet (lib/hazardMerge). */
+  pending?: boolean;
 };
 
 /**
@@ -107,14 +110,23 @@ export async function resolveHazard(id: string): Promise<void> {
   await enqueueUpdate("hazard_reports", id, { status: "resolved" });
 }
 
-export async function openHazards(limit = 30): Promise<Hazard[]> {
+/**
+ * Reports from the server, BOTH statuses.
+ *
+ * This used to filter `status = 'open'` in the query, which made the resolved
+ * half of the feed unreachable and — worse — made the merge below unable to do
+ * its job: a row the server still calls open but this device has locally
+ * resolved has to be moved between the two lists, and you cannot move a row you
+ * did not fetch. The status filter now happens after the queue is folded in,
+ * which is the only place it can be correct.
+ */
+export async function fetchHazards(limit = 60): Promise<Hazard[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
 
   const { data, error } = await supabase
     .from("hazard_reports")
     .select("id,purok_id,category,description,photo_url,status,ts,lat,lng,reported_by")
-    .eq("status", "open")
     .order("ts", { ascending: false })
     .limit(limit);
 
@@ -129,38 +141,54 @@ export async function openHazards(limit = 30): Promise<Hazard[]> {
  * assumes it failed and files again, and duplicate hazard reports for one
  * street are the noise responders can least afford.
  */
+const fromQueuePayload = (
+  p: Record<string, unknown>,
+  id: string,
+  ts: string,
+): Hazard => ({
+  id,
+  purok_id: (p.purok_id as string) ?? "",
+  category: (p.category as Category) ?? "other",
+  description: (p.description as string | null) ?? null,
+  photo_url: null,
+  status: ((p.status as HazardStatus) ?? "open") as HazardStatus,
+  ts,
+  lat: (p.lat as number | null) ?? null,
+  lng: (p.lng as number | null) ?? null,
+  reported_by: (p.reported_by as string | null) ?? null,
+  // Still in the queue, so the server has not seen it by definition.
+  pending: true,
+});
+
 export async function queuedHazards(): Promise<Hazard[]> {
-  const rows = await queuedWrites();
-  return rows
-    .filter((row) => row.table === "hazard_reports" && !row.blocked && row.op !== "update")
-    .map((row) => {
-      const p = row.payload as Partial<Hazard>;
-      return {
-        id: row.id,
-        purok_id: p.purok_id ?? "",
-        category: (p.category ?? "other") as Category,
-        description: p.description ?? null,
-        photo_url: null,
-        status: "open" as HazardStatus,
-        ts: p.ts ?? new Date(row.createdAt).toISOString(),
-        lat: p.lat ?? null,
-        lng: p.lng ?? null,
-        reported_by: p.reported_by ?? null,
-      };
-    });
+  return queuedInserts<Hazard>(await queuedWrites(), fromQueuePayload);
 }
 
-/** Server rows plus still-queued ones, newest first. Server wins on id. */
+/**
+ * Every report this device knows about, newest first, with the local write
+ * queue folded in — including the resolves sitting in it.
+ *
+ * That last part is the fix for "I marked it fixed and it still says
+ * UNRESOLVED". See lib/hazardMerge.ts for why a queued update has to be applied
+ * as a patch rather than filtered out.
+ */
+export async function allHazards(limit = 60): Promise<Hazard[]> {
+  const [remote, rows] = await Promise.all([fetchHazards(limit), queuedWrites()]);
+  const local = queuedInserts<Hazard>(rows, fromQueuePayload);
+
+  return mergeHazards<Hazard>(remote, local, queuedPatches(rows)).slice(0, limit);
+}
+
+/** Still unresolved — what the hazard map pins and what the count counts. */
 export async function allOpenHazards(limit = 30): Promise<Hazard[]> {
-  const [remote, local] = await Promise.all([openHazards(limit), queuedHazards()]);
+  const all = await allHazards(Math.max(limit * 2, 60));
+  return all.filter((h) => h.status === "open").slice(0, limit);
+}
 
-  const byId = new Map<string, Hazard>();
-  for (const row of local) byId.set(row.id, row);
-  for (const row of remote) byId.set(row.id, row);
-
-  return [...byId.values()]
-    .sort((a, b) => b.ts.localeCompare(a.ts))
-    .slice(0, limit);
+/** Marked fixed, including fixes this device has not managed to send yet. */
+export async function resolvedHazards(limit = 30): Promise<Hazard[]> {
+  const all = await allHazards(Math.max(limit * 2, 60));
+  return all.filter((h) => h.status === "resolved").slice(0, limit);
 }
 
 /**

@@ -17,7 +17,7 @@ import {
   type WaterReport,
 } from "@/lib/water";
 import {
-  allOpenHazards,
+  allHazards,
   canResolveHazard,
   resolveHazard,
   submitHazard,
@@ -54,6 +54,8 @@ export default function ReportPage() {
   const [water, setWater] = useState<WaterReport[]>([]);
   const [hazards, setHazards] = useState<Hazard[]>([]);
   const [now, setNow] = useState(() => Date.now());
+  /** Which half of the feed is showing. Unresolved is the working list. */
+  const [filter, setFilter] = useState<"open" | "resolved">("open");
   const fileInput = useRef<HTMLInputElement | null>(null);
 
   const purokName = (id: string) =>
@@ -62,7 +64,7 @@ export default function ReportPage() {
   const refresh = useCallback(async () => {
     const [w, h, p] = await Promise.all([
       allWaterReports(),
-      allOpenHazards(),
+      allHazards(),
       pendingPhotoCount(),
     ]);
     setWater(w);
@@ -109,11 +111,25 @@ export default function ReportPage() {
     void refresh();
   }
 
-  /* One feed, newest first — a resident wants "what is happening", not two
-     lists split by which table the row landed in. */
+  const openCount = hazards.filter((h) => h.status === "open").length;
+  const resolvedCount = hazards.filter((h) => h.status === "resolved").length;
+
+  /*
+   * One feed, newest first — a resident wants "what is happening", not two
+   * lists split by which table the row landed in.
+   *
+   * Water reports appear under Unresolved only, and are deliberately not given
+   * a Resolved counterpart. A depth reading is an observation of how things
+   * were at a moment, not a job someone can finish; "resolved knee-deep water"
+   * would be a claim nobody made.
+   */
   const feed = [
-    ...hazards.map((h) => ({ kind: "hazard" as const, ts: h.ts, hazard: h })),
-    ...water.map((w) => ({ kind: "water" as const, ts: w.ts, water: w })),
+    ...hazards
+      .filter((h) => h.status === filter)
+      .map((h) => ({ kind: "hazard" as const, ts: h.ts, hazard: h })),
+    ...(filter === "open"
+      ? water.map((w) => ({ kind: "water" as const, ts: w.ts, water: w }))
+      : []),
   ].sort((a, b) => b.ts.localeCompare(a.ts));
 
   return (
@@ -270,10 +286,43 @@ export default function ReportPage() {
         )}
 
         <section className="flex flex-1 flex-col gap-2">
-          <p className="lbl">{t("hazard.open")}</p>
+          {/*
+            Unresolved / Resolved.
+
+            Both counts are always shown, including the zeroes, because the
+            question the filter answers is "has anyone dealt with this yet" and
+            a tab that disappears when empty cannot answer it. Unresolved leads
+            and is the default: it is what a volunteer opens this screen to
+            work through.
+          */}
+          <div className="flex gap-1.5" role="tablist" aria-label={t("hazard.open")}>
+            {(["open", "resolved"] as const).map((value) => {
+              const isActive = filter === value;
+              const count = value === "open" ? openCount : resolvedCount;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setFilter(value)}
+                  className={`tap flex flex-1 items-center justify-center gap-2 rounded-instrument border-[1.5px] px-3 text-[11px] font-bold tracking-[0.5px] ${
+                    isActive
+                      ? "border-hv bg-hv text-hv-ink"
+                      : "border-line-soft bg-ink-800 text-paper-2"
+                  }`}
+                >
+                  {value === "open" ? t("hazard.unresolved") : t("hazard.resolved")}
+                  <span className="mono text-[11px] font-bold opacity-80">{count}</span>
+                </button>
+              );
+            })}
+          </div>
 
           {feed.length === 0 ? (
-            <p className="mono text-[11px] text-paper-3">{t("hazard.none")}</p>
+            <p className="mono text-[11px] text-paper-3">
+              {filter === "open" ? t("hazard.none") : t("hazard.none_resolved")}
+            </p>
           ) : (
             <ul className="flex flex-col gap-2">
               {feed.map((entry) =>
@@ -358,9 +407,27 @@ function HazardRow({
           a state where it should have been naming an action. The chip says what
           is true, and the button below now says what tapping it does.
         */}
-        <span className="mono shrink-0 rounded-[3px] border border-caution px-1.5 py-0.5 text-[8.5px] font-bold tracking-[0.7px] text-caution">
-          {t("hazard.unresolved")}
-        </span>
+        {hazard.status === "resolved" ? (
+          <span className="mono shrink-0 rounded-[3px] border border-clear px-1.5 py-0.5 text-[8.5px] font-bold tracking-[0.7px] text-clear">
+            {t("hazard.resolved")}
+          </span>
+        ) : (
+          <span className="mono shrink-0 rounded-[3px] border border-caution px-1.5 py-0.5 text-[8.5px] font-bold tracking-[0.7px] text-caution">
+            {t("hazard.unresolved")}
+          </span>
+        )}
+
+        {/*
+          The row reads as fixed because of a write still sitting in the queue,
+          not because the barangay has been told. Saying so is the same rule the
+          sync strip follows: never let a local intention look like a fact
+          somebody else can see.
+        */}
+        {hazard.pending && (
+          <span className="mono shrink-0 text-[8.5px] font-bold tracking-[0.6px] text-caution">
+            {t("hazard.pending")}
+          </span>
+        )}
 
         <span className="mono ml-auto shrink-0 text-[10px] text-paper-3">
           {agoLabel(hazard.ts, now)}
@@ -376,9 +443,11 @@ function HazardRow({
       {/*
         Offered only to someone it can work for — see `canResolveHazard`. RLS is
         still the decision; this just stops the app from presenting an action
-        that will silently do nothing.
+        that will silently do nothing. An already-resolved row offers nothing at
+        all: there is no un-resolve, and a second "Mark as fixed" on something
+        already fixed would be a control with no effect to find out about.
       */}
-      {canFix ? (
+      {hazard.status === "resolved" ? null : canFix ? (
         <button
           type="button"
           onClick={onResolve}

@@ -23,7 +23,7 @@
     "ingest:docs": "node scripts/ingest-docs.mjs",
     "check:routes": "node scripts/check-routes.mjs",
     "geo:generate": "node scripts/generate-geo.mjs",
-    "check:hazard": "node scripts/hazard-permission-test.mjs"
+    "check:hazard": "node scripts/hazard-permission-test.mjs && node scripts/hazard-merge-test.mjs"
   },
   "dependencies": {
     "@serwist/next": "^9.5.12",
