@@ -27,6 +27,7 @@ import {
   type Hazard,
 } from "@/lib/hazards";
 import { useMyRole } from "@/components/useMyRole";
+import { focusHazard } from "@/lib/hazardFocus";
 import { pendingPhotoCount } from "@/lib/photoQueue";
 
 /**
@@ -387,6 +388,18 @@ function HazardRow({
         tone === "alarm" ? "border-alarm" : "border-caution"
       }`}
     >
+      {/*
+        The row itself opens the hazard map on this report. It is a button
+        around the summary only, NOT around the whole card — "Mark as fixed"
+        lives below it, and a button inside a button is invalid markup that
+        browsers resolve by guessing.
+      */}
+      <button
+        type="button"
+        onClick={() => focusHazard(hazard.id)}
+        className="w-full text-left"
+        aria-label={`${t(`cat.${hazard.category}`)} — ${t("hz.title")}`}
+      >
       <div className="flex items-center gap-2.5">
         <span
           className={`mono shrink-0 text-[11px] font-bold tracking-[0.7px] ${
@@ -434,9 +447,18 @@ function HazardRow({
         </span>
       </div>
 
-      <p className="mt-1.5 truncate text-[12.5px]">
-        {hazard.description ?? purokName(hazard.purok_id)}
-      </p>
+      <div className="mt-1.5 flex items-center gap-2">
+        <p className="min-w-0 flex-1 truncate text-[12.5px]">
+          {hazard.description ?? purokName(hazard.purok_id)}
+        </p>
+        {/* The affordance. Without it the row looks like a label, and nobody
+            discovers that tapping it shows where the thing actually is. */}
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-hv)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
+          <path d="M12 22s7-7.58 7-13a7 7 0 0 0-14 0c0 5.42 7 13 7 13z" />
+          <circle cx="12" cy="9" r="2.5" />
+        </svg>
+      </div>
+      </button>
 
       {hazard.photo_url && <HazardPhoto path={hazard.photo_url} />}
 

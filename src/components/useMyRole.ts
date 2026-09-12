@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSync } from "./AppRuntime";
-import { getMyRole, isStaffRole, type UserRole } from "@/lib/supabase";
+import { getMyRole, isStaffRole, onRoleChanged, type UserRole } from "@/lib/supabase";
 
 /**
  * The role RLS grants this device, resolved once the session actually exists.
@@ -30,15 +30,30 @@ export function useMyRole(): UserRole | null {
     if (!userId) return;
 
     let live = true;
-    // .catch: offline, getMyRole can reject rather than resolve. An unhandled
-    // rejection here would surface as a page error over a missing role.
-    void getMyRole()
-      .then((next) => {
-        if (live) setRole(next);
-      })
-      .catch(() => {});
+    const read = () => {
+      // .catch: offline, getMyRole can reject rather than resolve. An unhandled
+      // rejection here would surface as a page error over a missing role.
+      void getMyRole()
+        .then((next) => {
+          if (live) setRole(next);
+        })
+        .catch(() => {});
+    };
+
+    read();
+
+    /*
+     * And read it again whenever the role changes under us. Resolving once per
+     * session was correct while roles could only be granted by an official on
+     * another device; the demo switcher can now change this device's own role,
+     * and without this every mounted screen kept the answer it fetched at mount
+     * until a full reload — so a volunteer still saw "only a volunteer can mark
+     * this fixed" on the screen they had just become a volunteer for.
+     */
+    const stop = onRoleChanged(read);
     return () => {
       live = false;
+      stop();
     };
   }, [userId]);
 

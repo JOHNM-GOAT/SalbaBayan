@@ -9,6 +9,7 @@ import { useShellWidth } from "./Shell";
 import { HazardPhoto } from "./HazardPhoto";
 import { loadStreetStyle, onStyleReady, sketchStyle } from "@/lib/basemap";
 import { onQueueChanged } from "@/lib/offlineQueue";
+import { onHazardFocus } from "@/lib/hazardFocus";
 import { agoLabel } from "@/lib/water";
 import { resolveColour } from "@/lib/signal";
 import {
@@ -91,6 +92,25 @@ export function HazardSheet() {
     };
   }, [refresh]);
 
+  /*
+   * Opened from elsewhere — tapping a row in the report feed.
+   *
+   * The id is remembered in `pendingFocus` as well as selected, because the map
+   * does not exist yet at this moment: the sheet has to render, the container
+   * has to mount, and MapLibre has to load a style before anything can be
+   * centred. The pin effect picks this up once there is a map to move.
+   */
+  const pendingFocus = useRef<string | null>(null);
+  useEffect(
+    () =>
+      onHazardFocus((id) => {
+        pendingFocus.current = id;
+        setSelectedId(id);
+        setOpen(true);
+      }),
+    [],
+  );
+
   /* Memoised because the pin effect reads it, and an identity that changes on
      every render would re-plot every marker on every render. */
   const purokName = useCallback(
@@ -156,6 +176,9 @@ export function HazardSheet() {
       markers.current = [];
       instance.remove();
       map.current = null;
+      // A request to centre on a report that was never pinned — because it has
+      // no GPS fix — must not survive to hijack the next opening.
+      pendingFocus.current = null;
     };
   }, [open]);
 
@@ -211,6 +234,26 @@ export function HazardSheet() {
             .setLngLat([hazard.lng as number, hazard.lat as number])
             .addTo(m),
         );
+      }
+
+      /*
+       * Someone asked for a specific report. That outranks the overview frame:
+       * they tapped a row to see where it is, so the map goes there rather than
+       * fitting everything and leaving them to find it.
+       */
+      const wanted = pendingFocus.current
+        ? placed.find((h) => h.id === pendingFocus.current)
+        : null;
+
+      if (wanted) {
+        pendingFocus.current = null;
+        framed.current = true;
+        m.easeTo({
+          center: [wanted.lng as number, wanted.lat as number],
+          zoom: 17,
+          duration: 0,
+        });
+        return;
       }
 
       /* Frame them once per opening — after that the reader is in charge. */

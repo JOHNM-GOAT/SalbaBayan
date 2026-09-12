@@ -156,5 +156,53 @@ const head = await rest("headcounts", {
 });
 check("write headcounts (staff only)", head.status >= 400, `status ${head.status}`);
 
+/* ---------------------------------------------------------------------------
+ * The demo self-promotion path (migration 0017)
+ *
+ * Every check above passes whether or not `set_demo_role` exists, because none
+ * of them call it — a resident who never promotes themselves is still correctly
+ * fenced out of protocols, headcounts and other people's SOS. That is exactly
+ * why this section is here. A security suite that stays silent about a function
+ * letting any device make itself an official is a suite that reports "18
+ * passed" over an open door.
+ *
+ * So this does not pass or fail. It REPORTS, every run, which state the
+ * database is in.
+ * ------------------------------------------------------------------------ */
+
+console.log("\nDemo role switch (migration 0017):");
+
+const promoteJwt = await signInAnonymously();
+const promote = await fetch(`${URL_}/rest/v1/rpc/set_demo_role`, {
+  method: "POST",
+  headers: {
+    apikey: KEY,
+    Authorization: `Bearer ${promoteJwt}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ target: "official" }),
+});
+
+if (promote.status === 404) {
+  console.log("  CLOSED  set_demo_role is not installed — roles are granted by officials only.");
+} else if (promote.ok) {
+  console.log("  OPEN    a fresh anonymous device just made itself an OFFICIAL.");
+  console.log("          This is deliberate and demo-only. Before a real barangay uses");
+  console.log("          this build, run:  drop function public.set_demo_role(public.user_role);");
+
+  // Left promoted would poison later runs and the live demo, so put it back.
+  await fetch(`${URL_}/rest/v1/rpc/set_demo_role`, {
+    method: "POST",
+    headers: {
+      apikey: KEY,
+      Authorization: `Bearer ${promoteJwt}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ target: "resident" }),
+  });
+} else {
+  console.log(`  UNKNOWN set_demo_role answered ${promote.status}.`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

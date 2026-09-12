@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSync, useT } from "./AppRuntime";
+import { setDemoRole } from "@/lib/supabase";
 import { useShellWidth } from "./Shell";
 import { ACTORS, actorById } from "@/lib/actors";
 
@@ -14,13 +15,23 @@ import { ACTORS, actorById } from "@/lib/actors";
  * device without three phones and three role grants — which is what a demo of
  * this product needs, and what a barangay evaluating it will ask to see.
  *
- * It is labelled DEMO on screen, deliberately and permanently. Switching here
- * changes navigation and nothing else: every screen still reads and writes
- * through the same RLS policies, so selecting "Official" on a resident's
- * device shows the official's tab bar and then, correctly, no roster data. A
- * control that changed what you can see would have to be an authentication
- * flow; this one only changes what you are offered, and saying so on the
- * control itself is cheaper than explaining it after someone assumes wrong.
+ * It is labelled DEMO on screen, deliberately and permanently — and that label
+ * now carries more weight than it used to.
+ *
+ * This USED to change navigation and nothing else, on the argument that a
+ * control which changed what you can see would have to be an authentication
+ * flow. The argument was sound and the result was a demo that could not show
+ * the volunteer's central action: selecting VOLUNTEER gave you the volunteer's
+ * tab bar and then refused to let you mark a hazard fixed, because the role RLS
+ * checks lives in the database and the switcher never touched it. Every device
+ * in the room had to be hand-granted a role first.
+ *
+ * So switching now calls `set_demo_role`, which grants the device the role it
+ * selected. That IS a self-promotion path: anyone who opens the app can make
+ * themselves an official. It is confined to one droppable function so it can be
+ * closed in a single statement — see migration 0017, which carries the full
+ * argument and the one line that removes it. If that function is dropped, this
+ * component keeps working and quietly goes back to changing navigation only.
  */
 export function ActorSwitch() {
   const { actor, setActor } = useSync();
@@ -75,6 +86,15 @@ export function ActorSwitch() {
                 aria-pressed={active}
                 onClick={() => {
                   setActor(a.id);
+                  /*
+                   * Not awaited. The tab bar and the destination should change
+                   * under the thumb immediately; the grant lands a moment later
+                   * and announces itself, and every screen holding a role
+                   * re-reads then (see onRoleChanged). Making the navigation
+                   * wait on a round trip would make the demo feel broken on
+                   * exactly the connection this product is built for.
+                   */
+                  void setDemoRole(a.id);
                   // Land on that actor's home, or the switch would leave the
                   // person on a screen their new tab bar cannot get back to.
                   router.push(actorById(a.id).home);

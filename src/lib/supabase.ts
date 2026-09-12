@@ -94,6 +94,51 @@ export function isStaffRole(role: UserRole | null): boolean {
   return role === "volunteer" || role === "official";
 }
 
+/*
+ * Role changes are announced, because nothing else would notice.
+ *
+ * `useMyRole` resolves once per session, keyed on the user id — which is right
+ * when a role is granted by an official on another device and wrong the moment
+ * a device can change its OWN role. Without this, switching to VOLUNTEER left
+ * every mounted screen still holding "resident" until a full reload.
+ */
+const roleListeners = new Set<() => void>();
+
+export function onRoleChanged(listener: () => void): () => void {
+  roleListeners.add(listener);
+  return () => {
+    roleListeners.delete(listener);
+  };
+}
+
+/**
+ * DEMO ONLY — grants the calling device a role (migration 0017).
+ *
+ * This is a self-promotion path and it is meant to be removed: dropping
+ * `public.set_demo_role` closes it completely, with no other code change
+ * needed, because this function then simply fails and the role stays whatever
+ * an official granted. See the migration for the full argument.
+ *
+ * Returns the role actually in force afterwards, which is NOT assumed to be the
+ * one requested: if the RPC is gone, or the device is offline, the honest
+ * answer is whatever the database still says.
+ */
+export async function setDemoRole(target: UserRole): Promise<UserRole> {
+  const supabase = getSupabase();
+  if (!supabase) return getMyRole();
+
+  const { data, error } = await supabase.rpc("set_demo_role", { target });
+  if (error) {
+    // Expected once the function is dropped for a real deployment. The switch
+    // then does what it always did — change navigation — and the role holds.
+    console.warn("[demo-role]", error.message);
+    return getMyRole();
+  }
+
+  for (const listener of [...roleListeners]) listener();
+  return (data as UserRole) ?? target;
+}
+
 /**
  * Reads the caller's role. Defaults to `resident` — the least-privileged
  * answer — whenever the role cannot be established, including offline.
