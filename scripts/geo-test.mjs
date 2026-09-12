@@ -144,6 +144,79 @@ check(
   Number.isFinite(geo.metresToLine([121.4101, 14.2771], degenerate)),
 );
 
+/* ---------------------------------------------------------------------------
+ * Guidance on surveyed roads (FR-11.3)
+ *
+ * Routes stopped being invented on a 300 m grid and became shortest paths along
+ * real OpenStreetMap geometry, which carries a vertex wherever the road bends.
+ * Every test below exists because that change breaks turn-by-turn guidance in a
+ * way that still LOOKS right: the map draws a correct line, and the instruction
+ * card above it counts down 30 metres at a time to corners that are not there.
+ * ------------------------------------------------------------------------ */
+
+console.log("\nGuidance on surveyed geometry:");
+
+/** A straight street, digitised with the small wobbles a survey leaves. */
+const wobbly = [];
+for (let i = 0; i <= 20; i++) {
+  wobbly.push([121.414 + i * 0.00012, 14.2795 + (i % 2 ? 0.000012 : -0.000012)]);
+}
+check(
+  "a straight street with survey wobble reduces to one leg",
+  geo.guidanceLegs(wobbly).length === 2,
+  `${geo.guidanceLegs(wobbly).length} points`,
+);
+
+check(
+  "a real 90 degree corner survives the reduction",
+  geo.guidanceLegs(route).length === route.length,
+  `${geo.guidanceLegs(route).length} of ${route.length}`,
+);
+
+/** A quarter-circle bend: no single vertex turns far, the whole arc does. */
+const curve = [];
+for (let i = 0; i <= 24; i++) {
+  const a = (i / 24) * (Math.PI / 2);
+  curve.push([121.414 + 0.0018 * Math.sin(a), 14.2795 + 0.0018 * (1 - Math.cos(a))]);
+}
+const curveLegs = geo.guidanceLegs(curve);
+check(
+  "a gradual curve is announced, not ignored",
+  curveLegs.length > 2,
+  `${curveLegs.length} points`,
+);
+check(
+  "and is announced a handful of times, not twenty-four",
+  curveLegs.length <= 6,
+  `${curveLegs.length} points`,
+);
+
+/* Every corner must be a point the road actually passes through. If the
+   reduction ever invented a coordinate, the app would count down to somewhere
+   off the street. */
+check(
+  "every corner is a point on the original route",
+  curveLegs.every((leg) => curve.some((p) => p[0] === leg[0] && p[1] === leg[1])),
+);
+
+/* The failure this whole section is about, stated directly. */
+const denseTurn = geo.nextTurn(wobbly, wobbly[0]);
+check(
+  "guidance does not count down to the next survey vertex",
+  denseTurn.metres > 100,
+  `said ${denseTurn.metres}m`,
+);
+check(
+  "a straight street reports arrive, not a turn every 30m",
+  denseTurn.turn === "arrive",
+  `got ${denseTurn.turn}`,
+);
+
+check(
+  "a two-point route is left alone",
+  geo.guidanceLegs([[121.41, 14.277], [121.412, 14.279]]).length === 2,
+);
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 // Set the code and let Node exit on its own. Calling process.exit() here
 // races the native TypeScript-stripping loader as it tears down and trips a

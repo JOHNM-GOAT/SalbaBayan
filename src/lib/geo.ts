@@ -115,6 +115,52 @@ export function bearing(a: Point, b: Point): number {
 
 export type Turn = "straight" | "left" | "right" | "arrive";
 
+/** Signed difference between two bearings, in (-180, 180]. */
+function bearingDelta(from: number, to: number): number {
+  let delta = to - from;
+  while (delta > 180) delta -= 360;
+  while (delta <= -180) delta += 360;
+  return delta;
+}
+
+/** Below this, a bend in the road is the road, not a turn to announce. */
+export const TURN_DEGREES = 25;
+
+/**
+ * Reduce a surveyed route to the corners a person would actually be told about.
+ *
+ * Routes used to be invented on a 300 m grid: three points, two legs, and every
+ * vertex a real corner. They are now shortest paths along OpenStreetMap
+ * geometry, which carries a vertex wherever the road bends — roughly every 30
+ * metres. Fed straight to `nextTurn` that produces "straight on, 20 m" over and
+ * over while the resident walks one continuous street, which is worse than
+ * silence: it is a instruction card that changes constantly and says nothing.
+ *
+ * Each candidate corner is measured against the direction travelled since the
+ * LAST corner, not since the previous vertex. That is what makes a long gradual
+ * curve resolve correctly — no single vertex on it turns far enough to count,
+ * but the accumulated deviation eventually does, and the bend is announced once
+ * where it becomes real rather than sixty times or never.
+ */
+export function guidanceLegs(route: Point[], minTurn = TURN_DEGREES): Point[] {
+  if (route.length < 3) return [...route];
+
+  const legs: Point[] = [route[0]];
+  for (let i = 1; i < route.length - 1; i++) {
+    const from = legs[legs.length - 1];
+    // A duplicated coordinate has no bearing; skipping it protects the
+    // `atan2` below from a zero-length vector.
+    if (metresBetween(from, route[i]) < 1) continue;
+
+    const incoming = bearing(from, route[i]);
+    const outgoing = bearing(route[i], route[i + 1]);
+    if (Math.abs(bearingDelta(incoming, outgoing)) >= minTurn) legs.push(route[i]);
+  }
+
+  legs.push(route[route.length - 1]);
+  return legs;
+}
+
 /**
  * The next instruction along a route.
  *
@@ -129,32 +175,41 @@ export function nextTurn(route: Point[], from: Point): {
 } {
   if (route.length < 2) return { turn: "arrive", metres: 0, legIndex: 0 };
 
+  /*
+   * Corners, not vertices. The route drawn on the map keeps every point the
+   * surveyed road has, because that is what makes the line lie on the street;
+   * the instruction is computed from the reduction of it. Distances still come
+   * out right — `legs` is a subset of `route`, so the point this measures to is
+   * a point genuinely on the road.
+   */
+  const legs = guidanceLegs(route);
+  if (legs.length < 2) return { turn: "arrive", metres: 0, legIndex: 0 };
+
   // Which leg the resident is nearest to; everything ahead of it is remaining.
   let legIndex = 0;
   let best = Infinity;
-  for (let i = 1; i < route.length; i++) {
-    const d = metresToSegment(from, route[i - 1], route[i]);
+  for (let i = 1; i < legs.length; i++) {
+    const d = metresToSegment(from, legs[i - 1], legs[i]);
     if (d < best) {
       best = d;
       legIndex = i;
     }
   }
 
-  const toEndOfLeg = metresBetween(from, route[legIndex]);
+  const toEndOfLeg = metresBetween(from, legs[legIndex]);
 
   // On the last leg there is no turn left to describe.
-  if (legIndex >= route.length - 1) {
+  if (legIndex >= legs.length - 1) {
     return { turn: "arrive", metres: Math.round(toEndOfLeg), legIndex };
   }
 
-  const current = bearing(route[legIndex - 1], route[legIndex]);
-  const next = bearing(route[legIndex], route[legIndex + 1]);
-  let delta = next - current;
-  while (delta > 180) delta -= 360;
-  while (delta < -180) delta += 360;
+  const delta = bearingDelta(
+    bearing(legs[legIndex - 1], legs[legIndex]),
+    bearing(legs[legIndex], legs[legIndex + 1]),
+  );
 
   const turn: Turn =
-    Math.abs(delta) < 30 ? "straight" : delta > 0 ? "right" : "left";
+    Math.abs(delta) < TURN_DEGREES ? "straight" : delta > 0 ? "right" : "left";
 
   return { turn, metres: Math.round(toEndOfLeg), legIndex };
 }

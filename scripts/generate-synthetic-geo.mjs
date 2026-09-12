@@ -137,11 +137,23 @@ for (const purok of puroks) {
   }
 }
 
+/*
+ * SUPERSEDED — this script no longer writes public/geo/streets.json, and the
+ * routes and centre positions in 0008 have been replaced by 0014.
+ *
+ * `scripts/generate-geo.mjs` owns the base map and the routes now: it builds
+ * them from a real OpenStreetMap extract of Sta. Cruz, Laguna, because the
+ * resident map draws OpenStreetMap underneath and an invented route over real
+ * streets is an instruction to walk through buildings.
+ *
+ * The file is kept, and still emits 0008, because 0008 has been applied and is
+ * the record of how the Puroks, protocols and hazards were first created. Only
+ * its geometry is stale. Re-running this is safe; re-running it and then NOT
+ * re-running generate-geo.mjs would leave the database describing a barangay
+ * that does not match the map, so do both or neither.
+ */
+void streets;
 mkdirSync(join(ROOT, "public", "geo"), { recursive: true });
-writeFileSync(
-  join(ROOT, "public", "geo", "streets.json"),
-  JSON.stringify(streets),
-);
 
 /* ---------------------------------------------------------------------------
  * Routes — L-shaped, along the grid, from Purok centroid to assigned centre.
