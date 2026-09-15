@@ -1,7 +1,8 @@
 # Official sets the advisory — design
 
 **Date:** 2026-09-15
-**Status:** approved in brainstorming and spec review
+**Status:** approved in brainstorming and spec review; refined while writing the implementation plan (see "Refinements")
+**Plan:** `docs/superpowers/plans/2026-09-15-official-advisory.md`
 **PRD:** §4 (the official "sets the current signal level"), FR-1.2, FR-2.3, FR-2.7, FR-3.1
 
 ## Summary
@@ -20,7 +21,7 @@ resident reads can only be changed with SQL.
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Offline behaviour | Queued like every write, with a loud **NOT SENT** banner until it lands |
+| 1 | Offline behaviour | Queued like every write, with a loud **NOT SENT YET** banner until it lands |
 | 2 | Which changes need hold-to-confirm | **Every level change**, raising or lowering. Details-only edits are a plain tap |
 | 3 | Leave-by time | **Required at Signal 3+**, cleared automatically below 3 |
 | 4 | Who reads the history | **Officials only** |
@@ -31,6 +32,31 @@ resident reads can only be changed with SQL.
 Decision 5 was first answered as "two queued writes" (B) by mistake and then
 re-chosen as A. Nothing from the B design remains in this spec. Decision 7 was
 settled in spec review.
+
+## Refinements made while writing the plan
+
+None of these changes a decision above; each makes the design match something
+already in the codebase, or closes a gap found while writing real code.
+
+- **The hold control's held label reuses `sos.cancelling`** ("Release to stop")
+  instead of a new `adv.issuing`. Mid-hold, the instruction a person needs is how
+  to back out, and it is the same for both controls.
+- **Hold and button labels are sentence case**, matching `sos.hold_cancel`
+  ("Press and hold to cancel") and its verbs in Tagalog and Cebuano.
+- **The leave-by message says "leave-before"**, because the field is labelled
+  with `ui.leave_by`, which reads LEAVE BEFORE.
+- **The NOW line shows the level and when it was set, not who set it.** The
+  snapshot's barangay select does not include `signal_set_by`, and widening it
+  is out of scope. Who made each change is shown in Recent changes.
+- **The patch sent to `barangays` is built by a pure `toBarangayPatch()`**, so it
+  can be tested — in particular, that it never sends `signal_set_by`.
+- **The leave-by input has pure conversion helpers** (`toLocalInputValue`,
+  `fromLocalInputValue`). The live deadline carries seconds, which a
+  `datetime-local` input cannot show; re-reading the displayed value would make
+  an untouched deadline look changed. The input is parsed only when edited.
+- **The "history cannot be deleted" check is a read-only `pg_policies` query**,
+  not a REST probe. No constraint can stop a DELETE, so a probe would really
+  erase a row if the policy leaked.
 
 ## Findings that shaped the design
 
@@ -95,9 +121,10 @@ alter table public.barangays
     check (current_signal_level < 3 or evacuate_by is not null);
 ```
 
-The `3` is coupled to `EVACUATION_SIGNAL = 3` in `src/lib/advisory.ts`. The
-migration comment names both places. The live row passes (level 3, `evacuate_by`
-set). A violation is SQLSTATE `23514`, which `queuePolicy.ts` already treats as
+The `3` is coupled to `EVACUATION_SIGNAL = 3` in `src/lib/advisory.ts` and to
+`EVACUATION_LEVEL` in `src/lib/advisoryForm.ts`; `scripts/advisory-test.mjs`
+fails if the three disagree. The live row passes (level 3, `evacuate_by` set). A
+violation is SQLSTATE `23514`, which `queuePolicy.ts` already treats as
 permanent, so a violating queued change is blocked visibly rather than retried.
 
 ### Triggers
@@ -140,17 +167,15 @@ screen shows it as "set before history was recorded".
 ### 2a. The save — `src/lib/advisoryAdmin.ts` (new)
 
 ```ts
-export async function setAdvisory(input: {
-  barangayId: string;
-  level: number;
-  stormName: string | null;
-  bulletinNo: number | null;
-  windKph: number | null;
-  evacuateBy: Date | null;
-}): Promise<WriteOutcome>
+export async function setAdvisory(
+  input: AdvisoryInput & { barangayId: string },
+): Promise<WriteOutcome>
 ```
 
-Calls `enqueueUpdate("barangays", barangayId, patch)` with:
+`AdvisoryInput` is `{ level, stormName, bulletinNo, windKph, evacuateBy }` with
+cleaned values, from `advisoryForm.ts`. `setAdvisory` calls
+`enqueueUpdate("barangays", barangayId, toBarangayPatch(input, tappedAt))`.
+`toBarangayPatch` (pure, in `advisoryForm.ts`) produces exactly:
 
 | column | value |
 |---|---|
@@ -159,11 +184,19 @@ Calls `enqueueUpdate("barangays", barangayId, patch)` with:
 | `bulletin_no` | `bulletinNo` |
 | `wind_kph` | `windKph` |
 | `evacuate_by` | ISO string at level ≥ 3, **null below 3** |
-| `signal_set_at` | tap time, `new Date().toISOString()` |
+| `signal_set_at` | tap time |
 
-`signal_set_by` is not sent — the trigger stamps it. Validation happens before
-this is called (see `advisoryForm.ts`, §3); the database constraints are the
-backstop.
+`signal_set_by` is never sent — the trigger stamps it. Cleared fields are sent as
+null rather than omitted, so the placard stops showing them. Validation happens
+before this is called (§3); the database constraints are the backstop.
+
+`advisoryAdmin.ts` also holds the history read:
+
+```ts
+export async function recentSignalHistory(
+  barangayId: string,
+): Promise<SignalHistoryRow[] | null>   // null = could not be read
+```
 
 ### 2b. Queue changes — `src/lib/offlineQueue.ts`
 
@@ -197,14 +230,15 @@ type PendingAdvisory =
   | { state: "blocked"; level: number; tappedAt: string; queueId: string; reason: string };
 ```
 
-It considers only `table === "barangays"`, `op === "update"`, and a payload whose
-`id` is this barangay. The hook re-reads `queuedWrites()` on `onQueueChanged`.
+It considers only `table === "barangays"`, `op === "update"`, a payload whose
+`id` is this barangay, and a numeric `current_signal_level`. The hook re-reads
+`queuedWrites()` on `onQueueChanged`.
 
 | state | banner |
 |---|---|
 | `none` | none |
-| `queued` | amber: **NOT SENT** — residents have not been told Signal *n* yet. Use the megaphone or radio until this clears. Plus the tap time. |
-| `blocked` | red: **REFUSED** — Signal *n* was not issued. Plus the reason and **RETRY** (`retryBlocked(queueId)`). |
+| `queued` | amber: **NOT SENT YET** — residents have not been told Signal *n*. Use the megaphone or radio until this clears. Plus the tap time. |
+| `blocked` | red: **REFUSED** — Signal *n* was not issued. Plus the reason and **Retry** (`retryBlocked(queueId)` then `flushQueue()`). |
 
 Level 0 uses separate wording ("…have not been told the signal was lifted").
 
@@ -233,7 +267,7 @@ change that has not gone out never looks like it has.
 
 - New route `src/app/advisory/page.tsx`, officials only.
 - Entry point: a **CHANGE ADVISORY** button under the placard on `/official`,
-  alongside the NOT SENT banner. Not a tab — the official's tab bar is full.
+  after the NOT SENT banner. Not a tab — the official's tab bar is full.
 - Add `/advisory` to `SHELL_ROUTES` in `src/app/sw.ts`, so it opens offline.
 - Content is held to a phone-width column (`max-w-[34rem]`) inside the official's
   76rem shell.
@@ -242,30 +276,28 @@ change that has not gone out never looks like it has.
 
 ```
 ← CHANGE ADVISORY
-[ NOT SENT / REFUSED banner, when there is one ]
+[ NOT SENT YET / REFUSED banner, when there is one ]
 
-NOW      SIGNAL NO. 3 · SET 2:10 PM · D-4CD7        ← server truth
+NOW      SIGNAL NO. 3 · SET 2:10 PM                  ← server truth
 
 NEW LEVEL
 [ 0 ] [ 1 ] [ 2 ] [ 3 ] [ 4 ] [ 5 ]
 STORM NAME     [ Igme        ]
-BULLETIN NO.   [ 9 ]
-WIND (KPH)     [ 175 ]               ← optional
-LEAVE BY       [ 15 Sep, 6:00 PM ]   ← only at Signal 3+, required
-               in 3h 0m
+BULLETIN NO.   [ 9 ]      WIND (KPH)   [ 175 ]
+LEAVE BEFORE   [ 15 Sep, 6:00 PM ]   ← only at Signal 3+, required
 
 WHAT RESIDENTS WILL SEE
 [ real SignalPlacard + LeaveByStrip, drawn with the new values ]
 
-[ ████░░░░  HOLD TO ISSUE SIGNAL NO. 4 ]
+[ ████░░░░  Press and hold to issue Signal No. 4 ]
 
 RECENT CHANGES
   4 · 2:10 PM · D-4CD7 · SENT 2:10 PM
-  3 · —       · —      · set before history was recorded
 ```
 
-"SET 2:10 PM · D-4CD7" is composed in code from a `adv.set` label and mono
-values, because `translate()` supports only one variable.
+"SET 2:10 PM" is composed in code from the `adv.set` label and a clock value,
+because `translate()` supports only one variable. When history is empty, Recent
+changes shows the current level with "set before history was recorded".
 
 ### Rules
 
@@ -274,9 +306,10 @@ values, because `translate()` supports only one variable.
   ramp-coloured bar as information. Level 0 is labelled with `ui.no_signal`,
   levels 1–5 with `ui.signal_no`.
 - **Hold vs. tap** (decided by `advisoryForm.ts`):
-  - level changed → `HoldToConfirm`, 1.8s
+  - level changed → `HoldToConfirm`, 1.8s, labelled `adv.hold_issue` (or
+    `adv.hold_lift` for level 0), showing `sos.cancelling` while held
   - level unchanged, any detail changed (storm, bulletin, wind, leave-by) → plain
-    **SAVE DETAILS** button
+    **Save details** button
   - nothing changed, or the form is invalid → disabled
 - **Bulletin number** is optional. When given, it must be a whole number of 1 or
   more — the same rule as the database's `bulletin_no > 0`.
@@ -289,28 +322,32 @@ values, because `translate()` supports only one variable.
   - already at 3+ keeps the current deadline
   - must be in the future to confirm; a past deadline shows **THIS DEADLINE HAS
     PASSED** and blocks confirmation
+  - converted in the device's time zone, and parsed **only** in the input's change
+    handler — never by re-reading the displayed value, which has lost its seconds
 - **Preview** renders the real `SignalPlacard` and `LeaveByStrip` with the draft
   values, including wind. `SignalPlacard` gains an optional `barangay` prop;
   without it, it reads the snapshot exactly as today.
-- **After confirming**, the official stays on the screen; the banner is the
-  feedback.
+- **After confirming**, the draft is cleared and the official stays on the
+  screen; the banner is the feedback.
 - **Recent changes** reads the last 10 `signal_history` rows for this barangay,
-  newest first, when online. Offline it shows **Not available offline**. The
+  newest first. When it cannot be read it shows **Not available offline**. The
   device label uses `deviceLabel()` from `ledger.ts`.
-- **Access:** while the role is loading, a skeleton; for a non-official,
+- **Access:** while the role is loading, a skeleton; for a non-official — or a
+  role still unknown after the skeleton's time is up —
   **Only an official can change the advisory.**
 
 ### `src/lib/advisoryForm.ts` (pure)
 
-Exports the rules above so they can be unit-tested:
-
+- `EVACUATION_LEVEL`, `LEAVE_BY_DEFAULT_MS`, `WIND_MAX_KPH`
+- `valuesFromBarangay(barangay)` → the form's starting values
 - `leaveByRequired(level)`
 - `defaultLeaveBy(fromLevel, toLevel, current, now)`
-- `validate(draft, now)` → list of problems: `leave_by_missing`,
-  `leave_by_past`, `bulletin_invalid`, `wind_invalid`
-- `confirmMode(current, draft)` → `"hold" | "tap" | "disabled"`
-- `toPatchInput(draft)` → the `setAdvisory` input, with leave-by nulled below 3
-  and empty storm, bulletin and wind values as null
+- `validate(draft, now)` → problems: `leave_by_missing`, `leave_by_past`,
+  `bulletin_invalid`, `wind_invalid`
+- `confirmMode(current, draft, now)` → `"hold" | "tap" | "disabled"`
+- `toPatchInput(draft)` → cleaned `AdvisoryInput`; throws on an invalid number
+- `toBarangayPatch(input, tappedAt)` → the column patch (§2a)
+- `toLocalInputValue(date)`, `fromLocalInputValue(value)` → leave-by input conversion
 
 ### `HoldToConfirm`
 
@@ -322,7 +359,7 @@ are preserved. `HoldToCancel` remains as a thin wrapper with the SOS wording and
 
 ### Strings — migration `0022_advisory_strings.sql`
 
-en / tl / ceb for each key:
+25 keys, each in en / tl / ceb:
 
 | key | en |
 |---|---|
@@ -332,104 +369,116 @@ en / tl / ceb for each key:
 | `adv.new_level` | NEW LEVEL |
 | `adv.storm` | STORM NAME |
 | `adv.bulletin` | BULLETIN NO. |
-| `adv.bulletin_invalid` | Bulletin number must be a whole number of 1 or more |
+| `adv.bulletin_invalid` | Bulletin number must be a whole number, 1 or more. |
 | `adv.wind` | WIND (KPH) |
-| `adv.wind_invalid` | Wind speed must be a whole number from 0 to 500 |
-| `adv.leave_by_required` | A leave-by time is required at Signal 3 and above |
+| `adv.wind_invalid` | Wind speed must be a whole number from 0 to 500. |
+| `adv.leave_by_required` | A leave-before time is required at Signal 3 and above. |
 | `adv.deadline_passed` | THIS DEADLINE HAS PASSED |
 | `adv.preview` | WHAT RESIDENTS WILL SEE |
-| `adv.hold_issue` | HOLD TO ISSUE SIGNAL NO. {n} |
-| `adv.hold_lift` | HOLD TO LIFT THE SIGNAL |
-| `adv.issuing` | ISSUING… |
-| `adv.save_details` | SAVE DETAILS |
-| `adv.not_sent` | NOT SENT — residents have not been told Signal {n} yet. Use the megaphone or radio until this clears. |
-| `adv.not_sent_lift` | NOT SENT — residents have not been told the signal was lifted. |
-| `adv.refused` | REFUSED — Signal {n} was not issued |
-| `adv.refused_lift` | REFUSED — the signal was not lifted |
-| `adv.retry` | RETRY |
+| `adv.hold_issue` | Press and hold to issue Signal No. {n} |
+| `adv.hold_lift` | Press and hold to lift the signal |
+| `adv.save_details` | Save details |
+| `adv.not_sent` | NOT SENT YET — residents have not been told Signal {n}. Use the megaphone or radio until this clears. |
+| `adv.not_sent_lift` | NOT SENT YET — residents have not been told the signal was lifted. |
+| `adv.refused` | REFUSED — Signal {n} was not issued. |
+| `adv.refused_lift` | REFUSED — the signal was not lifted. |
+| `adv.retry` | Retry |
 | `adv.history` | RECENT CHANGES |
 | `adv.sent` | SENT |
 | `adv.history_offline` | Not available offline |
 | `adv.before_history` | set before history was recorded |
 | `adv.officials_only` | Only an official can change the advisory. |
 
-Existing keys reused: `ui.signal_no`, `ui.no_signal`, `ui.leave_by`.
+Existing keys reused: `ui.signal_no`, `ui.no_signal`, `ui.leave_by`,
+`sos.cancelling`, `ui.no_cache`. The Tagalog and Cebuano follow the app's existing
+vocabulary and should be reviewed by a native speaker before a real deployment.
 
 ## 4. Testing
 
 ### 4a. Unit tests — `scripts/advisory-test.mjs`, added to `verify` as `check:advisory`
 
 **`advisoryForm.ts`**
+- `EVACUATION_LEVEL` equals `EVACUATION_SIGNAL` in `advisory.ts` and the `3` in
+  migration 0021
 - leave-by required at 3, 4, 5; not at 0, 1, 2
-- a missing leave-by at 3+ is a problem; a past one is a problem; a future one is not
-- `defaultLeaveBy` gives now + 3h only when crossing from below 3 into 3+
-- `defaultLeaveBy` keeps the current deadline when already at 3+
-- bulletin: empty is valid; 1 and 12 are valid; 0, -1 and 2.5 are `bulletin_invalid`
-- wind: empty is valid; 0, 175 and 500 are valid; -1, 501 and 17.5 are `wind_invalid`
-- `confirmMode`: level change → `hold` (raising and lowering); wind only,
-  bulletin only, storm only or leave-by only → `tap`; no change → `disabled`;
-  invalid → `disabled`
-- `toPatchInput` nulls leave-by below 3, and turns empty storm, bulletin and wind
-  into null
+- a missing leave-by at 3+ is a problem; a past one (or exactly now) is a problem;
+  a future one is not; below 3 neither matters
+- `defaultLeaveBy`: now + 3h only when crossing into 3+; keeps the current
+  deadline within 3+; null below 3
+- bulletin: empty is valid; 1 and 12 are valid; 0, -1, 2.5 and text are invalid
+- wind: empty is valid; 0, 175 and 500 are valid; -1, 501, 17.5 and 1750 are invalid
+- `confirmMode`: raising or lowering → `hold`; wind, bulletin, storm or leave-by
+  alone → `tap`; no change (including whitespace-only) → `disabled`; invalid →
+  `disabled`
+- `toPatchInput` nulls leave-by below 3, turns blanks into null, trims the storm
+  name, and throws on an invalid number instead of saving null
+- `valuesFromBarangay` maps nulls to empty text and the deadline to a `Date`
+- `toBarangayPatch` has exactly the six columns, never `signal_set_by`, sends the
+  leave-by as ISO at 3+ and null below 3, and sends cleared fields as null
+- `toLocalInputValue` / `fromLocalInputValue`: local time, zero-padded, seconds
+  dropped on display, exact minute round trip, seconds accepted on input,
+  impossible or malformed values → null, and a documented check that re-reading a
+  displayed deadline with seconds changes it
 
 **`pendingAdvisory.ts`**
 - no rows → `none`
 - a live update for this barangay → `queued` with its level and tap time
-- a blocked one → `blocked` with its reason and queue id
-- other tables and other barangays are ignored
-- inserts are ignored
+  (falling back to the queue time); level 0 is kept, not dropped
+- a blocked one → `blocked` with its reason (or empty) and queue id
+- other tables, other barangays, inserts, pre-`op` rows and non-numeric levels
+  are ignored
 
 ### 4b. Live database checks — added to `scripts/rls-test.mjs`
 
-All non-mutating:
+Every probe is non-mutating whether it passes or fails. Each write sends a body
+that a CHECK constraint would reject anyway (`level: 9`, or Signal 5 with no
+`evacuate_by`). Postgres evaluates RLS first, so refused by RLS is the pass, and
+`23514` means RLS let the write through and only the constraint stopped it — a
+leak, reported as a failure.
 
-| check | as | why it changes nothing |
-|---|---|---|
-| a resident's update to `barangays` returns 0 rows | anonymous | refused by RLS |
-| no history row appeared for it | anonymous update, counted by a promoted official | count before = count after |
-| a resident cannot read `signal_history` | anonymous | read only |
-| a resident cannot insert into `signal_history` | anonymous | refused |
-| an official cannot insert into `signal_history` | promoted | no insert policy exists |
-| an official cannot update or delete an existing `signal_history` row | promoted | no policies exist; see note below |
-| `{ current_signal_level: 5, evacuate_by: null }` is rejected with `23514` | promoted | the statement aborts |
+| check | as |
+|---|---|
+| a resident's change to `barangays` is refused (0 rows) | anonymous |
+| a resident cannot write to `signal_history` | anonymous |
+| an official can read `signal_history` | promoted |
+| a refused change writes no history row (count before = count after) | resident change, counted by the promoted official |
+| a resident sees none of the history an official can | both — **only when history is non-empty**, otherwise SKIPPED |
+| an official cannot write to `signal_history` directly | promoted |
+| an official cannot edit an existing history row (and it is unchanged) | promoted — **only when history is non-empty**, otherwise SKIPPED |
+| Signal 3+ without a leave-by time is rejected with `23514` | promoted |
 
-The constraint check sends level 5 with no deadline, **not** `evacuate_by: null`
-alone: if the live row were ever below 3, clearing the leave-by alone would
-succeed and write a real history row.
-
-The history count comparison uses a promoted official account, because a
-resident cannot read `signal_history`.
-
-**The update and delete checks need a real row to aim at.** PostgREST answers an
-update or delete that matches nothing with zero rows whether or not a policy
-refused it, so against an empty table those checks pass even if the policies were
-wide open. The test targets the newest existing `signal_history` row, and checks
-it is unchanged (or still present) afterwards. If the table is empty — true on the
-live database until the first real change — it prints
-**SKIPPED — no history rows yet** rather than reporting a pass it did not earn.
+With the live table empty: 28 passed with two SKIPPED lines. After the first real
+change: 30 passed.
 
 The promoted account is demoted and the demotion checked, as today. When
-`set_demo_role` is not installed, the official rows print
-**SKIPPED — needs an official** instead of failing.
+`set_demo_role` is not installed, the official checks print
+**SKIPPED — they need an official account** instead of failing.
+
+**Deletion** is not probed over REST — no constraint can stop a DELETE, so a
+leaking policy would really erase a row. §4d checks it with a read-only query.
 
 ### 4c. Existing gates
 
-- `check:writes` — `advisoryAdmin.ts` uses `enqueueUpdate`.
+- `check:writes` — `advisoryAdmin.ts` writes only through `enqueueUpdate`.
 - `check:i18n` — every new key is seeded in 0022.
 - `check:actors` — new assertion: **every `page.tsx` route is in `SHELL_ROUTES`**,
   not only tab routes. `/advisory` is the first official non-tab route.
 
-### 4d. Manual checks, once
+### 4d. Manual and read-only checks, once
 
-1. **Happy path.** An official issues a real change that includes a wind speed.
-   One SQL select confirms exactly one new `signal_history` row with the right
-   `wind_kph`, `set_by`, `set_at` and `received_at`, and `barangays.signal_set_by`
-   set. This also confirms the trigger fires for a non-owner update.
-2. **Live update.** A second device with the app open shows the new level and wind
-   speed without reloading, and does not flash the old level first.
-3. **Offline.** In airplane mode, issue a change: the amber banner appears and the
-   placard still shows the old level. After reconnecting, the banner clears and
-   the change arrives on the second device.
+1. **No write policies.** A read-only `pg_policies` query shows exactly one policy
+   on `signal_history`, for `SELECT`. Any `INSERT`, `UPDATE`, `DELETE` or `ALL`
+   policy means history can be altered.
+2. **Happy path.** An official issues a real change that includes a wind speed.
+   One SQL select confirms exactly one `signal_history` row with the right values,
+   a non-null `set_by` matching `barangays.signal_set_by`, and `set_at` no later
+   than `received_at`. This also confirms the trigger fires for a non-owner update.
+3. **Live update.** A second device with the app open shows the new values without
+   reloading, and does not flash older values first.
+4. **Offline.** Offline via airplane mode or DevTools Network → Offline (not a
+   `fetch` override, which supabase-js bypasses): the amber banner appears, both
+   placards keep the old values, and after reconnecting the banner clears and the
+   change arrives. History grows by exactly one row.
 
 ## Files
 
@@ -437,11 +486,11 @@ The promoted account is demoted and the demotion checked, as today. When
 |---|---|
 | `supabase/migrations/0021_signal_history.sql` | new — table, RLS, constraint, triggers |
 | `supabase/migrations/0022_advisory_strings.sql` | new — strings |
-| `src/lib/advisoryAdmin.ts` | new — `setAdvisory` |
-| `src/lib/advisoryForm.ts` | new — pure form rules |
+| `src/lib/advisoryForm.ts` | new — pure form rules, patch shaping, leave-by conversion |
 | `src/lib/pendingAdvisory.ts` | new — pure banner state |
+| `src/lib/advisoryAdmin.ts` | new — `setAdvisory`, `recentSignalHistory` |
 | `src/components/usePendingAdvisory.ts` | new — hook |
-| `src/components/AdvisoryBanner.tsx` | new — NOT SENT / REFUSED banner |
+| `src/components/AdvisoryBanner.tsx` | new — NOT SENT YET / REFUSED banner |
 | `src/components/HoldToConfirm.tsx` | new — generalised hold control |
 | `src/components/HoldToCancel.tsx` | becomes a wrapper around `HoldToConfirm` |
 | `src/components/SignalPlacard.tsx` | optional `barangay` prop |
@@ -460,5 +509,7 @@ The promoted account is demoted and the demotion checked, as today. When
 
 - Push notifications to phones without the app open.
 - More than one barangay. `fetchAdvisory` still reads `.limit(1)`.
+- Showing who set the current signal on the NOW line (needs `signal_set_by` in
+  the snapshot select).
 - Editing Purok protocols or routes (recommendation #5).
 - Granting roles (recommendation #3) and dropping `set_demo_role`.
