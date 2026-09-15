@@ -100,6 +100,10 @@ for (const t of hidden) {
 console.log("\nResident writes:");
 const purok = (await rest("puroks?select=id&limit=1", { jwt })).body?.[0]?.id;
 
+// The app stamps the owner column (see OWNER_COLUMN in lib/offlineQueue.ts).
+// Without it the insert succeeds but the row is unreadable to its author.
+const me = JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString()).sub;
+
 const allowed = await rest("water_reports", {
   jwt,
   method: "POST",
@@ -108,13 +112,10 @@ const allowed = await rest("water_reports", {
     purok_id: purok,
     location_label: "rls-test",
     level_category: "knee",
+    reported_by: me,
   },
 });
 check("can submit a water report", allowed.status === 201, `status ${allowed.status}`);
-
-// The app stamps the owner column (see OWNER_COLUMN in lib/offlineQueue.ts).
-// Without it the insert succeeds but the row is unreadable to its author.
-const me = JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString()).sub;
 const sosId = crypto.randomUUID();
 const sos = await rest("rescue_requests", {
   jwt,
@@ -156,6 +157,55 @@ const head = await rest("headcounts", {
 });
 check("write headcounts (staff only)", head.status >= 400, `status ${head.status}`);
 
+/*
+ * The owner-omission bypass (migration 0019).
+ *
+ * 0007 found this on rescue_requests — a rate limit counted rows by owner, and
+ * leaving the owner out of the JSON body meant the rows counted against nobody.
+ * The identical clause sat on hazard_reports and water_reports for another
+ * sixteen migrations, where the cost is different but not smaller: an
+ * unattributed hazard report cannot be resolved by ANY non-staff account,
+ * because `resolve_hazards` matches on `reported_by = auth.uid()` and there is
+ * no uid to match. A script could fill an unmoderated map with pins no resident
+ * could take down.
+ *
+ * Checked on both tables, and checked by actually attempting the bypass rather
+ * than by reading the policy, because the REST surface is what an attacker
+ * reaches.
+ */
+for (const table of ["hazard_reports", "water_reports"]) {
+  const body =
+    table === "hazard_reports"
+      ? { id: crypto.randomUUID(), purok_id: purok, category: "other", status: "open" }
+      : { id: crypto.randomUUID(), purok_id: purok, level_category: "knee" };
+
+  const orphan = await rest(table, { jwt, method: "POST", body });
+  check(
+    `CANNOT file an unattributed ${table} row`,
+    orphan.status >= 400,
+    `LEAK: status ${orphan.status} — a report owned by nobody was accepted`,
+  );
+}
+
+// And the legitimate path still works, so the rule above is a fence and not a
+// wall: a report that names its author is accepted exactly as before.
+const ownedHazard = await rest("hazard_reports", {
+  jwt,
+  method: "POST",
+  body: {
+    id: crypto.randomUUID(),
+    purok_id: purok,
+    category: "other",
+    status: "open",
+    reported_by: me,
+  },
+});
+check(
+  "can still file an attributed hazard report",
+  ownedHazard.status === 201,
+  `status ${ownedHazard.status}`,
+);
+
 /* ---------------------------------------------------------------------------
  * The demo self-promotion path (migration 0017)
  *
@@ -190,8 +240,15 @@ if (promote.status === 404) {
   console.log("          This is deliberate and demo-only. Before a real barangay uses");
   console.log("          this build, run:  drop function public.set_demo_role(public.user_role);");
 
-  // Left promoted would poison later runs and the live demo, so put it back.
-  await fetch(`${URL_}/rest/v1/rpc/set_demo_role`, {
+  /*
+   * Left promoted would poison later runs and the live demo, so put it back —
+   * and CHECK that it went back. This is the one place in a suite about
+   * boundaries that grants a real elevated role, so it is the last place that
+   * should assume its own cleanup worked. A blip here strands an `official` row
+   * in the live table owned by a throwaway anonymous uid that will never sign
+   * in again, and nothing else would ever notice.
+   */
+  const demote = await fetch(`${URL_}/rest/v1/rpc/set_demo_role`, {
     method: "POST",
     headers: {
       apikey: KEY,
@@ -200,6 +257,13 @@ if (promote.status === 404) {
     },
     body: JSON.stringify({ target: "resident" }),
   });
+
+  check(
+    "the promoted test account was demoted again",
+    demote.ok,
+    `status ${demote.status} — an 'official' row is STRANDED in user_roles for ` +
+      `an anonymous uid. Remove it by hand.`,
+  );
 } else {
   console.log(`  UNKNOWN set_demo_role answered ${promote.status}.`);
 }

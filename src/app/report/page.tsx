@@ -29,6 +29,8 @@ import {
 import { useMyRole } from "@/components/useMyRole";
 import { focusHazard } from "@/lib/hazardFocus";
 import { pendingPhotoCount } from "@/lib/photoQueue";
+import { startPositionWatch, type Fix } from "@/lib/sos";
+import { SkeletonFeed, useSkeletonGate } from "@/components/Skeleton";
 
 /**
  * Reporting (PRD §7.6 water, §7.7 hazards).
@@ -59,8 +61,42 @@ export default function ReportPage() {
   const [filter, setFilter] = useState<"open" | "resolved">("open");
   const fileInput = useRef<HTMLInputElement | null>(null);
 
+  /*
+   * The position, warmed from the moment this screen opens.
+   *
+   * This is what puts hazards on the hazard map at all. `submitHazard` stamps
+   * the report with `currentFix()`, and the watch used to be started only by
+   * `/map` and `/sos` — so a resident who opened the app and went straight to
+   * REPORT filed every single one with no coordinates, and the map filtered
+   * them all out. Thirteen of the fifteen reports in the live database went in
+   * that way. The map was not broken; it was being handed nothing to draw.
+   *
+   * Started here rather than inside `submitHazard` because a fix cannot be
+   * fetched at the moment of the tap — a cold one indoors takes upwards of
+   * thirty seconds, and nothing is allowed to stand between the tap and a
+   * durable record of it.
+   */
+  const [fix, setFix] = useState<Fix | null>(null);
+  const [fixError, setFixError] = useState<string | null>(null);
+  useEffect(
+    () =>
+      startPositionWatch((next, error) => {
+        setFix(next);
+        setFixError(error);
+      }),
+    [],
+  );
+
   const purokName = (id: string) =>
     snapshot?.puroks.find((p) => p.id === id)?.name ?? "";
+
+  /*
+   * "The first read has finished", which is NOT "there is something to show".
+   * A read that came back empty is settled, and its screen should say the feed
+   * is empty rather than keep waiting — that distinction is the whole reason
+   * this flag exists rather than checking `hazards.length`.
+   */
+  const [settled, setSettled] = useState(false);
 
   const refresh = useCallback(async () => {
     const [w, h, p] = await Promise.all([
@@ -71,6 +107,7 @@ export default function ReportPage() {
     setWater(w);
     setHazards(h);
     setPhotosPending(p);
+    setSettled(true);
   }, []);
 
   useEffect(() => {
@@ -114,6 +151,8 @@ export default function ReportPage() {
 
   const openCount = hazards.filter((h) => h.status === "open").length;
   const resolvedCount = hazards.filter((h) => h.status === "resolved").length;
+
+  const loadingFeed = useSkeletonGate(settled);
 
   /*
    * One feed, newest first — a resident wants "what is happening", not two
@@ -249,6 +288,30 @@ export default function ReportPage() {
                 className="hidden"
               />
             </section>
+
+            {/*
+              Whether this report is going to carry a location, said before the
+              tap rather than discovered afterwards.
+
+              Three states, not two. "Still looking" is not a failure — a cold
+              fix indoors takes time and the report is never held up waiting for
+              one — but it is different from "this device has no GPS", and a
+              resident deciding whether to add a landmark to the description is
+              entitled to know which one they are in. It is also the thing that
+              makes the silent version of this failure loud the next time it
+              happens: a screen filing coordinate-less reports now says so.
+            */}
+            <p
+              className={`mono text-[9.5px] leading-relaxed tracking-[0.6px] ${
+                fix ? "text-clear" : fixError ? "text-paper-3" : "text-caution"
+              }`}
+            >
+              {fix
+                ? t("hazard.gps_on")
+                : fixError
+                  ? t("hazard.gps_off")
+                  : t("hazard.gps_wait")}
+            </p>
           </>
         )}
 
@@ -320,7 +383,17 @@ export default function ReportPage() {
             })}
           </div>
 
-          {feed.length === 0 ? (
+          {/*
+            Placeholders BEFORE the empty state, never instead of it.
+
+            "Nothing reported" used to render on the very first frame, before
+            `refresh` had resolved — a confident statement about the barangay
+            made before the device had looked. The rows below settle into the
+            same geometry the blocks occupy, so nothing jumps when they land.
+          */}
+          {loadingFeed ? (
+            <SkeletonFeed rows={3} />
+          ) : feed.length === 0 ? (
             <p className="mono text-[11px] text-paper-3">
               {filter === "open" ? t("hazard.none") : t("hazard.none_resolved")}
             </p>
@@ -382,24 +455,19 @@ function HazardRow({
   const t = useT();
   const tone = CATEGORY_TONE[hazard.category];
 
-  return (
-    <li
-      className={`rounded-instrument border-l-4 bg-ink-800 px-3 py-2.5 ${
-        tone === "alarm" ? "border-alarm" : "border-caution"
-      }`}
-    >
-      {/*
-        The row itself opens the hazard map on this report. It is a button
-        around the summary only, NOT around the whole card — "Mark as fixed"
-        lives below it, and a button inside a button is invalid markup that
-        browsers resolve by guessing.
-      */}
-      <button
-        type="button"
-        onClick={() => focusHazard(hazard.id)}
-        className="w-full text-left"
-        aria-label={`${t(`cat.${hazard.category}`)} — ${t("hz.title")}`}
-      >
+  /*
+   * Only an unresolved report can be shown on the map.
+   *
+   * The hazard sheet pins the OPEN set — that is what its count means — so a
+   * tap on a fixed one opened the sheet, failed to find it among the pins, and
+   * fell back to the general overview with an empty detail pane. An affordance
+   * that quietly does something other than what it promises is worse than no
+   * affordance, so a fixed row simply does not offer one.
+   */
+  const showOnMap = hazard.status === "open";
+
+  const summary = (
+    <>
       <div className="flex items-center gap-2.5">
         <span
           className={`mono shrink-0 text-[11px] font-bold tracking-[0.7px] ${
@@ -453,12 +521,46 @@ function HazardRow({
         </p>
         {/* The affordance. Without it the row looks like a label, and nobody
             discovers that tapping it shows where the thing actually is. */}
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-hv)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
-          <path d="M12 22s7-7.58 7-13a7 7 0 0 0-14 0c0 5.42 7 13 7 13z" />
-          <circle cx="12" cy="9" r="2.5" />
-        </svg>
+        {showOnMap && (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-hv)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
+            <path d="M12 22s7-7.58 7-13a7 7 0 0 0-14 0c0 5.42 7 13 7 13z" />
+            <circle cx="12" cy="9" r="2.5" />
+          </svg>
+        )}
       </div>
-      </button>
+    </>
+  );
+
+  return (
+    <li
+      className={`rounded-instrument border-l-4 bg-ink-800 px-3 py-2.5 ${
+        tone === "alarm" ? "border-alarm" : "border-caution"
+      }`}
+    >
+      {/*
+        The button wraps the summary only, NOT the whole card — "Mark as fixed"
+        lives below it, and a button inside a button is invalid markup that
+        browsers resolve by guessing.
+
+        No `aria-label` on it. One would REPLACE the accessible name of
+        everything inside, so every report of the same category announced
+        identically — "TREE — HAZARD MAP" — and the category, state, age and
+        description that tell two of them apart stopped existing for anyone
+        using a screen reader. The visible content is the name; the appended
+        `sr-only` says what tapping it does.
+      */}
+      {showOnMap ? (
+        <button
+          type="button"
+          onClick={() => focusHazard(hazard.id)}
+          className="w-full text-left"
+        >
+          {summary}
+          <span className="sr-only">{t("hz.title")}</span>
+        </button>
+      ) : (
+        summary
+      )}
 
       {hazard.photo_url && <HazardPhoto path={hazard.photo_url} />}
 

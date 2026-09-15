@@ -7,16 +7,17 @@ import { onQueueChanged } from "@/lib/offlineQueue";
 import { isStaffRole, useMyRole } from "@/components/useMyRole";
 import {
   capacityState,
+  centreTotal,
   clockLabel,
   deviceLabel,
   fullLedger,
   recordDelta,
   subscribeHeadcounts,
-  totalFrom,
   vulnerabilityBreakdown,
   type LedgerEntry,
   type VulnerabilityBreakdown,
 } from "@/lib/headcount";
+import { SkeletonLines, useSkeletonGate } from "@/components/Skeleton";
 
 /**
  * Evacuation centre headcount (PRD §7.8).
@@ -38,6 +39,19 @@ export default function HeadcountPage() {
   });
   const [bulkOpen, setBulkOpen] = useState(false);
 
+  /*
+   * The count is read, not derived from `entries`.
+   *
+   * `entries` is the audit trail, and it is capped at forty rows so the list
+   * stays legible. Summing it gave a count that quietly shed the oldest
+   * arrivals once a centre passed forty taps — plausible, wrong, and wrong in
+   * the direction that reads as correct. `centreTotal` sums the whole ledger.
+   */
+  const [count, setCount] = useState(0);
+  /* First read finished. An empty ledger is a settled answer — a centre nobody
+     has arrived at yet — and must not be confused with one not yet read. */
+  const [settled, setSettled] = useState(false);
+
   const centres = snapshot?.centers ?? [];
   // Derived, not synced into state: the first centre is the default until the
   // volunteer picks another. An effect mirroring this would fire on every
@@ -54,12 +68,15 @@ export default function HeadcountPage() {
 
   const refresh = useCallback(async () => {
     if (!activeId) return;
-    const [rows, breakdown] = await Promise.all([
+    const [rows, total, breakdown] = await Promise.all([
       fullLedger(activeId),
+      centreTotal(activeId),
       vulnerabilityBreakdown(),
     ]);
     setEntries(rows);
+    setCount(total);
     setTags(breakdown);
+    setSettled(true);
   }, [activeId]);
 
   useEffect(() => {
@@ -72,7 +89,7 @@ export default function HeadcountPage() {
     };
   }, [refresh]);
 
-  const count = totalFrom(entries);
+  const loadingLedger = useSkeletonGate(settled);
   const capacity = centre?.capacity ?? 0;
   const state = capacityState(count, capacity);
   const pct = capacity > 0 ? Math.min(100, Math.round((count / capacity) * 100)) : 0;
@@ -206,7 +223,13 @@ export default function HeadcountPage() {
         </div>
 
         <ul className="flex flex-1 flex-col gap-1.5 overflow-y-auto">
-          {entries.length === 0 ? (
+          {/* The ledger is the audit trail, and "no entries" is a claim about
+              a centre's door. It should be made after looking, not before. */}
+          {loadingLedger ? (
+            <li>
+              <SkeletonLines rows={4} />
+            </li>
+          ) : entries.length === 0 ? (
             <li className="mono text-[11px] text-paper-3">{t("hc.empty")}</li>
           ) : (
             entries.map((entry) => (

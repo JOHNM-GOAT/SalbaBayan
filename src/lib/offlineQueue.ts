@@ -17,6 +17,7 @@
 
 import Dexie, { type Table } from "dexie";
 import { getCurrentUserId, getSupabase } from "./supabase";
+import { failureVerdict } from "./queuePolicy";
 
 /** Tables the queue is allowed to write to. Keep in sync with the schema. */
 export type QueueTable =
@@ -243,45 +244,12 @@ export async function queuedWrites(): Promise<QueuedWrite[]> {
 
 let flushing = false;
 
-/**
- * Postgres SQLSTATEs that mean "this row will never be accepted, no matter how
- * many times it is retried". Schema and constraint violations only.
- *
- * Deliberately NOT in this list:
- *   - 42501 (insufficient privilege / RLS). It looks permanent but is not: a
- *     write queued before the anonymous session existed carries no owner, and
- *     the same row succeeds once there is an identity to stamp it with.
- *   - PGRST301 and friends (expired JWT). A refresh fixes those.
- *   - Anything with no code at all — that is a network failure, which is the
- *     normal case this whole queue exists for.
- *
- * The bias is deliberate: keep retrying unless the row provably cannot land.
- * Retrying a write that will never succeed costs a request; giving up on one
- * that would have succeeded loses a resident's report.
+/*
+ * The give-up rule lives in lib/queuePolicy.ts — no imports, so it can be
+ * tested in Node without Dexie and a Supabase client. It is the branch that
+ * decides whether a distress call may be quietly set aside, which is not a
+ * decision that should only be reachable through a browser.
  */
-const PERMANENT_FAILURES = new Set([
-  "22003", // numeric value out of range
-  "22007", // invalid datetime format
-  "22P02", // invalid text representation
-  "23502", // not-null violation
-  "23503", // foreign key violation
-  "23514", // check constraint violation
-  "PGRST204", // column not found — client/schema mismatch
-]);
-
-/**
- * Retry ceiling for failures that are not provably permanent.
- *
- * At the 30s poll interval this is roughly ten minutes of continuous failure.
- * It exists only so an unforeseen poison row cannot block the queue forever;
- * an ordinary outage never reaches it, because a device with no connectivity
- * does not attempt a flush at all (see the session check below).
- */
-const MAX_ATTEMPTS = 20;
-
-function isPermanent(code: string | undefined): boolean {
-  return code !== undefined && PERMANENT_FAILURES.has(code);
-}
 
 /**
  * Drain the queue in insertion order (FR-3.2). Safe to call concurrently;
@@ -330,10 +298,40 @@ export async function flushQueue(): Promise<{ sent: number; remaining: number }>
         // pulled out of the payload rather than sent in it — writing a primary
         // key back to itself is pointless and some policies forbid it.
         const { id: rowId, ...patch } = item.payload as { id: string };
-        ({ error } = await supabase
+
+        /*
+         * `.select("id")` is not decoration — it is how this finds out whether
+         * the patch landed on anything.
+         *
+         * PostgREST answers an UPDATE that matches zero rows with 204 and no
+         * error, so a patch aimed at a row that is not there looked exactly
+         * like a successful write and was deleted from the queue. That is
+         * reachable: if the INSERT this patch depends on was blocked and
+         * stepped over, the resolve, cancel or acknowledgement behind it was
+         * thrown away silently, leaving no trace anywhere that it had existed.
+         */
+        const result = await supabase
           .from(item.table)
           .update(patch)
-          .eq("id", rowId));
+          .eq("id", rowId)
+          .select("id");
+
+        error = result.error ?? undefined;
+
+        if (!error && (result.data?.length ?? 0) === 0) {
+          /*
+           * Blocked rather than retried. The row this targets is not coming —
+           * its insert was refused, or it was never on this server — so
+           * retrying forever would only hide the fact. Blocked rows are kept
+           * and surfaced, which is the honest outcome: somebody marked
+           * something fixed and the barangay is never going to hear about it.
+           */
+          await database.queue.update(item.id, {
+            lastError: `no row ${rowId} in ${item.table} to update`,
+            blocked: true,
+          });
+          continue;
+        }
       } else {
         // Re-stamp: a write queued before the first session existed has no
         // owner yet. Without this it would sync successfully and then be
@@ -348,16 +346,23 @@ export async function flushQueue(): Promise<{ sent: number; remaining: number }>
       }
 
       if (error) {
-        const attempts = item.attempts + 1;
-        const givingUp = isPermanent(error.code) || attempts >= MAX_ATTEMPTS;
+        /*
+         * A flush that never reached Postgres tells us nothing about the row,
+         * so it does not count against the row's ceiling — see
+         * `isTransportFailure` in lib/queuePolicy.ts. The error is still
+         * recorded, because "this device has been unable to reach the server
+         * since 02:14" is exactly what someone inspecting a stuck queue needs
+         * to read.
+         */
+        const verdict = failureVerdict(error.code, item.attempts);
 
         await database.queue.update(item.id, {
-          attempts,
+          attempts: verdict.attempts,
           lastError: error.message,
-          blocked: givingUp,
+          blocked: verdict.blocked,
         });
 
-        if (givingUp) continue; // step over it — do not hold up the queue
+        if (verdict.blocked) continue; // step over — do not hold up the queue
         break; // retryable: preserve order, try again next flush
       }
 

@@ -21,6 +21,7 @@ import {
   type Category,
   type Hazard,
 } from "@/lib/hazards";
+import { Skeleton, SkeletonRegion, useSkeletonGate } from "./Skeleton";
 
 /**
  * The barangay hazard map, reachable from every screen (FR-7.3).
@@ -70,9 +71,13 @@ export function HazardSheet() {
   const markers = useRef<maplibregl.Marker[]>([]);
   const framed = useRef(false);
   const [styleEpoch, setStyleEpoch] = useState(0);
+  /* First read finished. "CLEAR" on the handle is a claim about the barangay
+     and must not be made before this device has looked. */
+  const [settled, setSettled] = useState(false);
 
   const refresh = useCallback(async () => {
     setHazards(await allOpenHazards(100));
+    setSettled(true);
   }, []);
 
   /*
@@ -276,6 +281,14 @@ export function HazardSheet() {
     ? canResolveHazard(selected, userId ?? null, role)
     : false;
 
+  /*
+   * The handle's count is on every screen in the app, so it is the single most
+   * repeated claim the product makes — and "CLEAR" is the reading that matters.
+   * It has to mean "this device looked and found nothing unresolved", never
+   * "this device has not looked yet".
+   */
+  const loadingCount = useSkeletonGate(settled);
+
   return (
     <>
       {/*
@@ -305,13 +318,23 @@ export function HazardSheet() {
             always "still unresolved" and never a running total of everything
             that ever happened.
           */}
-          <span
-            className={`mono ml-auto text-[10px] font-bold tracking-[0.7px] ${
-              hazards.length > 0 ? "text-alarm" : "text-paper-3"
-            }`}
-          >
-            {hazards.length > 0 ? t("hz.count", { n: hazards.length }) : t("hz.clear")}
-          </span>
+          {loadingCount ? (
+            <span className="ml-auto">
+              <SkeletonRegion>
+                <Skeleton className="h-[10px]" width="52px" />
+              </SkeletonRegion>
+            </span>
+          ) : (
+            <span
+              className={`mono ml-auto text-[10px] font-bold tracking-[0.7px] ${
+                hazards.length > 0 ? "text-alarm" : "text-paper-3"
+              }`}
+            >
+              {hazards.length > 0
+                ? t("hz.count", { n: hazards.length })
+                : t("hz.clear")}
+            </span>
+          )}
 
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-paper-3)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
             <path d="M6 15l6-6 6 6" />

@@ -16,6 +16,7 @@ import {
   waitMinutes,
   type RescueRequest,
 } from "@/lib/sos";
+import { SkeletonLines, useSkeletonGate } from "@/components/Skeleton";
 
 /**
  * Live rescue map (PRD §7.4, FR-4.6).
@@ -46,9 +47,13 @@ export default function ResponderPage() {
   const [queue, setQueue] = useState<RescueRequest[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const [mapReady, setMapReady] = useState(false);
+  /* First read finished — not "there is somebody waiting". An empty queue is a
+     settled answer and should read as one. */
+  const [settled, setSettled] = useState(false);
 
   const refresh = useCallback(async () => {
     setQueue(await activeQueue());
+    setSettled(true);
   }, []);
 
   useEffect(() => {
@@ -129,6 +134,7 @@ export default function ResponderPage() {
   }, [queue, mapReady]);
 
   const oldest = queue[0];
+  const loadingQueue = useSkeletonGate(settled);
 
   return (
     <>
@@ -182,7 +188,16 @@ export default function ResponderPage() {
           </section>
         )}
 
-        {queue.length === 0 ? (
+        {/*
+          "Nobody needs help" is the single most dangerous thing this screen can
+          say, and it used to say it on the first frame, before `activeQueue`
+          had answered. The offline banner above makes the same point for a
+          different reason; this makes it for the seconds before the first read
+          lands.
+        */}
+        {loadingQueue ? (
+          <SkeletonLines rows={3} />
+        ) : queue.length === 0 ? (
           <p className="mono mt-4 text-center text-[11px] tracking-[0.6px] text-paper-3">
             {t("resp.none")}
           </p>

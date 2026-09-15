@@ -183,5 +183,86 @@ console.log("\nOrdering and edge cases:");
   );
 }
 
+/* ---------------------------------------------------------------------------
+ * The responder's working queue (FR-4.6)
+ *
+ * `acknowledge` and `markRescued` go through the write queue, deliberately, so
+ * a momentary drop at the barangay hall cannot lose an acknowledgement that a
+ * resident is watching for on their own screen. But `activeQueue` read the
+ * server and nothing else, so the refresh after a tap re-read a row that had
+ * not changed yet and ACKNOWLEDGE appeared to do nothing at all. The responder
+ * taps again. And again.
+ *
+ * These cases cover the composition `activeQueue` now performs: patch the
+ * server rows with what this device has not managed to send, drop anything that
+ * is no longer active, and order by longest wait.
+ * ------------------------------------------------------------------------ */
+{
+  console.log("\nThe responder's queue reflects its own un-sent taps:");
+
+  const OTHER = "22222222-2222-2222-2222-222222222222";
+  const EARLIER = "2026-09-06T14:30:00.000Z";
+  const isActive = (r) => r.status === "pending" || r.status === "acknowledged";
+
+  /** What lib/sos.ts `activeQueue` does, with the network part supplied. */
+  const responderQueue = (remote, rows) =>
+    mergeRequests([], remote, queuedPatches(rows))
+      .filter(isActive)
+      .sort((a, b) => a.ts.localeCompare(b.ts));
+
+  const remote = [
+    { id: REQ, status: "pending", ts: TAP },
+    { id: OTHER, status: "pending", ts: EARLIER },
+  ];
+
+  const acked = responderQueue(remote, [
+    updateRow(REQ, { status: "acknowledged", acknowledged_by: "d1" }, 1),
+  ]);
+  check(
+    "an un-sent ACKNOWLEDGE shows on the queue immediately",
+    acked.find((r) => r.id === REQ)?.status === "acknowledged",
+    "the button would appear to do nothing and be tapped again",
+  );
+
+  const rescued = responderQueue(remote, [
+    updateRow(REQ, { status: "rescued" }, 1),
+  ]);
+  check(
+    "an un-sent RESCUED removes the request from the working queue",
+    !rescued.some((r) => r.id === REQ),
+    "someone would be sent to the same address twice",
+  );
+  check(
+    "and leaves everyone else in it",
+    rescued.length === 1 && rescued[0].id === OTHER,
+    `got ${rescued.length}`,
+  );
+
+  check(
+    "the queue is ordered longest wait first, not newest first",
+    acked.map((r) => r.id).join() === [OTHER, REQ].join(),
+    "FR-4.6 escalates the oldest unanswered request",
+  );
+
+  // The half `mergeRequests` already guarantees, asserted here because the
+  // responder is the caller most likely to hold a patch for a request outside
+  // its own fetch: a patch must never conjure a request out of an id.
+  const phantom = responderQueue([], [updateRow(REQ, { status: "acknowledged" }, 1)]);
+  check(
+    "a patch for a request the hall cannot see does not invent one",
+    phantom.length === 0,
+    `got ${phantom.length}`,
+  );
+
+  const blockedAck = responderQueue(remote, [
+    { ...updateRow(REQ, { status: "rescued" }, 1), blocked: true },
+  ]);
+  check(
+    "a REFUSED rescue does not clear the request from the queue",
+    blockedAck.some((r) => r.id === REQ),
+    "a write RLS threw away would have retired a live distress call",
+  );
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 if (fail > 0) process.exitCode = 1;

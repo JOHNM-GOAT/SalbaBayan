@@ -12,6 +12,7 @@ import {
   type CheckStatus,
   type ReadinessCheck,
 } from "@/lib/readiness";
+import { Skeleton, SkeletonRegion, useSkeletonGate } from "@/components/Skeleton";
 
 /**
  * Pre-storm readiness and the documentation base (PRD §5.2 F4, §5.6 F13).
@@ -73,6 +74,9 @@ export default function ReadinessPage() {
           : "border-line";
 
   const overall = checks ? overallStatus(checks) : "unknown";
+  /* `checks` is null until the first read resolves, and is never set back to
+     null, so this is first-load only by construction. */
+  const waiting = useSkeletonGate(checks !== null);
 
   return (
     <>
@@ -92,6 +96,37 @@ export default function ReadinessPage() {
 
       <main className="flex flex-1 flex-col gap-4 p-3.5">
         <p className="text-[12.5px] leading-snug text-paper-2">{t("rd.subtitle")}</p>
+
+        {/*
+          Until the reads land this block rendered nothing at all — a heading, a
+          sentence, and then blank page. Blank reads as "there is nothing to
+          check", which on a screen whose entire job is to be accurate the day
+          before a storm is the worst available answer. Holding the shape of the
+          five checks says the opposite: they are being counted.
+        */}
+        {!checks && waiting && (
+          <SkeletonRegion>
+            <Skeleton className="h-[34px]" width="86px" />
+            <ul className="grid gap-2 @2xl:grid-cols-2">
+              {Array.from({ length: 5 }, (_, i) => (
+                <li
+                  key={i}
+                  className="rounded-instrument border-l-4 border-line-soft bg-ink-800 px-3.5 py-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="min-w-0 flex-1">
+                      <Skeleton
+                        className="h-[13px]"
+                        width={["68%", "54%", "72%", "61%", "58%"][i]}
+                      />
+                    </span>
+                    <Skeleton className="h-[12px]" width="34px" />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </SkeletonRegion>
+        )}
 
         {checks && (
           <>

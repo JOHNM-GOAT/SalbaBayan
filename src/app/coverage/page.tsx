@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { useSync, useT } from "@/components/AppRuntime";
 import { buildCoverage } from "@/lib/advisory";
 import { signalStyle } from "@/lib/signal";
+import { Skeleton, SkeletonRegion, useSkeletonGate } from "@/components/Skeleton";
 
 /**
  * Purok x Signal coverage matrix (PRD §7.1, FR-2.6).
@@ -19,13 +20,18 @@ import { signalStyle } from "@/lib/signal";
  * signal is exactly the expected case.
  */
 export default function CoveragePage() {
-  const { snapshot } = useSync();
+  const { snapshot, loading } = useSync();
   const t = useT();
 
   const coverage = useMemo(
     () => (snapshot ? buildCoverage(snapshot) : null),
     [snapshot],
   );
+
+  /* The matrix is built from the cached snapshot, so this is only ever the
+     moment before the cache read resolves — but a bare "..." told the official
+     nothing about whether a gap list was coming. */
+  const waiting = useSkeletonGate(!loading);
 
   return (
     <>
@@ -43,7 +49,14 @@ export default function CoveragePage() {
         </div>
 
         {!coverage ? (
-          <p className="mono text-[11px] text-paper-3">...</p>
+          waiting ? (
+            <SkeletonRegion>
+              <Skeleton className="h-[13px]" width="58%" />
+              <Skeleton className="mt-1 h-[180px] rounded-instrument" />
+            </SkeletonRegion>
+          ) : (
+            <p className="mono text-[11px] text-paper-3">{t("ui.no_cache")}</p>
+          )
         ) : (
           <>
             <p

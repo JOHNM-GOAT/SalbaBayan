@@ -58,7 +58,13 @@ export async function recordDelta(evacCenterId: string, delta: number) {
   });
 }
 
-/** The ledger for one centre, newest first. */
+/**
+ * The ledger for one centre, newest first.
+ *
+ * `limit` is a DISPLAY limit and nothing else. The audit trail on screen shows
+ * the most recent entries; the count must never be derived from this, because
+ * the count is a sum over the whole ledger. See `centreTotal`.
+ */
 export async function ledger(evacCenterId: string, limit = 40): Promise<LedgerEntry[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
@@ -116,6 +122,52 @@ export async function fullLedger(evacCenterId: string): Promise<LedgerEntry[]> {
   for (const row of remote) byId.set(row.id, row);
 
   return [...byId.values()].sort((a, b) => b.ts.localeCompare(a.ts));
+}
+
+/**
+ * The count itself — `SUM(delta)` over EVERY entry for this centre, plus
+ * whatever is still queued on this device.
+ *
+ * Its own query, and a deliberately separate one from `fullLedger`, because
+ * conflating the two is precisely how this went wrong. The screen summed the
+ * list it was displaying, and that list is capped at forty rows for legibility
+ * — so the moment a centre passed forty taps the count silently began dropping
+ * the oldest arrivals, and `capacityState` could never reach `full`. Nothing
+ * errored. The number stayed plausible and got steadily further from the truth,
+ * which is the exact failure mode lib/ledger.ts was extracted to guard against:
+ * "a count that is simply too low reads exactly like a count that is correct."
+ *
+ * Only `id` and `delta` are selected, and there is no limit. A whole storm's
+ * ledger for one centre is a few thousand integers; the arithmetic has to be
+ * right far more than it has to be small. `id` rides along only so a row that
+ * is on the server AND still in the local queue cannot be counted twice.
+ */
+export async function centreTotal(evacCenterId: string): Promise<number> {
+  const supabase = getSupabase();
+
+  const local = await queuedLedger(evacCenterId);
+  const byId = new Map<string, number>();
+  for (const row of local) byId.set(row.id, row.delta);
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("headcounts")
+      .select("id,delta")
+      .eq("evac_center_id", evacCenterId);
+
+    // Offline this is simply unavailable, and the queued deltas alone are what
+    // this device can honestly account for. Same rule as everywhere else here:
+    // report what is known rather than guessing at what is not.
+    if (!error) {
+      for (const row of (data ?? []) as { id: string; delta: number }[]) {
+        byId.set(row.id, row.delta);
+      }
+    }
+  }
+
+  let total = 0;
+  for (const delta of byId.values()) total += delta;
+  return total;
 }
 
 

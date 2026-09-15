@@ -9,7 +9,12 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { ensureAnonymousSession, getMyRole, type UserRole } from "@/lib/supabase";
+import {
+  ensureAnonymousSession,
+  getMyRole,
+  onRoleChanged,
+  type UserRole,
+} from "@/lib/supabase";
 import {
   flushQueue,
   onQueueChanged,
@@ -163,7 +168,15 @@ export function AppRuntime({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!userId) return;
-    void getMyRole().then(setDeviceRole);
+    const read = () => void getMyRole().then(setDeviceRole);
+    read();
+    /*
+     * Subscribed, not read once. This is the SECOND place the role is cached —
+     * `useMyRole` is the other — and a device can now change its own role
+     * through the demo switcher. Reading once per session was correct only
+     * while a role could arrive solely from an official on another device.
+     */
+    return onRoleChanged(read);
   }, [userId]);
 
   /**

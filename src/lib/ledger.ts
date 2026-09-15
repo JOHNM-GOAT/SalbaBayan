@@ -14,6 +14,17 @@ export type DeltaEntry = { delta: number };
 /**
  * The count. Summed on read from the append-only ledger — there is no stored
  * total that could disagree with it, and therefore no race to lose.
+ *
+ * DO NOT call this on a list that was fetched with a limit. That is not a style
+ * note; it is the bug this warning was written after. The headcount screen
+ * summed the forty-row audit trail it was already displaying, so the moment a
+ * centre passed forty taps the count began quietly shedding its oldest
+ * arrivals and `capacityState` could never reach `full`. Nothing errored, and a
+ * count that is simply too low reads exactly like a count that is correct — the
+ * failure this whole module was extracted to guard against.
+ *
+ * `centreTotal` in lib/headcount.ts is the app's path to the count, and it sums
+ * an unlimited query. This stays here as the pure arithmetic underneath it.
  */
 export const totalFrom = (entries: DeltaEntry[]) =>
   entries.reduce((sum, entry) => sum + entry.delta, 0);

@@ -112,39 +112,88 @@ export function onRoleChanged(listener: () => void): () => void {
 }
 
 /**
+ * What a grant attempt actually did.
+ *
+ * The caller has to tell two failures apart. `unavailable` is the documented
+ * production state — `set_demo_role` has been dropped, and the switcher
+ * correctly degrades to changing navigation only. `failed` is "this should have
+ * worked and did not", which is not something to swallow: it leaves the person
+ * on a screen for a role they were never actually given.
+ */
+export type DemoRoleResult = {
+  /** The role in force afterwards, NOT assumed to be the one requested. */
+  role: UserRole;
+  outcome: "granted" | "unavailable" | "failed";
+};
+
+/** PostgREST's code for a function that is not in the schema cache. */
+const FUNCTION_MISSING = "PGRST202";
+
+/**
  * DEMO ONLY — grants the calling device a role (migration 0017).
  *
  * This is a self-promotion path and it is meant to be removed: dropping
  * `public.set_demo_role` closes it completely, with no other code change
- * needed, because this function then simply fails and the role stays whatever
- * an official granted. See the migration for the full argument.
- *
- * Returns the role actually in force afterwards, which is NOT assumed to be the
- * one requested: if the RPC is gone, or the device is offline, the honest
- * answer is whatever the database still says.
+ * needed, because this function then reports `unavailable` and the role stays
+ * whatever an official granted. See the migration for the full argument.
  */
-export async function setDemoRole(target: UserRole): Promise<UserRole> {
+export async function setDemoRole(target: UserRole): Promise<DemoRoleResult> {
   const supabase = getSupabase();
-  if (!supabase) return getMyRole();
+  if (!supabase) return { role: await getMyRole(), outcome: "failed" };
+
+  /*
+   * Identity first. `auth.uid()` inside the function is the row it writes, and
+   * the switcher is on screen before AppRuntime has finished signing in — so on
+   * a cold first load a tap here raced the anonymous sign-in and the grant
+   * failed for a reason that had nothing to do with the grant.
+   */
+  await ensureAnonymousSession();
 
   const { data, error } = await supabase.rpc("set_demo_role", { target });
   if (error) {
-    // Expected once the function is dropped for a real deployment. The switch
-    // then does what it always did — change navigation — and the role holds.
     console.warn("[demo-role]", error.message);
-    return getMyRole();
+    return {
+      role: await getMyRole(),
+      outcome: error.code === FUNCTION_MISSING ? "unavailable" : "failed",
+    };
   }
 
+  /*
+   * Drop any read already in flight before answering. It was issued before this
+   * write committed, and the listeners below would otherwise share it and be
+   * told the role from before the grant.
+   */
+  invalidateRole();
   for (const listener of [...roleListeners]) listener();
-  return (data as UserRole) ?? target;
+  return { role: (data as UserRole) ?? target, outcome: "granted" };
+}
+
+let roleInFlight: Promise<UserRole> | null = null;
+
+/** Forget any in-flight read, so the next call goes back to the database. */
+function invalidateRole(): void {
+  roleInFlight = null;
 }
 
 /**
  * Reads the caller's role. Defaults to `resident` — the least-privileged
  * answer — whenever the role cannot be established, including offline.
  * This is a display hint only. The real boundary is RLS.
+ *
+ * Concurrent callers share one query. Every screen that needs the role calls
+ * this, and the hazard sheet is mounted in the layout beside whichever page is
+ * showing — so one role change fanned out into an identical
+ * `select ... eq(user_id, uid)` per mounted component, and would get worse with
+ * every screen added. Only the IN-FLIGHT read is shared, never the result, so
+ * this de-duplicates without ever serving a cached role.
  */
 export async function getMyRole(): Promise<UserRole> {
+  return (roleInFlight ??= readMyRole().finally(() => {
+    roleInFlight = null;
+  }));
+}
+
+async function readMyRole(): Promise<UserRole> {
   const supabase = getSupabase();
   if (!supabase) return "resident";
 

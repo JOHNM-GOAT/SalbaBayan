@@ -48,14 +48,37 @@ export type Fix = { lat: number; lng: number; accuracy: number; at: number };
 
 let lastFix: Fix | null = null;
 let watchId: number | null = null;
+const fixListeners = new Set<(fix: Fix | null, error: string | null) => void>();
+
+/**
+ * How old a fix may be before it stops describing where you are now.
+ *
+ * `currentFix` is read at the moment a report is filed, and `lastFix` outlives
+ * the screen that produced it — so without this a hazard filed at the far end
+ * of the barangay could be stamped with the coordinates of wherever the
+ * resident happened to be when they last opened the map. A pin that is
+ * confidently in the wrong street is worse than a report with no pin at all,
+ * because the second one says so and the first one does not.
+ */
+const FIX_MAX_AGE_MS = 5 * 60_000;
 
 /**
  * Start warming a GPS fix.
  *
- * Called when the SOS screen opens, not when the button is pressed, because a
- * cold first fix indoors can take 30 seconds or more and the tap must not wait
- * for it. By the time someone has decided to press the button there is usually
- * a fix ready; if there is not, the request goes without one.
+ * Called when a screen that may need a position opens, not when the button is
+ * pressed, because a cold first fix indoors can take 30 seconds or more and the
+ * tap must not wait for it. By the time someone has decided to press the button
+ * there is usually a fix ready; if there is not, the request goes without one.
+ *
+ * ONE watch, many callers — the same shape `subscribeRescue` and
+ * `subscribeHazards` grew, and for a worse reason than either of them.
+ * `watchId` is module-global, so a second caller used to overwrite it and the
+ * first watch leaked for the life of the tab; worse, the FIRST caller's cleanup
+ * then cleared the SECOND caller's watch. Next.js can mount an incoming route
+ * before unmounting the outgoing one, so walking from the map to the SOS screen
+ * could silently kill the SOS screen's watch and leave the one screen that most
+ * needs a position without one. Refcounting removes the whole class: callers
+ * never have to know how many other screens are watching.
  *
  * Requires a secure context — HTTPS or localhost. Over a plain-HTTP LAN address
  * (testing on a phone against a dev machine) browsers refuse silently, which is
@@ -76,29 +99,59 @@ export function startPositionWatch(
     return () => {};
   }
 
-  watchId = navigator.geolocation.watchPosition(
-    (position) => {
-      lastFix = {
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
-        accuracy: position.coords.accuracy,
-        at: Date.now(),
-      };
-      onFix?.(lastFix, null);
-    },
-    (error) => onFix?.(lastFix, error.message),
-    { enableHighAccuracy: true, timeout: 15_000, maximumAge: 30_000 },
-  );
+  if (onFix) {
+    fixListeners.add(onFix);
+    // A late subscriber gets the warm fix immediately rather than waiting for
+    // the next satellite update, which can be seconds away and is the whole
+    // reason the watch is started early.
+    if (lastFix) onFix(lastFix, null);
+  }
+
+  if (watchId === null) {
+    watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        lastFix = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          at: Date.now(),
+        };
+        // Copied before notifying: a listener may unsubscribe in response.
+        for (const listener of [...fixListeners]) listener(lastFix, null);
+      },
+      (error) => {
+        for (const listener of [...fixListeners]) listener(lastFix, error.message);
+      },
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 30_000 },
+    );
+  }
 
   return () => {
-    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-    watchId = null;
+    if (onFix) fixListeners.delete(onFix);
+
+    // Stop the receiver only when nobody is left. Holding it open for a screen
+    // that has closed is a real cost on a phone that may need its battery for
+    // another two days.
+    if (fixListeners.size === 0 && watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+    }
   };
 }
 
-/** The best fix so far, or null. Never blocks. */
+/**
+ * The best fix so far, or null if there is none or it has gone stale.
+ * Never blocks — a report is never held up waiting for a satellite.
+ */
 export function currentFix(): Fix | null {
-  return lastFix;
+  if (!lastFix) return null;
+  return Date.now() - lastFix.at <= FIX_MAX_AGE_MS ? lastFix : null;
+}
+
+/** True while a position watch is running, so a screen can say whether a
+    report it files is going to carry a location. */
+export function hasPositionWatch(): boolean {
+  return watchId !== null;
 }
 
 /* ---------------------------------------------------------------------------
@@ -224,10 +277,12 @@ export const isActive = (r: RescueRequest) =>
   r.status === "pending" || r.status === "acknowledged";
 
 /**
- * Every active request, oldest wait first (FR-4.6). Staff only — RLS returns
+ * Every active request the SERVER knows about. Staff only — RLS returns
  * nothing to a resident, so this is safe to call unconditionally.
+ *
+ * Not what the responder screen renders; see `fullActiveQueue`.
  */
-export async function activeQueue(): Promise<RescueRequest[]> {
+async function remoteActiveQueue(): Promise<RescueRequest[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
 
@@ -239,6 +294,45 @@ export async function activeQueue(): Promise<RescueRequest[]> {
 
   if (error) return [];
   return (data ?? []) as RescueRequest[];
+}
+
+/**
+ * Every active request, oldest wait first (FR-4.6), with this device's own
+ * un-flushed acknowledgements and rescues applied.
+ *
+ * The merge is the whole point, and its absence was a real bug rather than a
+ * missing nicety. `acknowledge` and `markRescued` go through the write queue —
+ * deliberately, so a momentary drop at the barangay hall cannot lose an
+ * acknowledgement a resident is watching for on their own screen — but this
+ * function read the server and nothing else. So the `.then(refresh)` after a
+ * tap re-read a row that had not changed yet, and ACKNOWLEDGE appeared to do
+ * nothing at all. The responder taps again. And again.
+ *
+ * That is the same failure as "I marked it fixed and it still says
+ * UNRESOLVED", which `mergeHazards` was written for, and as the cancelled SOS
+ * that came back, which `mergeRequests` was written for. Both of those were
+ * fixed on the resident's side. This is the third face of it, on the one screen
+ * where the delay costs a dispatch rather than a re-tap.
+ *
+ * Queued INSERTS are deliberately not folded in: this is the barangay's queue
+ * of other people's requests, and a request this device raised but has not yet
+ * sent is not something the hall can act on. `mergeRequests` is given an empty
+ * local list for exactly that reason.
+ */
+export async function activeQueue(): Promise<RescueRequest[]> {
+  const [remote, rows] = await Promise.all([remoteActiveQueue(), queuedWrites()]);
+
+  const merged = mergeRequests<RescueRequest>([], remote, queuedPatches(rows));
+
+  return (
+    merged
+      // A request this device has locally marked rescued or cancelled leaves the
+      // working queue immediately. Leaving it in would send someone twice.
+      .filter(isActive)
+      // `mergeRequests` sorts newest first, which is right for a resident
+      // reading their own history and wrong here: FR-4.6 is longest wait first.
+      .sort((a, b) => a.ts.localeCompare(b.ts))
+  );
 }
 
 /**

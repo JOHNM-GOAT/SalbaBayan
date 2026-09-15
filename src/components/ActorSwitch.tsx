@@ -85,19 +85,34 @@ export function ActorSwitch() {
                 type="button"
                 aria-pressed={active}
                 onClick={() => {
-                  setActor(a.id);
+                  const previous = actor;
+
                   /*
-                   * Not awaited. The tab bar and the destination should change
-                   * under the thumb immediately; the grant lands a moment later
-                   * and announces itself, and every screen holding a role
-                   * re-reads then (see onRoleChanged). Making the navigation
-                   * wait on a round trip would make the demo feel broken on
-                   * exactly the connection this product is built for.
+                   * Optimistic, then rolled back if the grant did not happen.
+                   *
+                   * The tab bar and the destination change under the thumb
+                   * immediately — awaiting a round trip first would make the
+                   * demo feel broken on exactly the connection this product is
+                   * built for. But the result is no longer thrown away: a grant
+                   * that SHOULD have worked and did not used to leave the person
+                   * on the volunteer's screens holding the resident's role, with
+                   * nothing on screen to explain why every control was refusing
+                   * them. Snapping the switch back is the feedback.
+                   *
+                   * `unavailable` is not a failure. It is the documented state
+                   * of a real deployment with `set_demo_role` dropped, where the
+                   * switcher is meant to go back to changing navigation only.
                    */
-                  void setDemoRole(a.id);
+                  setActor(a.id);
                   // Land on that actor's home, or the switch would leave the
                   // person on a screen their new tab bar cannot get back to.
                   router.push(actorById(a.id).home);
+
+                  void setDemoRole(a.id).then((result) => {
+                    if (result.outcome !== "failed") return;
+                    setActor(previous);
+                    router.replace(actorById(previous).home);
+                  });
                 }}
                 className={`mono flex-1 px-2 py-1.5 text-[9.5px] font-bold tracking-[0.8px] transition-colors ${
                   active
