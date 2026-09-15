@@ -1,20 +1,20 @@
 # Official sets the advisory — design
 
 **Date:** 2026-09-15
-**Status:** approved in brainstorming, awaiting spec review
+**Status:** approved in brainstorming and spec review
 **PRD:** §4 (the official "sets the current signal level"), FR-1.2, FR-2.3, FR-2.7, FR-3.1
 
 ## Summary
 
 An official can change the barangay's advisory — signal level 0–5, storm name,
-bulletin number and leave-by time — from a new `/advisory` screen. Every change
-is saved through the offline write queue, recorded in an append-only
-`signal_history` table by a database trigger, and pushed live to every phone that
-has the app open.
+bulletin number, wind speed and leave-by time — from a new `/advisory` screen.
+Every change is saved through the offline write queue, recorded in an
+append-only `signal_history` table by a database trigger, and pushed live to
+every phone that has the app open.
 
 Today nothing in `src/` writes `current_signal_level`, `storm_name`,
-`bulletin_no` or `evacuate_by`. The headline instruction every resident reads can
-only be changed with SQL.
+`bulletin_no`, `wind_kph` or `evacuate_by`. The headline instruction every
+resident reads can only be changed with SQL.
 
 ## Decisions
 
@@ -26,9 +26,11 @@ only be changed with SQL.
 | 4 | Who reads the history | **Officials only** |
 | 5 | How the change and its history are written | **One queued update + a database trigger** (approach A) |
 | 6 | Where database tests run | **Live, non-mutating checks only**; happy path verified once by hand |
+| 7 | Wind speed | **Optional WIND (KPH) field**, recorded in history like the other advisory fields |
 
 Decision 5 was first answered as "two queued writes" (B) by mistake and then
-re-chosen as A. Nothing from the B design remains in this spec.
+re-chosen as A. Nothing from the B design remains in this spec. Decision 7 was
+settled in spec review.
 
 ## Findings that shaped the design
 
@@ -38,6 +40,9 @@ re-chosen as A. Nothing from the B design remains in this spec.
   raised signal reaches open phones only on reload or reconnect.
 - `barangays` already has `signal_set_at` and `signal_set_by`. The live row was
   seeded, so `signal_set_by` is null.
+- `barangays` already enforces `bulletin_no > 0` and `wind_kph >= 0` (migration
+  0004). A form that does not check these first would only surface a typo later,
+  as a REFUSED banner.
 - Live RLS: `read_barangays` (select, `true`) and `write_barangays` (all,
   `private.is_official()`). Officials can already update the advisory.
 - There is one barangay row, at Signal 3. Its `evacuate_by` is set, but
@@ -61,6 +66,7 @@ create table public.signal_history (
   level        smallint not null check (level between 0 and 5),
   storm_name   text,
   bulletin_no  smallint check (bulletin_no > 0),
+  wind_kph     smallint check (wind_kph >= 0),
   evacuate_by  timestamptz,
   set_by       uuid references auth.users (id),   -- null = changed outside the app
   set_at       timestamptz,                        -- when the official tapped
@@ -97,9 +103,9 @@ permanent, so a violating queued change is blocked visibly rather than retried.
 ### Triggers
 
 A change counts as an **advisory change** when any of `current_signal_level`,
-`storm_name`, `bulletin_no` or `evacuate_by` differs from the old row. Updating
-`default_language` or `expected_households` is not an advisory change and writes
-no history.
+`storm_name`, `bulletin_no`, `wind_kph` or `evacuate_by` differs from the old
+row. Updating `default_language` or `expected_households` is not an advisory
+change and writes no history.
 
 **Before update** — `private.stamp_signal_setter()`:
 
@@ -121,8 +127,8 @@ grant is needed; the manual happy-path check (§4d) confirms this on a real
 official's update.
 
 Because the history insert happens inside the same statement, it is atomic with
-the change: a rejected update (RLS, the leave-by constraint) writes no history,
-and an accepted one always writes exactly one row.
+the change: a rejected update (RLS, a check constraint) writes no history, and an
+accepted one always writes exactly one row.
 
 ### Existing data
 
@@ -139,6 +145,7 @@ export async function setAdvisory(input: {
   level: number;
   stormName: string | null;
   bulletinNo: number | null;
+  windKph: number | null;
   evacuateBy: Date | null;
 }): Promise<WriteOutcome>
 ```
@@ -150,11 +157,12 @@ Calls `enqueueUpdate("barangays", barangayId, patch)` with:
 | `current_signal_level` | `level` |
 | `storm_name` | trimmed, empty → null |
 | `bulletin_no` | `bulletinNo` |
+| `wind_kph` | `windKph` |
 | `evacuate_by` | ISO string at level ≥ 3, **null below 3** |
 | `signal_set_at` | tap time, `new Date().toISOString()` |
 
 `signal_set_by` is not sent — the trigger stamps it. Validation happens before
-this is called (see `advisoryForm.ts`, §3); the database constraint is the
+this is called (see `advisoryForm.ts`, §3); the database constraints are the
 backstop.
 
 ### 2b. Queue changes — `src/lib/offlineQueue.ts`
@@ -242,6 +250,7 @@ NEW LEVEL
 [ 0 ] [ 1 ] [ 2 ] [ 3 ] [ 4 ] [ 5 ]
 STORM NAME     [ Igme        ]
 BULLETIN NO.   [ 9 ]
+WIND (KPH)     [ 175 ]               ← optional
 LEAVE BY       [ 15 Sep, 6:00 PM ]   ← only at Signal 3+, required
                in 3h 0m
 
@@ -266,8 +275,14 @@ values, because `translate()` supports only one variable.
   levels 1–5 with `ui.signal_no`.
 - **Hold vs. tap** (decided by `advisoryForm.ts`):
   - level changed → `HoldToConfirm`, 1.8s
-  - level unchanged, details changed → plain **SAVE DETAILS** button
+  - level unchanged, any detail changed (storm, bulletin, wind, leave-by) → plain
+    **SAVE DETAILS** button
   - nothing changed, or the form is invalid → disabled
+- **Bulletin number** is optional. When given, it must be a whole number of 1 or
+  more — the same rule as the database's `bulletin_no > 0`.
+- **Wind (kph)** is optional. When given, it must be a whole number from 0 to
+  500. The database only requires `>= 0`; the upper bound catches an extra digit
+  (1750 for 175) before it reaches every resident's placard.
 - **Leave-by** is a `datetime-local` input:
   - shown and required only at level ≥ 3
   - crossing from below 3 into 3+ defaults to now + 3 hours
@@ -275,8 +290,8 @@ values, because `translate()` supports only one variable.
   - must be in the future to confirm; a past deadline shows **THIS DEADLINE HAS
     PASSED** and blocks confirmation
 - **Preview** renders the real `SignalPlacard` and `LeaveByStrip` with the draft
-  values. `SignalPlacard` gains an optional `barangay` prop; without it, it reads
-  the snapshot exactly as today.
+  values, including wind. `SignalPlacard` gains an optional `barangay` prop;
+  without it, it reads the snapshot exactly as today.
 - **After confirming**, the official stays on the screen; the banner is the
   feedback.
 - **Recent changes** reads the last 10 `signal_history` rows for this barangay,
@@ -291,9 +306,11 @@ Exports the rules above so they can be unit-tested:
 
 - `leaveByRequired(level)`
 - `defaultLeaveBy(fromLevel, toLevel, current, now)`
-- `validate(draft, now)` → list of problems (`leave_by_missing`, `leave_by_past`)
+- `validate(draft, now)` → list of problems: `leave_by_missing`,
+  `leave_by_past`, `bulletin_invalid`, `wind_invalid`
 - `confirmMode(current, draft)` → `"hold" | "tap" | "disabled"`
 - `toPatchInput(draft)` → the `setAdvisory` input, with leave-by nulled below 3
+  and empty storm, bulletin and wind values as null
 
 ### `HoldToConfirm`
 
@@ -315,6 +332,9 @@ en / tl / ceb for each key:
 | `adv.new_level` | NEW LEVEL |
 | `adv.storm` | STORM NAME |
 | `adv.bulletin` | BULLETIN NO. |
+| `adv.bulletin_invalid` | Bulletin number must be a whole number of 1 or more |
+| `adv.wind` | WIND (KPH) |
+| `adv.wind_invalid` | Wind speed must be a whole number from 0 to 500 |
 | `adv.leave_by_required` | A leave-by time is required at Signal 3 and above |
 | `adv.deadline_passed` | THIS DEADLINE HAS PASSED |
 | `adv.preview` | WHAT RESIDENTS WILL SEE |
@@ -344,9 +364,13 @@ Existing keys reused: `ui.signal_no`, `ui.no_signal`, `ui.leave_by`.
 - a missing leave-by at 3+ is a problem; a past one is a problem; a future one is not
 - `defaultLeaveBy` gives now + 3h only when crossing from below 3 into 3+
 - `defaultLeaveBy` keeps the current deadline when already at 3+
-- `confirmMode`: level change → `hold` (raising and lowering); details only →
-  `tap`; no change → `disabled`; invalid → `disabled`
-- `toPatchInput` nulls leave-by below 3
+- bulletin: empty is valid; 1 and 12 are valid; 0, -1 and 2.5 are `bulletin_invalid`
+- wind: empty is valid; 0, 175 and 500 are valid; -1, 501 and 17.5 are `wind_invalid`
+- `confirmMode`: level change → `hold` (raising and lowering); wind only,
+  bulletin only, storm only or leave-by only → `tap`; no change → `disabled`;
+  invalid → `disabled`
+- `toPatchInput` nulls leave-by below 3, and turns empty storm, bulletin and wind
+  into null
 
 **`pendingAdvisory.ts`**
 - no rows → `none`
@@ -397,12 +421,12 @@ The promoted account is demoted and the demotion checked, as today. When
 
 ### 4d. Manual checks, once
 
-1. **Happy path.** An official issues a real change. One SQL select confirms
-   exactly one new `signal_history` row with the right `set_by`, `set_at` and
-   `received_at`, and `barangays.signal_set_by` set. This also confirms the
-   trigger fires for a non-owner update.
-2. **Live update.** A second device with the app open shows the new level without
-   reloading, and does not flash the old level first.
+1. **Happy path.** An official issues a real change that includes a wind speed.
+   One SQL select confirms exactly one new `signal_history` row with the right
+   `wind_kph`, `set_by`, `set_at` and `received_at`, and `barangays.signal_set_by`
+   set. This also confirms the trigger fires for a non-owner update.
+2. **Live update.** A second device with the app open shows the new level and wind
+   speed without reloading, and does not flash the old level first.
 3. **Offline.** In airplane mode, issue a change: the amber banner appears and the
    placard still shows the old level. After reconnecting, the banner clears and
    the change arrives on the second device.
@@ -438,11 +462,3 @@ The promoted account is demoted and the demotion checked, as today. When
 - More than one barangay. `fetchAdvisory` still reads `.limit(1)`.
 - Editing Purok protocols or routes (recommendation #5).
 - Granting roles (recommendation #3) and dropping `set_demo_role`.
-
-## Open item for spec review
-
-- **Wind speed.** `barangays.wind_kph` is shown on the placard but is not part
-  of the approved form. As designed, an official changing the bulletin leaves the
-  old wind speed on residents' placards. Options: add an optional **WIND (KPH)**
-  field to the form and to the trigger's advisory-change columns, or leave it as
-  designed.
