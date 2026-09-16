@@ -19,8 +19,10 @@ import {
   WIND_MAX_KPH,
   confirmMode,
   defaultLeaveBy,
+  fromLocalInputValue,
   leaveByRequired,
   toBarangayPatch,
+  toLocalInputValue,
   toPatchInput,
   validate,
   valuesFromBarangay,
@@ -383,6 +385,68 @@ console.log("\nThe update sent to the barangay:");
     "cleared fields are sent as null, so the placard stops showing them",
     lowered.storm_name === null && lowered.bulletin_no === null && lowered.wind_kph === null,
   );
+}
+
+console.log("\nThe leave-by input:");
+{
+  // Built with the local-time constructor, so these hold in any time zone the
+  // test happens to run in.
+  const sixPm = new Date(2026, 8, 15, 18, 5);
+
+  check(
+    "a date becomes the value a datetime-local input expects",
+    toLocalInputValue(sixPm) === "2026-09-15T18:05",
+    toLocalInputValue(sixPm),
+  );
+  check(
+    "single digits are padded",
+    toLocalInputValue(new Date(2026, 0, 2, 3, 4)) === "2026-01-02T03:04",
+    toLocalInputValue(new Date(2026, 0, 2, 3, 4)),
+  );
+  check(
+    "seconds are dropped, because the input cannot show them",
+    toLocalInputValue(new Date(2026, 8, 15, 18, 5, 42)) === "2026-09-15T18:05",
+  );
+
+  check(
+    "the input's value reads back as local time",
+    fromLocalInputValue("2026-09-15T18:05")?.getTime() === sixPm.getTime(),
+    String(fromLocalInputValue("2026-09-15T18:05")),
+  );
+  check(
+    "a minute-precision date survives the round trip exactly",
+    fromLocalInputValue(toLocalInputValue(sixPm))?.getTime() === sixPm.getTime(),
+  );
+  check(
+    "a value with seconds is accepted",
+    fromLocalInputValue("2026-09-15T18:05:30")?.getTime() ===
+      new Date(2026, 8, 15, 18, 5, 30).getTime(),
+  );
+
+  {
+    // The trap the page must avoid: re-reading the displayed value would
+    // silently change a deadline that has seconds.
+    const withSeconds = new Date(2026, 8, 15, 8, 14, 18, 885);
+    const reread = fromLocalInputValue(toLocalInputValue(withSeconds));
+    check(
+      "re-reading a displayed deadline with seconds changes it — so the page must not",
+      reread !== null && reread.getTime() !== withSeconds.getTime(),
+      "if this ever passes as equal, the page's parse-only-on-change rule can be relaxed",
+    );
+  }
+
+  for (const value of [
+    "",
+    "2026-09-15",
+    "18:05",
+    "2026-09-15 18:05",
+    "2026-02-30T10:00",
+    "2026-13-01T10:00",
+    "2026-09-15T24:00",
+    "not a date",
+  ]) {
+    check(`"${value}" is not a usable leave-by time`, fromLocalInputValue(value) === null);
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

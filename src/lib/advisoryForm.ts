@@ -208,3 +208,64 @@ export function toBarangayPatch(
     signal_set_at: tappedAt,
   };
 }
+
+/**
+ * A `Date` as the value an `<input type="datetime-local">` expects:
+ * `"YYYY-MM-DDTHH:MM"`, in the device's own time zone.
+ *
+ * Not `toISOString().slice(0, 16)`, which is UTC — in Manila that would show
+ * the official a leave-by time eight hours earlier than the one residents see.
+ *
+ * Seconds are dropped because the input cannot show them. That makes the
+ * displayed value lossy, so a caller must never parse it back unless the person
+ * actually edited it — see `fromLocalInputValue`.
+ */
+export function toLocalInputValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  );
+}
+
+/**
+ * The input's value back to a `Date`, in the device's time zone. `null` when it
+ * is empty, malformed, or names a date that does not exist.
+ *
+ * Parsed by hand rather than with `new Date(value)`: a string with no offset has
+ * been read as local time by some engines and as UTC by others, and a leave-by
+ * deadline is not somewhere to discover which one a phone's browser chose.
+ *
+ * Call this ONLY from the input's change handler. The displayed value has lost
+ * its seconds, so re-reading it would turn an untouched deadline into a
+ * "changed" one.
+ */
+export function fromLocalInputValue(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
+  if (!match) return null;
+
+  const [year, month, day, hour, minute, second] = [
+    Number(match[1]),
+    Number(match[2]),
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5]),
+    Number(match[6] ?? 0),
+  ];
+
+  if (hour > 23 || minute > 59 || second > 59) return null;
+
+  const date = new Date(year, month - 1, day, hour, minute, second);
+
+  // `Date` quietly rolls impossible dates forward — 30 February becomes
+  // 2 March. A deadline must be the one that was typed or nothing.
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+}
