@@ -207,6 +207,50 @@ check(
 );
 
 /* ---------------------------------------------------------------------------
+ * The advisory and its history (migration 0021)
+ *
+ * Every probe here changes nothing whether it passes or fails. This is the live
+ * barangay every resident reads, and signal_history is append-only — a stray
+ * row written by a test could never be cleaned up through the API.
+ *
+ * So each write sends a body a CHECK constraint would reject anyway. Postgres
+ * checks RLS first: refused by RLS is the pass; rejected by the constraint
+ * (23514) means RLS let the write through — the leak, caught before it landed.
+ * ------------------------------------------------------------------------ */
+
+console.log("\nThe advisory, as a resident (migration 0021):");
+
+const barangayId = (await rest("barangays?select=id&limit=1", { jwt })).body?.[0]?.id;
+
+// Signal 5 with no deadline violates leave_by_at_evacuation whatever state the
+// live row is in, so even a leaking policy could not change the advisory.
+const residentUpdate = await rest(`barangays?id=eq.${barangayId}`, {
+  jwt,
+  method: "PATCH",
+  body: { current_signal_level: 5, evacuate_by: null },
+});
+check(
+  "CANNOT change the barangay's advisory",
+  residentUpdate.status === 200 && rows(residentUpdate) === 0,
+  residentUpdate.body?.code === "23514"
+    ? "LEAK: RLS let a resident's update through — only the leave-by constraint stopped it"
+    : `status ${residentUpdate.status}, ${rows(residentUpdate)} rows`,
+);
+
+const residentInsert = await rest("signal_history", {
+  jwt,
+  method: "POST",
+  body: { barangay_id: barangayId, level: 9 },
+});
+check(
+  "CANNOT write to signal_history",
+  residentInsert.status === 401 || residentInsert.status === 403,
+  residentInsert.body?.code === "23514"
+    ? "LEAK: RLS allowed a resident's insert — only the level constraint stopped it"
+    : `status ${residentInsert.status}`,
+);
+
+/* ---------------------------------------------------------------------------
  * The demo self-promotion path (migration 0017)
  *
  * Every check above passes whether or not `set_demo_role` exists, because none
@@ -235,6 +279,7 @@ const promote = await fetch(`${URL_}/rest/v1/rpc/set_demo_role`, {
 
 if (promote.status === 404) {
   console.log("  CLOSED  set_demo_role is not installed — roles are granted by officials only.");
+  console.log("  SKIPPED the official's advisory checks — they need an official account.");
 } else if (promote.ok) {
   console.log("  OPEN    a fresh anonymous device just made itself an OFFICIAL.");
   console.log("          This is deliberate and demo-only. Before a real barangay uses");
@@ -248,6 +293,95 @@ if (promote.status === 404) {
    * in the live table owned by a throwaway anonymous uid that will never sign
    * in again, and nothing else would ever notice.
    */
+  console.log("\nThe advisory, as an official (migration 0021):");
+
+  const historyCount = async () =>
+    rows(await rest("signal_history?select=id", { jwt: promoteJwt }));
+
+  const historyBefore = await historyCount();
+  check(
+    "an official can read signal_history",
+    historyBefore >= 0,
+    "the read errored",
+  );
+
+  // The resident's refused change, repeated here where the history can be
+  // counted: a change that did not happen must leave no record that it did.
+  await rest(`barangays?id=eq.${barangayId}`, {
+    jwt,
+    method: "PATCH",
+    body: { current_signal_level: 5, evacuate_by: null },
+  });
+  check(
+    "a refused change writes no history row",
+    (await historyCount()) === historyBefore,
+  );
+
+  // Only meaningful when there is something to hide. Against an empty table a
+  // resident sees zero rows whether RLS works or not.
+  if (historyBefore > 0) {
+    check(
+      "a resident sees none of the history an official can",
+      rows(await rest("signal_history?select=id", { jwt })) === 0,
+      "LEAK: a resident can read who changed the signal",
+    );
+  } else {
+    console.log("  SKIPPED  a resident reading history — no history rows yet");
+  }
+
+  const officialInsert = await rest("signal_history", {
+    jwt: promoteJwt,
+    method: "POST",
+    body: { barangay_id: barangayId, level: 9 },
+  });
+  check(
+    "an official CANNOT write to signal_history directly",
+    officialInsert.status === 401 || officialInsert.status === 403,
+    officialInsert.body?.code === "23514"
+      ? "LEAK: RLS allowed an official's insert — only the level constraint stopped it"
+      : `status ${officialInsert.status}`,
+  );
+
+  // An update needs a real row to aim at: against nothing, zero rows comes back
+  // whether a policy refused it or not.
+  const newest = (
+    await rest("signal_history?select=id,level&order=received_at.desc&limit=1", {
+      jwt: promoteJwt,
+    })
+  ).body?.[0];
+
+  if (newest) {
+    const edit = await rest(`signal_history?id=eq.${newest.id}`, {
+      jwt: promoteJwt,
+      method: "PATCH",
+      body: { level: 9 },
+    });
+    const reread = (
+      await rest(`signal_history?select=level&id=eq.${newest.id}`, { jwt: promoteJwt })
+    ).body?.[0];
+    check(
+      "an official CANNOT edit a history row",
+      rows(edit) === 0 && reread?.level === newest.level,
+      edit.body?.code === "23514"
+        ? "LEAK: RLS allowed an official's edit — only the level constraint stopped it"
+        : `status ${edit.status}, level now ${reread?.level}`,
+    );
+  } else {
+    console.log("  SKIPPED  editing a history row — no history rows yet");
+  }
+
+  // Rejected whatever state the live row is in, so it cannot change the advisory.
+  const noDeadline = await rest(`barangays?id=eq.${barangayId}`, {
+    jwt: promoteJwt,
+    method: "PATCH",
+    body: { current_signal_level: 5, evacuate_by: null },
+  });
+  check(
+    "Signal 3+ without a leave-by time is rejected by the database",
+    noDeadline.status === 400 && noDeadline.body?.code === "23514",
+    `status ${noDeadline.status}, code ${noDeadline.body?.code}`,
+  );
+
   const demote = await fetch(`${URL_}/rest/v1/rpc/set_demo_role`, {
     method: "POST",
     headers: {
@@ -266,6 +400,7 @@ if (promote.status === 404) {
   );
 } else {
   console.log(`  UNKNOWN set_demo_role answered ${promote.status}.`);
+  console.log("  SKIPPED the official's advisory checks — they need an official account.");
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
