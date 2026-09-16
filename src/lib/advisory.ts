@@ -17,6 +17,7 @@
  */
 
 import Dexie, { type Table } from "dexie";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { getSupabase } from "./supabase";
 import type { Language, TranslationMap } from "./i18n";
 import { resolveMessage } from "./i18n";
@@ -221,6 +222,63 @@ export async function refreshAdvisory(): Promise<AdvisorySnapshot | null> {
   } catch {
     return null;
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * Live updates
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Tell every open phone the moment the advisory changes.
+ *
+ * Until the official could set the signal from the app this was not needed —
+ * and it was quietly missing anyway: the snapshot was refreshed only on load
+ * and on reconnect, so a resident with the app already open kept reading
+ * Signal 3 while the barangay had moved to Signal 4. `barangays` was already in
+ * the realtime publication; nothing was listening.
+ *
+ * One channel, many listeners — the same shape `subscribeHazards` and
+ * `subscribeRescue` had to grow. A channel name is global to the client, and
+ * adding a second `postgres_changes` binding to a channel that has already
+ * subscribed throws.
+ *
+ * Only phones with the app OPEN hear this. Waking a phone asleep in a pocket
+ * needs push notifications, which this does not attempt.
+ */
+let advisoryChannel: RealtimeChannel | null = null;
+const advisoryListeners = new Set<() => void>();
+
+export function subscribeAdvisory(onChange: () => void): () => void {
+  const supabase = getSupabase();
+  if (!supabase) return () => {};
+
+  advisoryListeners.add(onChange);
+
+  if (!advisoryChannel) {
+    advisoryChannel = supabase
+      .channel("advisory-live")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "barangays" },
+        () => {
+          // Copied before notifying: a listener may unsubscribe in response.
+          for (const listener of [...advisoryListeners]) listener();
+        },
+      )
+      .subscribe();
+  }
+
+  return () => {
+    advisoryListeners.delete(onChange);
+
+    // Tear the channel down only when nobody is left, and drop the reference
+    // first so a subscriber arriving mid-teardown builds a fresh one.
+    if (advisoryListeners.size === 0 && advisoryChannel) {
+      const channel = advisoryChannel;
+      advisoryChannel = null;
+      void supabase.removeChannel(channel);
+    }
+  };
 }
 
 /* ---------------------------------------------------------------------------

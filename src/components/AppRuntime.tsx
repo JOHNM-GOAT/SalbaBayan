@@ -25,6 +25,7 @@ import {
 import {
   readCachedAdvisory,
   refreshAdvisory,
+  subscribeAdvisory,
   type AdvisorySnapshot,
 } from "@/lib/advisory";
 import { isLanguage, translate, type Language } from "@/lib/i18n";
@@ -177,6 +178,27 @@ export function AppRuntime({ children }: { children: React.ReactNode }) {
      * while a role could arrive solely from an official on another device.
      */
     return onRoleChanged(read);
+  }, [userId]);
+
+  /*
+   * The advisory, live. Waits for `userId` because every read here is scoped
+   * `to authenticated` — a refresh that raced the anonymous sign-in would come
+   * back empty and be indistinguishable from "no barangay configured".
+   *
+   * `refreshAdvisory`, NOT `load`. `load` paints the cached snapshot before it
+   * fetches, which is right on boot and wrong here: every open phone would flash
+   * back to the OLD level for a moment before showing the new one. A resident
+   * who glanced at the screen in that moment would read the wrong signal. A
+   * refresh that fails keeps the snapshot already on screen, with its age shown
+   * honestly in the sync strip.
+   */
+  useEffect(() => {
+    if (!userId) return;
+    return subscribeAdvisory(() => {
+      void refreshAdvisory().then((fresh) => {
+        if (fresh) setSnapshot(fresh);
+      });
+    });
   }, [userId]);
 
   /**
