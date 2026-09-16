@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSync, useT } from "@/components/AppRuntime";
 import { SignalPlacard } from "@/components/SignalPlacard";
+import { AdvisoryBanner } from "@/components/AdvisoryBanner";
 import { buildCoverage } from "@/lib/advisory";
 import { loadReadiness } from "@/lib/readinessData";
 import { overallStatus, readyCount, type ReadinessCheck } from "@/lib/readiness";
@@ -63,6 +64,20 @@ export default function OfficialHome() {
       ) : (
         <>
           <SignalPlacard />
+
+          {/*
+            Directly under the placard, because this is what the placard is
+            about. The banner first: an official with an unsent change should
+            read that before being offered another change.
+          */}
+          <AdvisoryBanner barangayId={snapshot.barangay.id} />
+
+          <Link
+            href="/advisory"
+            className="tap mono flex items-center justify-center rounded-instrument bg-hv text-[11px] font-bold tracking-[1px] text-hv-ink"
+          >
+            {t("off.change_advisory")}
+          </Link>
 
           <div className="grid gap-2 @xl:grid-cols-2">
             <Link
