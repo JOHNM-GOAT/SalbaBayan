@@ -11,7 +11,7 @@
  * Run:  node scripts/actors-test.mjs
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ACTORS, activeHref, actorById } from "../src/lib/actors.ts";
@@ -64,6 +64,49 @@ for (const actor of ACTORS) {
       `${actor.id}: ${item.href} is precached`,
       shellRoutes.has(item.href),
       `${item.href} is missing from SHELL_ROUTES in sw.ts`,
+    );
+  }
+}
+
+/*
+ * Every page, not only the ones in a tab bar.
+ *
+ * The checks above only walk each actor's `nav`, so a route reached from a
+ * button rather than a tab was invisible to them. /advisory is the first such
+ * official route, and it is exactly the kind that fails silently: it works in
+ * the office, and then an official opens it with no signal — the one moment a
+ * queued signal change matters — and gets the browser's error page.
+ */
+console.log("\nEvery page survives a lost connection, not only the tabs:");
+{
+  const pages = [];
+
+  const walk = (dir, route) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        // `_private` folders are not routes. `(group)` folders add no segment.
+        if (entry.name.startsWith("_")) continue;
+        const segment = entry.name.startsWith("(") ? "" : `/${entry.name}`;
+        walk(join(dir, entry.name), `${route}${segment}`);
+      } else if (entry.name === "page.tsx") {
+        pages.push(route === "" ? "/" : route);
+      }
+    }
+  };
+
+  walk(join(ROOT, "src/app"), "");
+
+  check(
+    "found the app's pages",
+    pages.length > 0,
+    "no page.tsx under src/app — the walk itself is broken",
+  );
+
+  for (const route of pages.sort()) {
+    check(
+      `${route} is precached`,
+      shellRoutes.has(route),
+      `${route} has a page.tsx but is missing from SHELL_ROUTES in sw.ts`,
     );
   }
 }
