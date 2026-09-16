@@ -24,6 +24,7 @@ import {
   validate,
   valuesFromBarangay,
 } from "../src/lib/advisoryForm.ts";
+import { pendingAdvisory } from "../src/lib/pendingAdvisory.ts";
 
 const ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 
@@ -231,6 +232,102 @@ console.log("\nReading the current advisory:");
   check("nulls become empty text", values.stormName === "" && values.windKph === "");
   check("numbers become text", values.bulletinNo === "8");
   check("the deadline becomes a Date", values.evacuateBy?.getTime() === FUTURE.getTime());
+}
+
+console.log("\nWhat the NOT SENT banner shows:");
+{
+  const BARANGAY = "0561cfa1-2fe7-483d-ad06-7e512f98f02e";
+  const TAPPED = "2026-09-15T06:10:00.000Z";
+
+  /** What enqueueUpdate stores for a setAdvisory call. */
+  const advisoryRow = (patch = {}, row = {}) => ({
+    id: `${BARANGAY}:update`,
+    table: "barangays",
+    op: "update",
+    payload: {
+      current_signal_level: 4,
+      signal_set_at: TAPPED,
+      ...patch,
+      id: BARANGAY,
+    },
+    createdAt: Date.parse(TAPPED),
+    ...row,
+  });
+
+  check("an empty queue shows nothing", pendingAdvisory([], BARANGAY).state === "none");
+
+  const queued = pendingAdvisory([advisoryRow()], BARANGAY);
+  check(
+    "a queued change is NOT SENT, with its level and tap time",
+    queued.state === "queued" && queued.level === 4 && queued.tappedAt === TAPPED,
+    JSON.stringify(queued),
+  );
+
+  const lifted = pendingAdvisory([advisoryRow({ current_signal_level: 0 })], BARANGAY);
+  check(
+    "lifting the signal is reported as level 0, not dropped",
+    lifted.state === "queued" && lifted.level === 0,
+    JSON.stringify(lifted),
+  );
+
+  const noTapTime = pendingAdvisory(
+    [advisoryRow({ signal_set_at: undefined })],
+    BARANGAY,
+  );
+  check(
+    "without a tap time, the queue time is shown instead",
+    noTapTime.state === "queued" && noTapTime.tappedAt === TAPPED,
+    JSON.stringify(noTapTime),
+  );
+
+  const refused = pendingAdvisory(
+    [advisoryRow({}, { blocked: true, lastError: "leave_by_at_evacuation" })],
+    BARANGAY,
+  );
+  check(
+    "a refused change is REFUSED, with its reason and queue id",
+    refused.state === "blocked" &&
+      refused.level === 4 &&
+      refused.reason === "leave_by_at_evacuation" &&
+      refused.queueId === `${BARANGAY}:update`,
+    JSON.stringify(refused),
+  );
+
+  const noReason = pendingAdvisory([advisoryRow({}, { blocked: true })], BARANGAY);
+  check(
+    "a refused change with no recorded error still reports REFUSED",
+    noReason.state === "blocked" && noReason.reason === "",
+    JSON.stringify(noReason),
+  );
+
+  check(
+    "another table's update to the same id is ignored",
+    pendingAdvisory([advisoryRow({}, { table: "hazard_reports" })], BARANGAY).state === "none",
+  );
+
+  // Built explicitly: `advisoryRow` always sets `id: BARANGAY` last, so passing
+  // a different id through its patch would be overwritten.
+  const otherBarangay = {
+    ...advisoryRow(),
+    payload: { current_signal_level: 4, signal_set_at: TAPPED, id: "someone-else" },
+  };
+  check(
+    "another barangay's change is ignored",
+    pendingAdvisory([otherBarangay], BARANGAY).state === "none",
+  );
+  check(
+    "an insert is ignored",
+    pendingAdvisory([advisoryRow({}, { op: "insert" })], BARANGAY).state === "none",
+  );
+  check(
+    "a row queued before `op` existed is ignored — those are inserts",
+    pendingAdvisory([advisoryRow({}, { op: undefined })], BARANGAY).state === "none",
+  );
+  check(
+    "a barangays update without a numeric level is ignored",
+    pendingAdvisory([advisoryRow({ current_signal_level: "4" })], BARANGAY).state === "none",
+    "it could otherwise be shown as 'the signal was lifted'",
+  );
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
