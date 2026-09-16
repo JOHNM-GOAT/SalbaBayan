@@ -2,6 +2,7 @@
 
 import { useSync, useT } from "./AppRuntime";
 import { signalStyle } from "@/lib/signal";
+import type { Barangay } from "@/lib/advisory";
 
 /**
  * The signal placard (PRD §7.1, FR-2.3).
@@ -11,13 +12,20 @@ import { signalStyle } from "@/lib/signal";
  * from the approved advisory design — it reads as signage rather than as a
  * notification card, which is the intent.
  */
-export function SignalPlacard() {
+export function SignalPlacard({ barangay: preview }: { barangay?: Barangay } = {}) {
   const { snapshot } = useSync();
   const t = useT();
 
-  if (!snapshot) return null;
+  /*
+   * `barangay` is for the advisory screen's preview, which draws the placard
+   * with values that have not been issued yet. It is the real component rather
+   * than a lookalike on purpose: what the official approves is then exactly what
+   * every resident will see. Every other caller passes nothing and gets the
+   * snapshot, as before.
+   */
+  const barangay = preview ?? snapshot?.barangay;
+  if (!barangay) return null;
 
-  const { barangay } = snapshot;
   const level = barangay.current_signal_level;
   const style = signalStyle(level);
 
