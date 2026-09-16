@@ -20,6 +20,7 @@ import {
   confirmMode,
   defaultLeaveBy,
   leaveByRequired,
+  toBarangayPatch,
   toPatchInput,
   validate,
   valuesFromBarangay,
@@ -327,6 +328,60 @@ console.log("\nWhat the NOT SENT banner shows:");
     "a barangays update without a numeric level is ignored",
     pendingAdvisory([advisoryRow({ current_signal_level: "4" })], BARANGAY).state === "none",
     "it could otherwise be shown as 'the signal was lifted'",
+  );
+}
+
+console.log("\nThe update sent to the barangay:");
+{
+  const TAPPED = "2026-09-15T06:10:00.000Z";
+
+  const raised = toBarangayPatch(
+    { level: 4, stormName: "Igme", bulletinNo: 9, windKph: 185, evacuateBy: FUTURE },
+    TAPPED,
+  );
+  check(
+    "it carries exactly the advisory columns and the tap time",
+    JSON.stringify(Object.keys(raised).sort()) ===
+      JSON.stringify([
+        "bulletin_no",
+        "current_signal_level",
+        "evacuate_by",
+        "signal_set_at",
+        "storm_name",
+        "wind_kph",
+      ]),
+    JSON.stringify(Object.keys(raised)),
+  );
+  check(
+    "it never sends signal_set_by — only the trigger may say who changed it",
+    !("signal_set_by" in raised),
+  );
+  check(
+    "values are mapped to their columns",
+    raised.current_signal_level === 4 &&
+      raised.storm_name === "Igme" &&
+      raised.bulletin_no === 9 &&
+      raised.wind_kph === 185 &&
+      raised.signal_set_at === TAPPED,
+    JSON.stringify(raised),
+  );
+  check(
+    "the leave-by is sent as an ISO string at Signal 3+",
+    raised.evacuate_by === FUTURE.toISOString(),
+  );
+
+  const lowered = toBarangayPatch(
+    { level: 1, stormName: null, bulletinNo: null, windKph: null, evacuateBy: FUTURE },
+    TAPPED,
+  );
+  check(
+    "the leave-by is sent as null below Signal 3, even if one was passed in",
+    lowered.evacuate_by === null,
+    "a countdown would keep running under a signal that no longer calls for evacuation",
+  );
+  check(
+    "cleared fields are sent as null, so the placard stops showing them",
+    lowered.storm_name === null && lowered.bulletin_no === null && lowered.wind_kph === null,
   );
 }
 

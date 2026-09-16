@@ -175,3 +175,36 @@ export function valuesFromBarangay(b: {
     evacuateBy: b.evacuate_by ? new Date(b.evacuate_by) : null,
   };
 }
+
+/**
+ * The UPDATE sent to `barangays`, column by column.
+ *
+ * `signal_set_by` is deliberately absent. The `stamp_signal_setter` trigger
+ * (migration 0021) sets it from `auth.uid()`, and the server is the only
+ * trustworthy source for who made a change; a value sent from here would be
+ * overwritten at best and believed at worst.
+ *
+ * `tappedAt` is when the official confirmed, not when this reaches Postgres —
+ * for a change queued offline those can be hours apart, and history records
+ * both (`set_at` from this, `received_at` from the server).
+ *
+ * Cleared fields are sent as null rather than omitted. Omitting one would leave
+ * the old value on every resident's placard, which is the opposite of what an
+ * official who emptied the field meant.
+ */
+export function toBarangayPatch(
+  input: AdvisoryInput,
+  tappedAt: string,
+): Record<string, unknown> {
+  return {
+    current_signal_level: input.level,
+    storm_name: input.stormName,
+    bulletin_no: input.bulletinNo,
+    wind_kph: input.windKph,
+    evacuate_by:
+      leaveByRequired(input.level) && input.evacuateBy
+        ? input.evacuateBy.toISOString()
+        : null,
+    signal_set_at: tappedAt,
+  };
+}

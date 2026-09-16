@@ -25,7 +25,8 @@ export type QueueTable =
   | "hazard_reports"
   | "rescue_requests"
   | "headcounts"
-  | "checkins";
+  | "checkins"
+  | "barangays";
 
 /**
  * The column on each table that records who performed the action.
@@ -43,6 +44,13 @@ const OWNER_COLUMN: Record<QueueTable, string> = {
   rescue_requests: "requested_by",
   headcounts: "recorded_by",
   checkins: "scanned_by",
+  /*
+   * Never stamped from here. Owner stamping runs only on INSERTS, and the only
+   * write to barangays is an UPDATE from setAdvisory — where the
+   * stamp_signal_setter trigger (migration 0021) sets this column from
+   * auth.uid(). Listed because the record must cover every queue table.
+   */
+  barangays: "signal_set_by",
 };
 
 /**
@@ -327,7 +335,15 @@ export async function flushQueue(): Promise<{ sent: number; remaining: number }>
            * something fixed and the barangay is never going to hear about it.
            */
           await database.queue.update(item.id, {
-            lastError: `no row ${rowId} in ${item.table} to update`,
+            /*
+             * Both causes named, because Postgres gives the same answer for
+             * both: an UPDATE refused by RLS returns zero rows, exactly like an
+             * UPDATE aimed at a row that is not there. "No row to update" alone
+             * told a non-official the barangay did not exist.
+             */
+            lastError:
+              `no row was updated in ${item.table} for ${rowId} — ` +
+              `it may not exist, or this device isn't allowed to change it`,
             blocked: true,
           });
           continue;
