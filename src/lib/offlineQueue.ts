@@ -17,7 +17,7 @@
 
 import Dexie, { type Table } from "dexie";
 import { getCurrentUserId, getSupabase } from "./supabase";
-import { failureVerdict } from "./queuePolicy";
+import { failureVerdict, mergeUpdatePayload } from "./queuePolicy";
 
 /** Tables the queue is allowed to write to. Keep in sync with the schema. */
 export type QueueTable =
@@ -26,7 +26,9 @@ export type QueueTable =
   | "rescue_requests"
   | "headcounts"
   | "checkins"
-  | "barangays";
+  | "barangays"
+  | "evac_centers"
+  | "protocols";
 
 /**
  * The column on each table that records who performed the action.
@@ -38,7 +40,7 @@ export type QueueTable =
  * raised it, breaking the pending -> acknowledged -> rescued display (FR-4.3).
  * Caught by scripts/rls-test.mjs.
  */
-const OWNER_COLUMN: Record<QueueTable, string> = {
+const OWNER_COLUMN: Record<QueueTable, string | null> = {
   water_reports: "reported_by",
   hazard_reports: "reported_by",
   rescue_requests: "requested_by",
@@ -51,6 +53,12 @@ const OWNER_COLUMN: Record<QueueTable, string> = {
    * auth.uid(). Listed because the record must cover every queue table.
    */
   barangays: "signal_set_by",
+  /*
+   * Written only by an official moving the evacuation centre (UPDATEs), and
+   * neither table records who made a change — RLS limits both to officials.
+   */
+  evac_centers: null,
+  protocols: null,
 };
 
 /**
@@ -64,7 +72,7 @@ async function stampOwner(
   payload: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   const column = OWNER_COLUMN[table];
-  if (payload[column]) return payload;
+  if (column === null || payload[column]) return payload;
 
   const uid = await getCurrentUserId();
   return uid ? { ...payload, [column]: uid } : payload;
@@ -215,12 +223,21 @@ export async function enqueueUpdate(
     throw new Error("no local storage available for the write queue");
   }
 
+  /*
+   * Merged into an update already waiting for the same row, not written over
+   * it — see mergeUpdatePayload. The waiting row's place in the queue is kept,
+   * so the merged change still flushes after the insert it depends on.
+   */
+  const key = `${id}:update`;
+  const waiting = await database.queue.get(key);
+  const merging = waiting !== undefined && waiting.blocked !== true;
+
   await database.queue.put({
-    id: `${id}:update`,
+    id: key,
     table,
     op: "update",
-    payload: { ...patch, id },
-    createdAt: Date.now(),
+    payload: mergeUpdatePayload(waiting, patch, id),
+    createdAt: merging ? waiting.createdAt : Date.now(),
     attempts: 0,
   });
 

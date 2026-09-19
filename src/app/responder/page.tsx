@@ -8,6 +8,7 @@ import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useSync, useT } from "@/components/AppRuntime";
 import { STREET_STYLE_URL } from "@/lib/basemap";
+import { FALLBACK_CENTRE } from "@/lib/advisory";
 import {
   acknowledge,
   activeQueue,
@@ -32,8 +33,8 @@ import { SkeletonLines, useSkeletonGate } from "@/components/Skeleton";
  * that half is unaffected.
  */
 
-/** Barangay San Isidro, Sta. Cruz, Laguna — fixture geography, pending Q4. */
-const CENTRE: [number, number] = [121.4142, 14.2801];
+/** #5 Callaguip, Batac City — the barangay's own point (lib/advisory.ts). */
+const CENTRE: [number, number] = FALLBACK_CENTRE;
 
 export default function ResponderPage() {
 

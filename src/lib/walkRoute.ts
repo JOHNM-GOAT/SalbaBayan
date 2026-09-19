@@ -234,6 +234,16 @@ export function walkRoute(graph: WalkGraph, from: Point, to: Point): Route | nul
 }
 
 /**
+ * The route as a protocol's `route` text: "Oeste Street → #5 Callaguip Barangay
+ * Hall · 391 m · Oeste St.". The generator and the centre editor both write it,
+ * so a route redrawn on a phone reads exactly like one built at setup.
+ */
+export function routeDescription(area: string, centre: string, route: Route): string {
+  const via = route.via.length ? ` · ${route.via.join(" → ")}` : "";
+  return `${area} → ${centre} · ${route.metres} m${via}`;
+}
+
+/**
  * Whether a point lies inside a polygon ring (ray casting). The ring may be
  * closed (first point repeated last) or open. Used to keep the evacuation
  * centre inside the barangay; the database checks the same rule again.

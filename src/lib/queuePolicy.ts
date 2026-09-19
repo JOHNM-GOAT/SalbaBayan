@@ -98,3 +98,28 @@ export function failureVerdict(
   const next = attempts + 1;
   return { attempts: next, blocked: next >= MAX_ATTEMPTS };
 }
+
+/**
+ * The payload an UPDATE should carry when another update to the same row is
+ * already waiting in the queue.
+ *
+ * `enqueueUpdate` keys a row's update as `<id>:update`, so a second update to
+ * the same row lands in the same slot. It used to REPLACE the first, which was
+ * harmless while each row had a single kind of update. It stopped being
+ * harmless when the barangay row got two: an official who issued Signal 4
+ * offline and then entered the household count would have had the signal
+ * change silently discarded — the second write overwrote the first.
+ *
+ * So the waiting update and the new one are merged field by field, the new
+ * value winning where both set the same field. A BLOCKED waiting update is not
+ * merged into: it was refused, and folding it into a fresh attempt would resend
+ * the refused change under a new write the person did not know carried it.
+ */
+export function mergeUpdatePayload(
+  waiting: { payload: Record<string, unknown>; blocked?: boolean } | undefined,
+  patch: Record<string, unknown>,
+  id: string,
+): Record<string, unknown> {
+  if (!waiting || waiting.blocked) return { ...patch, id };
+  return { ...waiting.payload, ...patch, id };
+}

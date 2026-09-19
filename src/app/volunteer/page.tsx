@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSync, useT } from "@/components/AppRuntime";
 import { SignalPlacard } from "@/components/SignalPlacard";
+import { HouseholdsCard } from "@/components/HouseholdsCard";
 
 /**
  * Volunteer home (PRD §4: "operates an evacuation centre ... checks people in,
@@ -15,6 +16,9 @@ import { SignalPlacard } from "@/components/SignalPlacard";
  * staff-only read are not shown here rather than shown as zeros: this screen
  * has to be correct on a device whose role has not been granted yet, which is
  * the normal state of a new volunteer's phone on day one.
+ *
+ * The household count is here because volunteers are the ones who walk the
+ * streets and can count them; HouseholdsCard shows itself only to staff.
  */
 export default function VolunteerHome() {
   const { snapshot } = useSync();
@@ -42,7 +46,11 @@ export default function VolunteerHome() {
               >
                 <p className="text-[13.5px] font-bold">{centre.name}</p>
                 <p className="mono mt-1 text-[10px] tracking-[0.6px] text-paper-3">
-                  {t("vol.capacity", { n: centre.capacity })}
+                  {/* Capacity is left unset until an official enters it — said
+                      as such, never printed as "null" or a guessed number. */}
+                  {centre.capacity == null
+                    ? t("vol.capacity_unset")
+                    : t("vol.capacity", { n: centre.capacity })}
                   {/* A centre with no coordinates cannot be a map destination,
                       and a volunteer directing someone there should know. */}
                   {centre.lat == null && ` · ${t("vol.no_location")}`}
@@ -50,6 +58,8 @@ export default function VolunteerHome() {
               </li>
             ))}
           </ul>
+
+          <HouseholdsCard />
 
           {/*
            * Only what the tab bar cannot reach. SCAN, BILANG and SAKLOLO all

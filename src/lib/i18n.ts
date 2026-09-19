@@ -8,20 +8,77 @@
  * string is missing.
  */
 
-export type Language = "tl" | "ceb" | "en";
-
 /**
- * Launch languages (FR-3.3). Labels are endonyms — a Cebuano speaker looks for
- * "Bisaya", not "Cebuano".
+ * Languages a resident can choose (FR-3.3).
+ *
+ * The major languages of the Philippines, plus English. `label` is the endonym
+ * — what a speaker looks for: "Bisaya", not "Cebuano"; "Ilokano", not
+ * "Ilocano". `english` is shown beside it so a relative helping someone choose
+ * can find it too. Codes are ISO 639.
+ *
+ * Choosing a language is not the same as the app being translated into it.
+ * Only languages with rows in the `translations` table are translated; every
+ * other choice is honoured and falls back, per string, to the barangay's
+ * default language (FR-3.5). The picker says which is which, from the data, so
+ * translating a language is data entry — a migration of strings — and it moves
+ * into the "translated" group on its own.
+ *
+ * The Philippines has around 180 languages. This lists the widely spoken ones;
+ * adding one is a single line here.
  */
-export const LANGUAGES: ReadonlyArray<{ code: Language; label: string }> = [
-  { code: "tl", label: "Tagalog" },
-  { code: "ceb", label: "Bisaya" },
-  { code: "en", label: "English" },
-];
+export const LANGUAGES = [
+  { code: "en", label: "English", english: "English" },
+  { code: "fil", label: "Filipino", english: "Filipino" },
+  { code: "tl", label: "Tagalog", english: "Tagalog" },
+  { code: "ceb", label: "Bisaya", english: "Cebuano" },
+  { code: "ilo", label: "Ilokano", english: "Ilocano" },
+  { code: "hil", label: "Hiligaynon", english: "Hiligaynon (Ilonggo)" },
+  { code: "war", label: "Winaray", english: "Waray" },
+  { code: "bcl", label: "Bikol", english: "Central Bikol" },
+  { code: "pam", label: "Kapampangan", english: "Kapampangan" },
+  { code: "pag", label: "Pangasinan", english: "Pangasinan" },
+  { code: "mrw", label: "Mëranaw", english: "Maranao" },
+  { code: "mdh", label: "Magindanawn", english: "Maguindanao" },
+  { code: "tsg", label: "Bahasa Sūg", english: "Tausug" },
+  { code: "krj", label: "Kinaray-a", english: "Kinaray-a" },
+  { code: "akl", label: "Akeanon", english: "Aklanon" },
+  { code: "cbk", label: "Chavacano", english: "Chavacano" },
+  { code: "sgd", label: "Surigaonon", english: "Surigaonon" },
+  { code: "msb", label: "Masbatenyo", english: "Masbateño" },
+  { code: "rol", label: "Romblomanon", english: "Romblomanon" },
+  { code: "bno", label: "Asi", english: "Bantoanon (Asi)" },
+  { code: "cyo", label: "Cuyonon", english: "Cuyonon" },
+  { code: "btw", label: "Butuanon", english: "Butuanon" },
+  { code: "ibg", label: "Ibanag", english: "Ibanag" },
+  { code: "itv", label: "Itawis", english: "Itawis" },
+  { code: "ivv", label: "Ivatan", english: "Ivatan" },
+  { code: "isd", label: "Isnag", english: "Isnag" },
+  { code: "gad", label: "Gaddang", english: "Gaddang" },
+  { code: "kne", label: "Kankanaey", english: "Kankanaey" },
+  { code: "ibl", label: "Ibaloi", english: "Ibaloi" },
+  { code: "ifk", label: "Tuwali", english: "Tuwali Ifugao" },
+  { code: "xsb", label: "Sambal", english: "Sambal" },
+  { code: "smk", label: "Bolinao", english: "Bolinao" },
+  { code: "yka", label: "Yakan", english: "Yakan" },
+  { code: "sml", label: "Sinama", english: "Sama" },
+  { code: "tbl", label: "T'boli", english: "Tboli" },
+  { code: "tiy", label: "Tiruray", english: "Tiruray" },
+  { code: "hnn", label: "Hanunó'o", english: "Hanunoo" },
+] as const;
+
+export type Language = (typeof LANGUAGES)[number]["code"];
 
 export function isLanguage(value: unknown): value is Language {
   return LANGUAGES.some((l) => l.code === value);
+}
+
+/** Every language with at least one string in the snapshot's translations. */
+export function translatedLanguages(translations: TranslationMap): Set<string> {
+  const found = new Set<string>();
+  for (const entry of Object.values(translations)) {
+    for (const code of Object.keys(entry)) found.add(code);
+  }
+  return found;
 }
 
 /*

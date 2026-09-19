@@ -35,6 +35,14 @@ export type Barangay = {
   evacuate_by: string | null;
   default_language: string;
   expected_households: number | null;
+  /** The barangay's own point — where every map opens. */
+  lat: number | null;
+  lng: number | null;
+  /** Its outline. Drawn on the map; keeps the evacuation centre inside. */
+  boundary_geojson: GeoPolygon | null;
+  /** Shown to officials with its source; not a live count. */
+  population: number | null;
+  population_source: string | null;
 };
 
 export type GeoPolygon = { type: "Polygon"; coordinates: number[][][] };
@@ -44,7 +52,11 @@ export type Purok = {
   id: string;
   name: string;
   barangay_id: string;
+  /** Null for areas named after streets, which have no outline of their own. */
   boundary_geojson: GeoPolygon | null;
+  /** Where this area's walking route starts. */
+  lat: number | null;
+  lng: number | null;
 };
 
 export type Protocol = {
@@ -61,7 +73,8 @@ export type EvacCenter = {
   id: string;
   purok_id: string;
   name: string;
-  capacity: number;
+  /** Null until an official sets it. Never guessed: it drives the FULL warning. */
+  capacity: number | null;
   lat: number | null;
   lng: number | null;
 };
@@ -165,12 +178,12 @@ export async function fetchAdvisory(): Promise<AdvisorySnapshot> {
         // level, and a concatenated string is not a literal type, so it
         // resolves to an error type instead of the row shape.
         .select(
-          "id,name,municipality,province,current_signal_level,signal_set_at,storm_name,bulletin_no,wind_kph,evacuate_by,default_language,expected_households",
+          "id,name,municipality,province,current_signal_level,signal_set_at,storm_name,bulletin_no,wind_kph,evacuate_by,default_language,expected_households,lat,lng,boundary_geojson,population,population_source",
         )
         .limit(1),
       supabase
         .from("puroks")
-        .select("id,name,barangay_id,boundary_geojson")
+        .select("id,name,barangay_id,boundary_geojson,lat,lng")
         .order("name"),
       supabase
         .from("protocols")
@@ -248,6 +261,37 @@ export async function refreshAdvisory(): Promise<AdvisorySnapshot | null> {
 let advisoryChannel: RealtimeChannel | null = null;
 const advisoryListeners = new Set<() => void>();
 
+/*
+ * Every table the snapshot — and so every map — is drawn from.
+ *
+ * It began with `barangays` alone, for the signal. The relocation to Callaguip
+ * added two more reasons to listen: an official can now move the evacuation
+ * centre (evac_centers, and the routes in protocols), and the evacuation map
+ * showed hazards only as fresh as its last reload. Listening here refreshes the
+ * whole snapshot on any of them, so a moved centre, a redrawn route and a new
+ * hazard all reach an open phone within seconds.
+ */
+const LIVE_TABLES = [
+  "barangays",
+  "puroks",
+  "evac_centers",
+  "protocols",
+  "hazard_reports",
+] as const;
+
+/**
+ * Where a map opens: the barangay's own point, or #5 Callaguip's before the
+ * snapshot has loaded (OSM node 8883724672). A single constant, instead of the
+ * three copies of Sta. Cruz's coordinates the map screens used to carry.
+ */
+export const FALLBACK_CENTRE: [number, number] = [120.5615882, 18.0634855];
+
+export function barangayCentre(barangay: Barangay | null | undefined): [number, number] {
+  return barangay?.lat != null && barangay.lng != null
+    ? [barangay.lng, barangay.lat]
+    : FALLBACK_CENTRE;
+}
+
 export function subscribeAdvisory(onChange: () => void): () => void {
   const supabase = getSupabase();
   if (!supabase) return () => {};
@@ -255,17 +299,19 @@ export function subscribeAdvisory(onChange: () => void): () => void {
   advisoryListeners.add(onChange);
 
   if (!advisoryChannel) {
-    advisoryChannel = supabase
-      .channel("advisory-live")
-      .on(
+    // Copied before notifying: a listener may unsubscribe in response.
+    const notify = () => {
+      for (const listener of [...advisoryListeners]) listener();
+    };
+    let channel = supabase.channel("advisory-live");
+    for (const table of LIVE_TABLES) {
+      channel = channel.on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "barangays" },
-        () => {
-          // Copied before notifying: a listener may unsubscribe in response.
-          for (const listener of [...advisoryListeners]) listener();
-        },
-      )
-      .subscribe();
+        { event: "*", schema: "public", table },
+        notify,
+      );
+    }
+    advisoryChannel = channel.subscribe();
   }
 
   return () => {

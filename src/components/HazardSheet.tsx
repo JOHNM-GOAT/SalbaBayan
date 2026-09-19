@@ -8,6 +8,7 @@ import { useMyRole } from "./useMyRole";
 import { useShellWidth } from "./Shell";
 import { HazardPhoto } from "./HazardPhoto";
 import { loadStreetStyle, onStyleReady, sketchStyle } from "@/lib/basemap";
+import { FALLBACK_CENTRE } from "@/lib/advisory";
 import { onQueueChanged } from "@/lib/offlineQueue";
 import { onHazardFocus } from "@/lib/hazardFocus";
 import { agoLabel } from "@/lib/water";
@@ -144,7 +145,7 @@ export function HazardSheet() {
       // Same contract as the evacuation map: built on the style that cannot
       // fail, upgraded to real streets only if they can actually be fetched.
       style: sketchStyle(),
-      center: [121.4156, 14.2797],
+      center: FALLBACK_CENTRE,
       zoom: 14,
       attributionControl: false,
     });

@@ -1,19 +1,21 @@
 /**
  * The evacuation routes must agree with the map they are drawn on.
  *
- * Three separate files have to describe the same barangay, and nothing in the
- * type system connects them: the routes live in a migration, the offline base
- * map lives in `public/geo/streets.json`, and the hazards that demonstrate the
- * blocked-path warning live in a third set of rows. They are all generated
- * together by `scripts/generate-geo.mjs`, so they agree today. They will stop
- * agreeing the first time someone regenerates one and not the others, and the
- * failure is invisible: the map still draws a confident orange line, it just
- * runs through buildings, and the distance beside it is not a distance anyone
- * could walk.
+ * The routes live in a migration, the offline base map in
+ * `public/geo/streets.json`, and nothing in the type system connects them. They
+ * are generated together — now by `scripts/generate-callaguip.mjs` — so they
+ * agree today. They stop agreeing the first time someone regenerates one and not
+ * the other, and the failure is invisible: the map still draws a confident line,
+ * it just runs through buildings, and the distance beside it is not a distance
+ * anyone could walk. This file makes that loud.
  *
- * That is the failure this file exists to make loud. It is the same argument as
- * `check-translations.mjs`: "remember to also regenerate the other one" is a
- * convention that holds until the day someone is in a hurry.
+ * It used to check the fictional San Isidro (migration 0014). The app moved to
+ * #5 Callaguip, Batac City, in 0027, and this checks what is actually live.
+ *
+ * Not checked any more: the blocked-path demonstration. San Isidro carried two
+ * invented hazards placed to exercise it; clearing the test records removed
+ * them, and Callaguip deliberately has no invented hazards. `hazardsOnRoute`
+ * itself is covered by scripts/geo-test.mjs.
  *
  * Run:  node scripts/check-routes.mjs
  */
@@ -21,10 +23,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { BLOCKED_RADIUS_M, metresBetween, metresToLine } from "../src/lib/geo.ts";
+import { lineLength, metresBetween, metresToLine } from "../src/lib/geo.ts";
+import { pointInRing } from "../src/lib/walkRoute.ts";
 
 const ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
-const MIGRATION = join(ROOT, "supabase/migrations/0014_real_routes.sql");
+const MIGRATION = join(ROOT, "supabase/migrations/0027_callaguip_geography.sql");
 
 let pass = 0;
 let fail = 0;
@@ -49,38 +52,39 @@ const roads = streets.features.map((f) => f.geometry.coordinates);
  * Parse
  *
  * Reading generated SQL with a regular expression is only safe because the
- * generator writes it. The guard against that becoming untrue is below: an
- * empty parse is a FAILURE, not a silent pass. A guard that quietly finds
- * nothing to check is worse than no guard, because it reports success.
+ * generator writes it. An empty parse is a FAILURE, not a silent pass: a guard
+ * that quietly finds nothing to check reports success.
  * ------------------------------------------------------------------------ */
+
+const unquote = (s) => s.replace(/''/g, "'");
 
 const routes = new Map();
 for (const m of sql.matchAll(
-  /route_geojson = '(\{[^']*?\})'::jsonb, route = '([^']*(?:''[^']*)*)'.*?name = '(Purok \d)'/g,
+  /select p\.id, s\.level, '((?:[^']|'')*)', '(\{[^']*\})'::jsonb, s\.action_key, c\.id[\s\S]*?where p\.name = '((?:[^']|'')*)' and c\.name = '((?:[^']|'')*)'/g,
 )) {
-  routes.set(m[3], { line: JSON.parse(m[1]).coordinates, label: m[2] });
+  routes.set(unquote(m[3]), {
+    label: unquote(m[1]),
+    line: JSON.parse(m[2]).coordinates,
+    centre: unquote(m[4]),
+  });
 }
 
 const centres = new Map();
 for (const m of sql.matchAll(
-  /evac_centers set lat = ([-\d.]+), lng = ([-\d.]+) where name = '([^']+)'/g,
+  /select p\.id, '((?:[^']|'')*)', (?:null|\d+), ([-\d.]+), ([-\d.]+)\s*\nfrom public\.puroks p/g,
 )) {
-  centres.set(m[3], [Number(m[2]), Number(m[1])]);
+  centres.set(unquote(m[1]), [Number(m[3]), Number(m[2])]);
 }
 
-const hazards = new Map();
-for (const m of sql.matchAll(
-  /hazard_reports set lat = ([-\d.]+), lng = ([-\d.]+)\s*\n?\s*where description = '([^']*(?:''[^']*)*)'/g,
-)) {
-  hazards.set(m[3].replace(/''/g, "'"), [Number(m[2]), Number(m[1])]);
-}
+const outlineMatch = sql.match(/boundary_geojson = '(\{[^']*\})'::jsonb/);
+const ring = outlineMatch ? JSON.parse(outlineMatch[1]).coordinates[0] : null;
 
-check("the migration parses into routes", routes.size === 8, `${routes.size} of 8`);
-check("the migration parses into centres", centres.size === 3, `${centres.size} of 3`);
-check("the migration parses into hazards", hazards.size === 2, `${hazards.size} of 2`);
+check("the migration parses into routes", routes.size === 6, `${routes.size} of 6`);
+check("the migration parses into a centre", centres.size === 1, `${centres.size} of 1`);
+check("the migration parses into an outline", Array.isArray(ring) && ring.length > 3);
 check("the offline base map has roads", roads.length > 50, `${roads.length}`);
 
-if (routes.size === 0 || roads.length === 0) {
+if (routes.size === 0 || roads.length === 0 || !ring) {
   console.log("\n  Nothing to check. Refusing to report success.\n");
   process.exitCode = 1;
 } else {
@@ -90,15 +94,13 @@ if (routes.size === 0 || roads.length === 0) {
 
   console.log("\nRoutes lie on the offline base map:");
 
-  /* One metre. These are the same surveyed coordinates on both sides, so the
-     true answer is zero; the tolerance only absorbs the 6-decimal rounding the
-     generator writes, which is about 11 cm at this latitude. */
+  // The same surveyed coordinates on both sides, so the true answer is zero;
+  // one metre absorbs rounding.
   const ON_ROAD_M = 1;
 
   let worst = 0;
-  let worstPurok = null;
+  let worstArea = null;
   let checked = 0;
-
   for (const [name, { line }] of routes) {
     for (const point of line) {
       let nearest = Infinity;
@@ -106,75 +108,55 @@ if (routes.size === 0 || roads.length === 0) {
       checked += 1;
       if (nearest > worst) {
         worst = nearest;
-        worstPurok = name;
+        worstArea = name;
       }
     }
   }
-
   check(
     `all ${checked} route vertices sit on a mapped road`,
     worst <= ON_ROAD_M,
-    `worst ${worst.toFixed(1)}m, on ${worstPurok}`,
+    `worst ${worst.toFixed(1)}m, on ${worstArea}`,
   );
 
   /* -------------------------------------------------------------------------
-   * Every route actually arrives
+   * Every route starts in the barangay and arrives at the centre
    * ---------------------------------------------------------------------- */
 
-  console.log("\nRoutes arrive where the protocol says they do:");
+  console.log("\nRoutes start in #5 Callaguip and arrive at the centre:");
 
-  for (const [name, { line, label }] of routes) {
-    const destination = label.split("→")[1]?.split("·")[0]?.trim();
-    const centre = centres.get(destination);
-    const end = line[line.length - 1];
+  const ON_EDGE_M = 3; // a street along the outline is part of the barangay
+  // The centre is the building, not a point on the street; the route ends at
+  // the street point nearest it.
+  const ARRIVAL_M = 30;
 
+  for (const [name, { line, label, centre }] of routes) {
+    const start = line[0];
     check(
-      `${name} ends at ${destination}`,
-      Boolean(centre) && metresBetween(end, centre) < 1,
-      centre ? `${metresBetween(end, centre).toFixed(0)}m short` : "unknown centre",
+      `${name} starts inside the barangay`,
+      pointInRing(start, ring) || metresToLine(start, ring) <= ON_EDGE_M,
+      `${metresToLine(start, ring).toFixed(0)}m outside`,
+    );
+
+    const at = centres.get(centre);
+    const end = line[line.length - 1];
+    check(
+      `${name} arrives at ${centre}`,
+      Boolean(at) && metresBetween(end, at) <= ARRIVAL_M,
+      at ? `ends ${metresBetween(end, at).toFixed(0)}m from it` : "unknown centre",
+    );
+
+    const stated = Number(label.match(/· (\d+) m/)?.[1]);
+    const actual = lineLength(line);
+    check(
+      `${name}'s stated distance is its real length`,
+      Number.isFinite(stated) && Math.abs(stated - actual) <= 2,
+      `says ${stated} m, measures ${actual.toFixed(0)} m`,
     );
   }
 
-  /* -------------------------------------------------------------------------
-   * The blocked-path demonstration still demonstrates something
-   *
-   * 0008 placed one hazard ON a route on purpose, because a feature that can
-   * only be shown by hand-editing the database is a feature nobody checks. When
-   * the routes moved onto real streets that hazard was left behind, and FR-2.8
-   * would have stopped firing anywhere in the app with nothing to show for it.
-   * ---------------------------------------------------------------------- */
-
-  console.log("\nThe blocked-path warning has something to detect (FR-2.8):");
-
-  const blocking = hazards.get("Baha sa Mabini St. — hanggang tuhod");
-  const clear = hazards.get("Nabuwal na puno sa Luna St.");
-
-  const nearestRoute = (point) => {
-    let best = Infinity;
-    let where = null;
-    for (const [name, { line }] of routes) {
-      const d = metresToLine(point, line);
-      if (d < best) {
-        best = d;
-        where = name;
-      }
-    }
-    return { best, where };
-  };
-
-  const onRoute = blocking ? nearestRoute(blocking) : null;
-  check(
-    "the flooding hazard blocks at least one route",
-    Boolean(onRoute) && onRoute.best <= BLOCKED_RADIUS_M,
-    onRoute ? `${onRoute.best.toFixed(0)}m from the nearest route` : "hazard not found",
-  );
-
-  const offRoute = clear ? nearestRoute(clear) : null;
-  check(
-    "the fallen-tree hazard blocks none of them",
-    Boolean(offRoute) && offRoute.best > BLOCKED_RADIUS_M,
-    offRoute ? `${offRoute.best.toFixed(0)}m from ${offRoute.where}` : "hazard not found",
-  );
+  for (const [name, point] of centres) {
+    check(`${name} is inside the barangay`, pointInRing(point, ring));
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

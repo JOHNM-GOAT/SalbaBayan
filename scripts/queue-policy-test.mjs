@@ -21,6 +21,7 @@
 import {
   failureVerdict,
   isPermanent,
+  mergeUpdatePayload,
   isTransportFailure,
   MAX_ATTEMPTS,
 } from "../src/lib/queuePolicy.ts";
@@ -131,6 +132,55 @@ check(
   afterOutage.attempts === 1 && !afterOutage.blocked,
   `attempts ${afterOutage.attempts}, blocked ${afterOutage.blocked}`,
 );
+
+/* -- Two updates to one row --------------------------------------------------
+ *
+ * The barangay row takes two kinds of update — the advisory, and the household
+ * count — and both share the row's single queue slot. Replacing the waiting
+ * update meant an official who issued Signal 4 offline and then entered the
+ * household count lost the signal change without a trace.
+ */
+console.log("\nA second update to the same row:");
+{
+  const ID = "0561cfa1";
+  const waitingAdvisory = {
+    payload: { id: ID, current_signal_level: 4, signal_set_at: "2026-09-19T06:00:00Z" },
+  };
+
+  const merged = mergeUpdatePayload(waitingAdvisory, { expected_households: 210 }, ID);
+  check(
+    "keeps the signal change already waiting",
+    merged.current_signal_level === 4 && merged.signal_set_at === "2026-09-19T06:00:00Z",
+    JSON.stringify(merged),
+  );
+  check("and adds the household count", merged.expected_households === 210);
+  check("the row id stays the target", merged.id === ID);
+
+  const later = mergeUpdatePayload(waitingAdvisory, { current_signal_level: 5 }, ID);
+  check(
+    "a newer value for the same field wins",
+    later.current_signal_level === 5,
+    JSON.stringify(later),
+  );
+
+  const fresh = mergeUpdatePayload(undefined, { expected_households: 210 }, ID);
+  check(
+    "with nothing waiting, it is just the new change",
+    JSON.stringify(fresh) === JSON.stringify({ expected_households: 210, id: ID }),
+    JSON.stringify(fresh),
+  );
+
+  const refused = mergeUpdatePayload(
+    { ...waitingAdvisory, blocked: true },
+    { expected_households: 210 },
+    ID,
+  );
+  check(
+    "a refused change is not folded into a new attempt",
+    !("current_signal_level" in refused) && refused.expected_households === 210,
+    JSON.stringify(refused),
+  );
+}
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

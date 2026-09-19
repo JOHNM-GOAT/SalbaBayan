@@ -118,7 +118,9 @@ export default function HeadcountPage() {
           </h1>
           {centre && (
             <p className="mono text-[9.5px] tracking-[0.7px] text-paper-3">
-              {t("hc.capacity")} {capacity}
+              {/* "—" when an official has not set it yet: 0 would read as a
+                  centre with no room at all. */}
+              {t("hc.capacity")} {centre.capacity ?? "—"}
             </p>
           )}
         </div>

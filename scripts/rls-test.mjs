@@ -250,6 +250,44 @@ check(
     : `status ${residentInsert.status}`,
 );
 
+/*
+ * The household count and the evacuation centre (migration 0026).
+ *
+ * Staff may set the household count; officials may move the centre. A resident
+ * may do neither. Both probes send the row's CURRENT values back, so even if a
+ * policy leaked, nothing would change — the check is only whether the write
+ * was allowed to touch a row at all.
+ */
+const barangayNow = (
+  await rest(`barangays?select=expected_households&id=eq.${barangayId}`, { jwt })
+).body?.[0];
+const residentHouseholds = await rest(`barangays?id=eq.${barangayId}`, {
+  jwt,
+  method: "PATCH",
+  body: { expected_households: barangayNow?.expected_households ?? null },
+});
+check(
+  "CANNOT set the household count",
+  residentHouseholds.status === 200 && rows(residentHouseholds) === 0,
+  `LEAK: status ${residentHouseholds.status}, ${rows(residentHouseholds)} rows updated`,
+);
+
+const centreNow = (await rest("evac_centers?select=id,lat,lng&limit=1", { jwt })).body?.[0];
+if (centreNow) {
+  const residentCentre = await rest(`evac_centers?id=eq.${centreNow.id}`, {
+    jwt,
+    method: "PATCH",
+    body: { lat: centreNow.lat, lng: centreNow.lng },
+  });
+  check(
+    "CANNOT move the evacuation centre",
+    residentCentre.status === 200 && rows(residentCentre) === 0,
+    `LEAK: status ${residentCentre.status}, ${rows(residentCentre)} rows updated`,
+  );
+} else {
+  console.log("  SKIPPED  moving the evacuation centre — no centre to aim at");
+}
+
 /* ---------------------------------------------------------------------------
  * The demo self-promotion path (migration 0017)
  *

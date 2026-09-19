@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { useSync, useT } from "@/components/AppRuntime";
 import { SignalPlacard } from "@/components/SignalPlacard";
 import { AdvisoryBanner } from "@/components/AdvisoryBanner";
+import { PopulationCard } from "@/components/PopulationCard";
+import { HouseholdsCard } from "@/components/HouseholdsCard";
 import { buildCoverage } from "@/lib/advisory";
 import { loadReadiness } from "@/lib/readinessData";
 import { overallStatus, readyCount, type ReadinessCheck } from "@/lib/readiness";
@@ -116,6 +118,11 @@ export default function OfficialHome() {
               </p>
             </Link>
           </div>
+
+          {/* The published population, with its source — and the household
+              count staff can set, which readiness measures against. */}
+          <PopulationCard />
+          <HouseholdsCard />
 
           {/* Readiness, coverage and rescue are all tabs; only these are not. */}
           <div className="mt-1 grid grid-cols-2 gap-2">

@@ -9,7 +9,7 @@
 
 import { getMyRole, type UserRole } from "./supabase";
 import { getSupabase } from "./supabase";
-import { LANGUAGES } from "./i18n";
+import { translatedLanguages } from "./i18n";
 import {
   assignedVolunteerCount,
   buildReadiness,
@@ -108,8 +108,16 @@ export async function loadReadiness(
 
   /* A key counts as translated only when every launch language has a string.
      One missing language is one group of residents reading nothing. */
+  /*
+   * "Every language" means every language the app is translated into — read
+   * from the data, not the picker's list. The picker now offers dozens of
+   * languages that have no strings yet; measuring against all of them would
+   * pin this check at "partial" forever and teach officials to ignore it.
+   * When a language's strings are added, it joins this check on its own.
+   */
+  const languages = [...translatedLanguages(snapshot.translations)];
   const fullyTranslated = [...referenced].filter((key) =>
-    LANGUAGES.every(({ code }) => snapshot.translations[key]?.[code]),
+    languages.every((code) => snapshot.translations[key]?.[code]),
   );
 
   return buildReadiness({

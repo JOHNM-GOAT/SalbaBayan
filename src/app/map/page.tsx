@@ -5,7 +5,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useSync, useT } from "@/components/AppRuntime";
-import { deriveAdvisory } from "@/lib/advisory";
+import { deriveAdvisory, FALLBACK_CENTRE } from "@/lib/advisory";
+import { CentreEditor } from "@/components/CentreEditor";
+import type { Streets } from "@/lib/walkRoute";
 import { resolveColour, signalStyle } from "@/lib/signal";
 import { startPositionWatch, type Fix } from "@/lib/sos";
 import {
@@ -39,8 +41,6 @@ import {
  * in that order and not the other.
  */
 
-/** Fits the whole synthetic barangay; replaced when real bounds land. */
-const FALLBACK_CENTRE: [number, number] = [121.4156, 14.2797];
 
 export default function MapPage() {
 
@@ -106,12 +106,20 @@ export default function MapPage() {
    * Nearly half the map was blank, and it read as a rendering bug rather than
    * as a framing one. Including the boundary guarantees area in both axes.
    */
+  /*
+   * The outline to frame and draw: the area's own, or — for areas named after
+   * streets, which have none — the whole barangay's. Callaguip's areas are its
+   * streets until it supplies a Purok list, so today this is always the
+   * barangay outline.
+   */
+  const outline = purok?.boundary_geojson ?? snapshot?.barangay.boundary_geojson ?? null;
+
   const frame = useMemo(() => {
     const points: Point[] = [...route];
     if (centre?.lat != null && centre?.lng != null) {
       points.push([centre.lng, centre.lat]);
     }
-    for (const ring of purok?.boundary_geojson?.coordinates ?? []) {
+    for (const ring of outline?.coordinates ?? []) {
       for (const point of ring) points.push(point as Point);
     }
     if (!points.length) return null;
@@ -122,7 +130,7 @@ export default function MapPage() {
       [Math.min(...lngs), Math.min(...lats)],
       [Math.max(...lngs), Math.max(...lats)],
     ] as [[number, number], [number, number]];
-  }, [route, centre, purok]);
+  }, [route, centre, outline]);
 
   /* The street grid — a static precached file, never fetched from a tile API. */
   useEffect(() => {
@@ -377,11 +385,15 @@ export default function MapPage() {
 
     /* Purok boundary — dashed, so it reads as an administrative edge rather
        than a wall or a road. */
-    if (purok?.boundary_geojson) {
+    // The area's own outline, or the barangay's for areas named after streets
+    // (the same choice as `outline` above, made here so the effect depends only
+    // on what it already lists).
+    const shape = purok?.boundary_geojson ?? snapshot?.barangay.boundary_geojson ?? null;
+    if (shape) {
       setSource("boundary", {
         type: "Feature",
         properties: {},
-        geometry: purok.boundary_geojson,
+        geometry: shape,
       } as Feature);
 
       if (!m.getLayer("boundary-line")) {
@@ -731,6 +743,9 @@ export default function MapPage() {
         ) : (
           <p className="mono text-[11px] text-paper-3">{t("ui.no_protocol")}</p>
         )}
+
+        {/* Officials only — renders nothing for anyone else. */}
+        <CentreEditor mapRef={map} streets={streets as unknown as Streets | null} />
       </main>
     </>
   );
