@@ -75,7 +75,7 @@ export default function MapPage() {
 
   const purok = snapshot?.puroks.find((p) => p.id === purokId) ?? null;
   const route = useMemo(
-    () => (advisory?.protocol?.route_geojson?.coordinates ?? []) as Point[],
+    () => (advisory?.routeProtocol?.route_geojson?.coordinates ?? []) as Point[],
     [advisory],
   );
   const centre = advisory?.center ?? null;

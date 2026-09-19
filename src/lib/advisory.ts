@@ -344,6 +344,13 @@ export type PurokAdvisory = {
   signalLevel: number;
   /** null when there is no protocol for this Purok at this signal level. */
   protocol: Protocol | null;
+  /**
+   * The protocol whose route and centre to show. The same as `protocol` under
+   * a signal. With no signal up (level 0) it is the Purok's lowest-level
+   * protocol, so the resident sees the way to the hall while there is still
+   * time to learn it.
+   */
+  routeProtocol: Protocol | null;
   center: EvacCenter | null;
   headline: string;
   action: string;
@@ -378,8 +385,21 @@ export function deriveAdvisory(
       (p) => p.purok_id === purokId && p.signal_level === signalLevel,
     ) ?? null;
 
-  const center = protocol?.evac_center_id
-    ? (centers.find((c) => c.id === protocol.evac_center_id) ?? null)
+  /*
+   * No signal is not a coverage gap. Nobody configures a Signal 0 protocol,
+   * and treating its absence as one told every resident, on an ordinary day,
+   * that guidance was missing — and hid the route on the map.
+   */
+  const routeProtocol =
+    protocol ??
+    (signalLevel === 0
+      ? (protocols
+          .filter((p) => p.purok_id === purokId)
+          .sort((a, b) => a.signal_level - b.signal_level)[0] ?? null)
+      : null);
+
+  const center = routeProtocol?.evac_center_id
+    ? (centers.find((c) => c.id === routeProtocol.evac_center_id) ?? null)
     : null;
 
   const fallback = barangay.default_language;
@@ -404,6 +424,7 @@ export function deriveAdvisory(
   return {
     signalLevel,
     protocol,
+    routeProtocol,
     center,
     headline,
     action,

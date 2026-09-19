@@ -23,6 +23,30 @@ export function ActionCard({ advisory }: { advisory: PurokAdvisory }) {
    * blank space here would be read as "nothing to do", which during a storm is
    * the most dangerous thing this screen could imply.
    */
+  /*
+   * No signal up: not a gap, just an ordinary day. Show the way to the hall
+   * calmly, so it is familiar before it is urgent.
+   */
+  if (!advisory.protocol && advisory.signalLevel === 0) {
+    return (
+      <section className="rounded-instrument border-l-4 border-hv bg-ink-800 p-3.5">
+        <p className="lbl">{t("ui.what_to_do")}</p>
+        <h2 className="mt-2 font-display text-[21px] leading-tight font-extrabold tracking-[0.2px] text-hv">
+          {t("ui.calm_title")}
+        </h2>
+        <p className="mt-2 text-[14.5px] leading-relaxed font-medium text-paper text-pretty">
+          {t("ui.calm_body")}
+        </p>
+        {advisory.center && <CentreRow name={advisory.center.name} label={t("ui.evac_center")} />}
+        {advisory.routeProtocol?.route && (
+          <p className="mono mt-2 text-[11px] leading-snug text-paper-3">
+            {advisory.routeProtocol.route}
+          </p>
+        )}
+      </section>
+    );
+  }
+
   if (!advisory.protocol) {
     return (
       <section className="rounded-instrument border-l-4 border-caution bg-ink-800 p-3.5">
@@ -69,30 +93,7 @@ export function ActionCard({ advisory }: { advisory: PurokAdvisory }) {
         </p>
       )}
 
-      {advisory.center && (
-        <div className="mt-3 flex items-center gap-2.5 rounded-[3px] border-[1.5px] border-line-soft bg-ink-900 px-3 py-2.5">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="var(--color-hv)"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="shrink-0"
-            aria-hidden
-          >
-            <circle cx="6" cy="19" r="2" />
-            <circle cx="18" cy="5" r="2" />
-            <path d="M8 19h7a4 4 0 0 0 4-4v-1a4 4 0 0 0-4-4H9a4 4 0 0 1-4-4v-1" />
-          </svg>
-          <div className="flex-1">
-            <p className="lbl text-[9px]">{t("ui.evac_center")}</p>
-            <p className="text-[12.5px] font-semibold">{advisory.center.name}</p>
-          </div>
-        </div>
-      )}
+      {advisory.center && <CentreRow name={advisory.center.name} label={t("ui.evac_center")} />}
 
       {advisory.protocol.route && (
         <p className="mono mt-2 text-[11px] leading-snug text-paper-3">
@@ -100,5 +101,32 @@ export function ActionCard({ advisory }: { advisory: PurokAdvisory }) {
         </p>
       )}
     </section>
+  );
+}
+
+function CentreRow({ name, label }: { name: string; label: string }) {
+  return (
+    <div className="mt-3 flex items-center gap-2.5 rounded-[3px] border-[1.5px] border-line-soft bg-ink-900 px-3 py-2.5">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="var(--color-hv)"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="shrink-0"
+        aria-hidden
+      >
+        <circle cx="6" cy="19" r="2" />
+        <circle cx="18" cy="5" r="2" />
+        <path d="M8 19h7a4 4 0 0 0 4-4v-1a4 4 0 0 0-4-4H9a4 4 0 0 1-4-4v-1" />
+      </svg>
+      <div className="flex-1">
+        <p className="lbl text-[9px]">{label}</p>
+        <p className="text-[12.5px] font-semibold">{name}</p>
+      </div>
+    </div>
   );
 }
