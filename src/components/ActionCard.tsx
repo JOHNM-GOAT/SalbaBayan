@@ -1,7 +1,7 @@
 "use client";
 
 import { useSync, useT } from "./AppRuntime";
-import { LANGUAGES } from "@/lib/i18n";
+import { LANGUAGES, MACHINE_TRANSLATED } from "@/lib/i18n";
 import { signalStyle } from "@/lib/signal";
 import type { PurokAdvisory } from "@/lib/advisory";
 
@@ -37,7 +37,8 @@ export function ActionCard({ advisory }: { advisory: PurokAdvisory }) {
         <p className="mt-2 text-[14.5px] leading-relaxed font-medium text-paper text-pretty">
           {t("ui.calm_body")}
         </p>
-        {advisory.center && <CentreRow name={advisory.center.name} label={t("ui.evac_center")} />}
+        {MACHINE_TRANSLATED.has(language) && <MachineNote text={t("ui.machine_note")} />}
+        {advisory.center &&<CentreRow name={advisory.center.name} label={t("ui.evac_center")} />}
         {advisory.routeProtocol?.route && (
           <p className="mono mt-2 text-[11px] leading-snug text-paper-3">
             {advisory.routeProtocol.route}
@@ -93,6 +94,10 @@ export function ActionCard({ advisory }: { advisory: PurokAdvisory }) {
         </p>
       )}
 
+      {!advisory.usedFallback && MACHINE_TRANSLATED.has(language) && (
+        <MachineNote text={t("ui.machine_note")} />
+      )}
+
       {advisory.center && <CentreRow name={advisory.center.name} label={t("ui.evac_center")} />}
 
       {advisory.protocol.route && (
@@ -128,5 +133,18 @@ function CentreRow({ name, label }: { name: string; label: string }) {
         <p className="text-[12.5px] font-semibold">{name}</p>
       </div>
     </div>
+  );
+}
+
+/**
+ * Said under every instruction in a machine-translated language. Wrong wording
+ * in "evacuate now" is the failure that matters, so the resident is told to
+ * trust the barangay's own announcement over this text.
+ */
+function MachineNote({ text }: { text: string }) {
+  return (
+    <p className="mono mt-2 text-[10px] leading-snug font-semibold tracking-[0.4px] text-paper-3">
+      {text}
+    </p>
   );
 }

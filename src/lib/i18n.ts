@@ -68,6 +68,21 @@ export const LANGUAGES = [
 
 export type Language = (typeof LANGUAGES)[number]["code"];
 
+/**
+ * Languages whose strings were machine-translated and not yet checked by a
+ * native speaker (migration 0030, from translations/machine/*.json).
+ *
+ * They are shown — a rough translation beats Tagalog to someone who does not
+ * read Tagalog — but never passed off as reviewed: the picker groups them
+ * separately and every instruction carries a note saying so. When a speaker
+ * has checked a language, remove it from this set.
+ */
+export const MACHINE_TRANSLATED: ReadonlySet<string> = new Set([
+  "ilo", "hil", "war", "bcl", "pam", "pag", "mrw", "mdh", "tsg", "krj", "akl",
+  "cbk", "sgd", "msb", "rol", "bno", "cyo", "btw", "ibg", "itv", "ivv", "isd",
+  "gad", "kne", "ibl", "ifk", "xsb", "smk", "yka", "sml", "tbl", "tiy", "hnn",
+]);
+
 export function isLanguage(value: unknown): value is Language {
   return LANGUAGES.some((l) => l.code === value);
 }

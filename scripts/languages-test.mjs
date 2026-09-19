@@ -10,7 +10,7 @@
  * Run:  node scripts/languages-test.mjs
  */
 
-import { isLanguage, LANGUAGES, translatedLanguages } from "../src/lib/i18n.ts";
+import { isLanguage, LANGUAGES, MACHINE_TRANSLATED, translatedLanguages } from "../src/lib/i18n.ts";
 
 let pass = 0;
 let fail = 0;
@@ -60,6 +60,25 @@ console.log("\nChosen is not the same as translated:");
   );
   check("a language with no strings is not translated", !found.has("ilo") && !found.has("war"));
   check("an empty table translates nothing", translatedLanguages({}).size === 0);
+}
+
+console.log("\nMachine-translated is never passed off as reviewed:");
+{
+  check(
+    "every machine-translated code is a language in the picker",
+    [...MACHINE_TRANSLATED].every((code) => isLanguage(code)),
+  );
+  check(
+    "English, Tagalog, Cebuano and Filipino are not marked machine-translated",
+    !["en", "tl", "ceb", "fil"].some((code) => MACHINE_TRANSLATED.has(code)),
+  );
+  check(
+    "every other language in the picker is machine-translated, so none falls back silently",
+    LANGUAGES.every((l) => ["en", "tl", "ceb", "fil"].includes(l.code) || MACHINE_TRANSLATED.has(l.code)),
+    LANGUAGES.filter((l) => !["en", "tl", "ceb", "fil"].includes(l.code) && !MACHINE_TRANSLATED.has(l.code))
+      .map((l) => l.code)
+      .join(", "),
+  );
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

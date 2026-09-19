@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useSync, useT } from "./AppRuntime";
-import { LANGUAGES, isLanguage, translatedLanguages } from "@/lib/i18n";
+import { LANGUAGES, MACHINE_TRANSLATED, isLanguage, translatedLanguages } from "@/lib/i18n";
 
 /**
  * Language picker (PRD §7.2).
@@ -39,7 +39,8 @@ export function LanguageSwitch() {
   const fallback =
     LANGUAGES.find((l) => l.code === fallbackCode)?.label ?? fallbackCode;
 
-  const ready = LANGUAGES.filter((l) => translated.has(l.code));
+  const ready = LANGUAGES.filter((l) => translated.has(l.code) && !MACHINE_TRANSLATED.has(l.code));
+  const machine = LANGUAGES.filter((l) => translated.has(l.code) && MACHINE_TRANSLATED.has(l.code));
   const pending = LANGUAGES.filter((l) => !translated.has(l.code));
 
   return (
@@ -69,13 +70,24 @@ export function LanguageSwitch() {
             </option>
           ))}
         </optgroup>
-        <optgroup label={t("ui.lang_other", { n: fallback })}>
-          {pending.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.label === l.english ? l.label : `${l.label} (${l.english})`}
-            </option>
-          ))}
-        </optgroup>
+        {machine.length > 0 && (
+          <optgroup label={t("ui.lang_machine")}>
+            {machine.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.label === l.english ? l.label : `${l.label} (${l.english})`}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {pending.length > 0 && (
+          <optgroup label={t("ui.lang_other", { n: fallback })}>
+            {pending.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.label === l.english ? l.label : `${l.label} (${l.english})`}
+              </option>
+            ))}
+          </optgroup>
+        )}
       </select>
     </div>
   );
