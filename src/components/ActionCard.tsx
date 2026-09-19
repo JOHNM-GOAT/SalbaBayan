@@ -37,7 +37,9 @@ export function ActionCard({ advisory }: { advisory: PurokAdvisory }) {
         <p className="mt-2 text-[14.5px] leading-relaxed font-medium text-paper text-pretty">
           {t("ui.calm_body")}
         </p>
-        {MACHINE_TRANSLATED.has(language) && <MachineNote text={t("ui.machine_note")} />}
+        {MACHINE_TRANSLATED.has(language) && snapshot?.translations["ui.calm_body"]?.[language] && (
+          <MachineNote text={t("ui.machine_note")} />
+        )}
         {advisory.center &&<CentreRow name={advisory.center.name} label={t("ui.evac_center")} />}
         {advisory.routeProtocol?.route && (
           <p className="mono mt-2 text-[11px] leading-snug text-paper-3">

@@ -166,6 +166,49 @@ async function writeCachedAdvisory(snapshot: AdvisorySnapshot): Promise<void> {
  * cache-age indicator would then claim "synced just now" after three days
  * offline. Letting the request fail is what keeps that number honest.
  */
+type TranslationRow = { message_key: string; language: string; text: string };
+
+/*
+ * The server returns at most 1,000 rows per request (Supabase's max_rows), and
+ * says nothing when it stops there. With every language translated there are
+ * ~9,700 rows, so one plain select silently dropped most of them — and, being
+ * unordered, not even the same ones each time: a resident could lose the
+ * Tagalog for "evacuate now" and see the raw key instead.
+ *
+ * So: count, then fetch every page in parallel, in a fixed order. A short page
+ * anywhere is a failure, not a smaller dictionary.
+ */
+const TRANSLATION_PAGE = 1000;
+
+async function fetchAllTranslations(
+  supabase: NonNullable<ReturnType<typeof getSupabase>>,
+): Promise<{ data: TranslationRow[] | null; error: { message: string } | null }> {
+  const head = await supabase
+    .from("translations")
+    .select("message_key", { count: "exact", head: true });
+  if (head.error) return { data: null, error: head.error };
+  const total = head.count ?? 0;
+
+  const pages = await Promise.all(
+    Array.from({ length: Math.ceil(total / TRANSLATION_PAGE) }, (_, i) =>
+      supabase
+        .from("translations")
+        .select("message_key,language,text")
+        .order("language")
+        .order("message_key")
+        .range(i * TRANSLATION_PAGE, (i + 1) * TRANSLATION_PAGE - 1),
+    ),
+  );
+  const failed = pages.find((p) => p.error);
+  if (failed?.error) return { data: null, error: failed.error };
+
+  const rows = pages.flatMap((p) => (p.data ?? []) as TranslationRow[]);
+  if (rows.length < total) {
+    return { data: null, error: { message: `translations: got ${rows.length} of ${total}` } };
+  }
+  return { data: rows, error: null };
+}
+
 export async function fetchAdvisory(): Promise<AdvisorySnapshot> {
   const supabase = getSupabase();
   if (!supabase) throw new Error("no supabase client");
@@ -189,7 +232,7 @@ export async function fetchAdvisory(): Promise<AdvisorySnapshot> {
         .from("protocols")
         .select("id,purok_id,signal_level,route,route_geojson,action_key,evac_center_id"),
       supabase.from("evac_centers").select("id,purok_id,name,capacity,lat,lng"),
-      supabase.from("translations").select("message_key,language,text"),
+      fetchAllTranslations(supabase),
       // Only open hazards. Resolved ones are history, and history on an
       // evacuation map is noise that hides the thing you must avoid.
       supabase
