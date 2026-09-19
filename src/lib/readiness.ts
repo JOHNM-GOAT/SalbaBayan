@@ -39,14 +39,15 @@ export type ReadinessInput = {
   referencedKeys: string[];
   /** Keys that have a string in every launch language. */
   fullyTranslatedKeys: string[];
-  staffCount: number;
+  /** Volunteers an official assigned — see `assignedVolunteerCount`. */
+  volunteerCount: number;
   /**
-   * Whether `staffCount` is the barangay's roster size or just what RLS let
-   * this viewer see. `read_own_role` returns only your own row unless you are
-   * an official, so a volunteer counting the roster counts to exactly 1 no
-   * matter how many volunteers exist.
+   * Whether `volunteerCount` is the barangay's roster or just what RLS let this
+   * viewer see. `read_own_role` returns only your own row unless you are an
+   * official, so a volunteer counting the roster counts to exactly 1 no matter
+   * how many volunteers exist.
    */
-  staffCountKnown: boolean;
+  volunteerCountKnown: boolean;
   residentCount: number;
   /** `read_residents` is staff-only — a resident counts 0 out of any roster. */
   residentCountKnown: boolean;
@@ -54,6 +55,39 @@ export type ReadinessInput = {
   centresWithCoordinates: number;
   centreCount: number;
 };
+
+/** The fields `assignedVolunteerCount` needs from a `user_roles` row. */
+export type RoleRow = {
+  user_id: string;
+  role: string;
+  granted_by: string | null;
+};
+
+/**
+ * Volunteers an official actually assigned.
+ *
+ * This used to be every row in `user_roles`, and it read 20 of 2 — ready — for
+ * a barangay with one real volunteer. Three kinds of row inflated it, all left
+ * by the demo switch (migration 0017) and the test suite:
+ *   - officials, who are staff but are not volunteers;
+ *   - devices that switched back to resident — a demotion updates the role to
+ *     `resident`, it does not delete the row;
+ *   - devices that made THEMSELVES a volunteer, recorded as
+ *     `granted_by = user_id`. Nobody assigned them.
+ *
+ * A null `granted_by` still counts: that is a role inserted with SQL, which an
+ * administrator did assign. The barangay's one real volunteer is exactly that,
+ * so excluding nulls would drop the count to zero and read "missing" — the
+ * opposite false alarm.
+ *
+ * `role` is a plain string rather than the UserRole union, so a row with an
+ * unexpected role is simply not counted instead of failing at the boundary.
+ */
+export function assignedVolunteerCount(rows: RoleRow[]): number {
+  return rows.filter(
+    (row) => row.role === "volunteer" && row.granted_by !== row.user_id,
+  ).length;
+}
 
 /** Signal levels a protocol grid must cover. */
 export const SIGNAL_LEVELS = 5;
@@ -97,19 +131,19 @@ export function buildReadiness(input: ReadinessInput): ReadinessCheck[] {
       // FR-4.2
       id: "volunteers",
       href: null,
-      done: input.staffCount,
+      done: input.volunteerCount,
       // One is not "ready", it is a single point of failure — but there is no
       // defensible target beyond that, so the bar is deliberately low and the
       // number is shown rather than dressed up.
       total: 2,
-      status: !input.staffCountKnown
+      status: !input.volunteerCountKnown
         ? "unknown"
-        : input.staffCount === 0
+        : input.volunteerCount === 0
           ? "missing"
-          : input.staffCount < 2
+          : input.volunteerCount < 2
             ? "partial"
             : "ready",
-      detail: input.staffCountKnown ? undefined : "not-permitted",
+      detail: input.volunteerCountKnown ? undefined : "not-permitted",
     },
     {
       // FR-4.3

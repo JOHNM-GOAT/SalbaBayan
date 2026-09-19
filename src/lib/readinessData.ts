@@ -10,7 +10,12 @@
 import { getMyRole, type UserRole } from "./supabase";
 import { getSupabase } from "./supabase";
 import { LANGUAGES } from "./i18n";
-import { buildReadiness, type ReadinessCheck } from "./readiness";
+import {
+  assignedVolunteerCount,
+  buildReadiness,
+  type ReadinessCheck,
+  type RoleRow,
+} from "./readiness";
 import { headlineKeyFor, type AdvisorySnapshot } from "./advisory";
 
 /**
@@ -29,9 +34,16 @@ export async function loadReadiness(
   const supabase = getSupabase();
 
   /*
-   * Staff and resident counts are not in the snapshot, and both are behind
-   * RLS. `head: true` asks Postgres for the count without shipping the rows —
-   * this screen needs the size of the roster, never its contents.
+   * The volunteer and resident counts are not in the snapshot, and both are
+   * behind RLS.
+   *
+   * Residents are a plain count: `head: true` asks Postgres for the number
+   * without shipping any rows. Volunteers cannot be. Which rows count depends
+   * on comparing `granted_by` with `user_id` (see `assignedVolunteerCount`), and
+   * PostgREST cannot compare two columns in a filter — so the volunteer rows are
+   * fetched, three columns and role 'volunteer' only, and counted here. Only an
+   * official can read other people's rows, and only an official's count is
+   * trusted below.
    *
    * Crucially, a count the viewer is not allowed to take comes back as 0, not
    * as an error. So we record whether each number is *knowable* by this viewer
@@ -51,7 +63,7 @@ export async function loadReadiness(
   const isOfficial = role === "official";
   const isStaff = isOfficial || role === "volunteer";
 
-  let staffCount = 0;
+  let volunteerCount = 0;
   let residentCount = 0;
   /*
    * Whether the counts were actually READ, as opposed to defaulted.
@@ -67,13 +79,16 @@ export async function loadReadiness(
 
   if (supabase) {
     try {
-      const [staff, residents] = await Promise.all([
-        supabase.from("user_roles").select("user_id", { count: "exact", head: true }),
+      const [volunteers, residents] = await Promise.all([
+        supabase
+          .from("user_roles")
+          .select("user_id,role,granted_by")
+          .eq("role", "volunteer"),
         supabase.from("residents").select("id", { count: "exact", head: true }),
       ]);
 
-      if (!staff.error && !residents.error) {
-        staffCount = staff.count ?? 0;
+      if (!volunteers.error && !residents.error) {
+        volunteerCount = assignedVolunteerCount((volunteers.data ?? []) as RoleRow[]);
         residentCount = residents.count ?? 0;
         countsRead = true;
       }
@@ -102,8 +117,8 @@ export async function loadReadiness(
     protocolCells: snapshot.protocols.length,
     referencedKeys: [...referenced],
     fullyTranslatedKeys: fullyTranslated,
-    staffCount,
-    staffCountKnown: isOfficial && countsRead,
+    volunteerCount,
+    volunteerCountKnown: isOfficial && countsRead,
     residentCount,
     residentCountKnown: isStaff && countsRead,
     expectedHouseholds: snapshot.barangay.expected_households ?? null,
