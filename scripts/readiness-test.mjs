@@ -15,7 +15,12 @@
  * Run:  node scripts/readiness-test.mjs
  */
 
-import { buildReadiness, overallStatus, readyCount } from "../src/lib/readiness.ts";
+import {
+  assignedVolunteerCount,
+  buildReadiness,
+  overallStatus,
+  readyCount,
+} from "../src/lib/readiness.ts";
 
 let pass = 0;
 let fail = 0;
@@ -36,8 +41,8 @@ const configured = {
   protocolCells: 40,
   referencedKeys: ["action.a", "headline.a"],
   fullyTranslatedKeys: ["action.a", "headline.a"],
-  staffCount: 4,
-  staffCountKnown: true,
+  volunteerCount: 4,
+  volunteerCountKnown: true,
   residentCount: 48,
   residentCountKnown: true,
   expectedHouseholds: 48,
@@ -65,8 +70,8 @@ console.log("\nPermission is not a verdict:");
    */
   const resident = {
     ...configured,
-    staffCount: 0,
-    staffCountKnown: false,
+    volunteerCount: 0,
+    volunteerCountKnown: false,
     residentCount: 0,
     residentCountKnown: false,
   };
@@ -107,8 +112,8 @@ console.log("\nPermission is not a verdict:");
    */
   const volunteer = {
     ...configured,
-    staffCount: 1,
-    staffCountKnown: false,
+    volunteerCount: 1,
+    volunteerCountKnown: false,
     residentCountKnown: true,
   };
   const vchecks = buildReadiness(volunteer);
@@ -129,7 +134,7 @@ console.log("\nGaps an official must still see:");
     ...configured,
     protocolCells: 33,
     fullyTranslatedKeys: ["action.a"],
-    staffCount: 0,
+    volunteerCount: 0,
     residentCount: 0,
   });
   check(
@@ -144,6 +149,11 @@ console.log("\nGaps an official must still see:");
   check("a partly filled protocol grid is partial", by(gaps, "protocols").status === "partial");
   check("a partly translated set is partial", by(gaps, "translations").status === "partial");
   check("one missing check makes the whole barangay missing", overallStatus(gaps) === "missing");
+
+  check(
+    "a single assigned volunteer is partial — one person is a single point of failure",
+    by(buildReadiness({ ...configured, volunteerCount: 1 }), "volunteers").status === "partial",
+  );
 }
 
 console.log("\nAbsent data is admitted, never guessed:");
@@ -167,6 +177,69 @@ console.log("\nAbsent data is admitted, never guessed:");
     "a barangay with no centres at all is unknown, not 0/0 ready",
     by(noCentres, "centres").status === "unknown",
     `got ${by(noCentres, "centres").status}`,
+  );
+}
+
+/*
+ * Who counts as an assigned volunteer.
+ *
+ * This check read 20 of 2 — ready — against a barangay with one volunteer an
+ * official had actually assigned. It counted every row in user_roles, and the
+ * demo switch writes one per device: officials, devices that switched back to
+ * resident (a demotion updates the role, it does not delete the row), and
+ * devices that promoted THEMSELVES. The check whose job is to warn "you have
+ * too few volunteers" could not go red. These cases pin down what it counts.
+ */
+console.log("\nWho counts as an assigned volunteer:");
+{
+  const OFFICIAL = "11111111-0000-0000-0000-000000000000";
+  const row = (user_id, role, granted_by) => ({ user_id, role, granted_by });
+
+  check(
+    "a volunteer assigned by an official counts",
+    assignedVolunteerCount([row("v1", "volunteer", OFFICIAL)]) === 1,
+  );
+  check(
+    "an official is not a volunteer",
+    assignedVolunteerCount([row(OFFICIAL, "official", "someone")]) === 0,
+  );
+  check(
+    "a device that switched back to resident does not count",
+    assignedVolunteerCount([row("r1", "resident", "r1")]) === 0,
+    "a demotion leaves a row behind with role 'resident'",
+  );
+  check(
+    "a device that made ITSELF a volunteer does not count",
+    assignedVolunteerCount([row("v2", "volunteer", "v2")]) === 0,
+    "self-granted through the demo switch — nobody assigned it",
+  );
+  check(
+    "a volunteer granted outside the app (no granted_by) still counts",
+    assignedVolunteerCount([row("v3", "volunteer", null)]) === 1,
+    "a role inserted with SQL has no recorded granter, but was assigned",
+  );
+  check("an empty roster is zero", assignedVolunteerCount([]) === 0);
+
+  // The live database on 2026-09-18, row for row.
+  const live = [
+    ...Array.from({ length: 12 }, (_, i) => row(`r${i}`, "resident", `r${i}`)),
+    ...Array.from({ length: 3 }, (_, i) => row(`sv${i}`, "volunteer", `sv${i}`)),
+    // The one real volunteer was inserted with SQL, so nobody is recorded as
+    // having granted it. Excluding null granters would drop it and read 0.
+    row("assigned", "volunteer", null),
+    ...Array.from({ length: 3 }, (_, i) => row(`so${i}`, "official", `so${i}`)),
+    row(OFFICIAL, "official", "seed"),
+  ];
+  const count = assignedVolunteerCount(live);
+  check(
+    "today's roster reads 1, not 20",
+    count === 1,
+    `got ${count}`,
+  );
+  check(
+    "which is partial, not ready",
+    by(buildReadiness({ ...configured, volunteerCount: count }), "volunteers").status ===
+      "partial",
   );
 }
 
