@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useSync, useT } from "@/components/AppRuntime";
 import { QrScanner } from "@/components/QrScanner";
+import { DeviceArrival } from "@/components/DeviceArrival";
+import { deviceCodeIn } from "@/lib/deviceCheckin";
 import { onQueueChanged } from "@/lib/offlineQueue";
 import { isStaffRole, useMyRole } from "@/components/useMyRole";
 import {
@@ -36,6 +38,8 @@ export default function CheckinPage() {
   const [result, setResult] = useState<LookupResult | null>(null);
   const [manual, setManual] = useState("");
   const [logged, setLogged] = useState<string | null>(null);
+  const [device, setDevice] = useState<string | null>(null);
+  const [countedIn, setCountedIn] = useState<number | null>(null);
   const [records, setRecords] = useState<CheckinRecord[]>([]);
   const [people, setPeople] = useState<Map<string, Resident>>(new Map());
 
@@ -64,6 +68,15 @@ export default function CheckinPage() {
   /** The one entry point. Both the camera and the keyboard call exactly this. */
   const resolve = useCallback(async (raw: string) => {
     setLogged(null);
+    setCountedIn(null);
+    // A resident's phone QR (ME tab) counts people in; a card looks up a resident.
+    const code = deviceCodeIn(raw);
+    if (code) {
+      setResult(null);
+      setDevice(code);
+      return;
+    }
+    setDevice(null);
     setResult(await lookupToken(raw));
   }, []);
 
@@ -143,6 +156,27 @@ export default function CheckinPage() {
           >
             {t("qr.logged", { n: logged })}
           </p>
+        )}
+
+        {countedIn !== null && (
+          <p
+            className="rounded-instrument border-[1.5px] border-clear px-3 py-2.5 text-[12.5px] font-semibold text-clear"
+            role="status"
+          >
+            {t("ci.counted", { n: countedIn })}
+          </p>
+        )}
+
+        {device && (
+          <DeviceArrival
+            key={device}
+            code={device}
+            onCounted={(people) => {
+              setDevice(null);
+              setManual("");
+              setCountedIn(people);
+            }}
+          />
         )}
 
         {result?.found && (

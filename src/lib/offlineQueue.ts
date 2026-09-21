@@ -26,6 +26,7 @@ export type QueueTable =
   | "rescue_requests"
   | "headcounts"
   | "checkins"
+  | "device_checkins"
   | "barangays"
   | "evac_centers"
   | "protocols";
@@ -46,6 +47,7 @@ const OWNER_COLUMN: Record<QueueTable, string | null> = {
   rescue_requests: "requested_by",
   headcounts: "recorded_by",
   checkins: "scanned_by",
+  device_checkins: "scanned_by",
   /*
    * Never stamped from here. Owner stamping runs only on INSERTS, and the only
    * write to barangays is an UPDATE from setAdvisory — where the

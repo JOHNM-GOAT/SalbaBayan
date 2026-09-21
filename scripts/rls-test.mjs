@@ -295,6 +295,26 @@ const residentGrant = await rest("rpc/set_device_role", {
   method: "POST",
   body: { device_code: "00000000", new_role: "official" },
 });
+const centreForScan = (await rest("evac_centers?select=id&limit=1", { jwt })).body?.[0];
+if (centreForScan) {
+  const residentScan = await rest("device_checkins", {
+    jwt,
+    method: "POST",
+    body: {
+      id: crypto.randomUUID(),
+      device_code: "00000000",
+      evac_center_id: centreForScan.id,
+      people: 1,
+      scanned_by: JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString()).sub,
+    },
+  });
+  check(
+    "CANNOT count people in by phone QR (migration 0034)",
+    residentScan.status === 401 || residentScan.status === 403,
+    `LEAK: status ${residentScan.status}`,
+  );
+}
+
 check(
   "CANNOT grant roles (migration 0032)",
   residentGrant.status === 403 && residentGrant.body?.code === "42501",
