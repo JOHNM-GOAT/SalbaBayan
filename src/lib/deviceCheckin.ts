@@ -21,9 +21,15 @@ export function deviceCodeIn(raw: string): string | null {
 
 export type Arrival = { ts: string; people: number };
 
-/** The counted arrival for this phone in the last 3 days, if any is known. */
-export async function recentArrival(code: string): Promise<Arrival | null> {
-  const since = Date.now() - REPEAT_WINDOW_MS;
+/**
+ * The counted arrival for this phone in the last 3 days and since the current
+ * evacuation began, if any is known.
+ */
+export async function recentArrival(
+  code: string,
+  evacuationStart: string | null,
+): Promise<Arrival | null> {
+  const since = Math.max(Date.now() - REPEAT_WINDOW_MS, evacuationStart ? Date.parse(evacuationStart) : 0);
 
   const local = (await queuedWrites())
     .filter((row) => row.table === "device_checkins" && !row.blocked)

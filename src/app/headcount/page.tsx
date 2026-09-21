@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useSync, useT } from "@/components/AppRuntime";
-import { onQueueChanged } from "@/lib/offlineQueue";
+import { enqueueUpdate, onQueueChanged } from "@/lib/offlineQueue";
+import { HoldToConfirm } from "@/components/HoldToConfirm";
 import { isStaffRole, useMyRole } from "@/components/useMyRole";
 import {
   capacityState,
@@ -38,6 +39,10 @@ export default function HeadcountPage() {
     infant: 0,
   });
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [confirmNew, setConfirmNew] = useState(false);
+
+  /* The current evacuation's start: the count and the ledger begin here. */
+  const since = snapshot?.barangay.evacuation_started_at ?? null;
 
   /*
    * The count is read, not derived from `entries`.
@@ -69,15 +74,15 @@ export default function HeadcountPage() {
   const refresh = useCallback(async () => {
     if (!activeId) return;
     const [rows, total, breakdown] = await Promise.all([
-      fullLedger(activeId),
-      centreTotal(activeId),
+      fullLedger(activeId, since),
+      centreTotal(activeId, since),
       vulnerabilityBreakdown(),
     ]);
     setEntries(rows);
     setCount(total);
     setTags(breakdown);
     setSettled(true);
-  }, [activeId]);
+  }, [activeId, since]);
 
   useEffect(() => {
     queueMicrotask(() => void refresh());
@@ -151,6 +156,11 @@ export default function HeadcountPage() {
           <div className="flex gap-4">
             <div className="flex-1">
               <p className="lbl">{t("hc.inside")}</p>
+              {since && (
+                <p className="mono mt-0.5 text-[9.5px] tracking-[0.6px] text-paper-3">
+                  {t("evac.since", { n: sinceLabel(since) })}
+                </p>
+              )}
               <p className="mt-1 flex items-baseline gap-1.5">
                 <span className="mono text-[46px] leading-none font-bold">{count}</span>
                 <span className="mono text-[17px] font-semibold text-paper-3">
@@ -257,6 +267,46 @@ export default function HeadcountPage() {
           )}
         </ul>
 
+        {/*
+          Officials only: the count restarts for a new storm. The old ledger is
+          kept (it is the last storm's record); the count simply stops including it.
+        */}
+        {role === "official" && snapshot && (
+          <section className="grid gap-2 rounded-instrument border-[1.5px] border-line-soft bg-ink-800 px-3.5 py-3">
+            {!confirmNew ? (
+              <button
+                type="button"
+                onClick={() => setConfirmNew(true)}
+                className="tap mono rounded-instrument border-[1.5px] border-hv text-[10.5px] font-bold tracking-[1px] text-hv"
+              >
+                {t("evac.new")}
+              </button>
+            ) : (
+              <>
+                <p className="text-[12px] leading-snug text-paper-2">{t("evac.new_hint")}</p>
+                <HoldToConfirm
+                  label={t("evac.hold_new")}
+                  holdingLabel={t("sos.cancelling")}
+                  tone="alarm"
+                  onConfirm={() => {
+                    setConfirmNew(false);
+                    void enqueueUpdate("barangays", snapshot.barangay.id, {
+                      evacuation_started_at: new Date().toISOString(),
+                    });
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setConfirmNew(false)}
+                  className="mono text-[10.5px] font-bold tracking-[0.8px] text-paper-3"
+                >
+                  {t("ce.cancel")}
+                </button>
+              </>
+            )}
+          </section>
+        )}
+
         {isStaff === false && (
           <p className="rounded-instrument border-[1.5px] border-caution px-3 py-2.5 text-[12px] leading-snug font-semibold text-caution">
             {t("hc.staff_only")}
@@ -362,4 +412,10 @@ function BulkEntry({
       </div>
     </div>
   );
+}
+
+function sinceLabel(iso: string): string {
+  return new Date(iso)
+    .toLocaleString("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true })
+    .toUpperCase();
 }

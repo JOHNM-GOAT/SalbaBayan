@@ -64,7 +64,7 @@ const keys = Object.keys(base).filter((k) => base[k].en).sort();
 const count = (s) => (s.match(/\{n\}/g) ?? []).length;
 
 // Staff-only screens: a machine language may leave these out and fall back to Tagalog.
-const optional = (key) => key.startsWith("roles.") || key.startsWith("ci.");
+const optional = (key) => /^(roles|ci|evac)\./.test(key);
 
 const problems = [];
 const files = readdirSync(DIR).filter((f) => f.endsWith(".json")).sort();

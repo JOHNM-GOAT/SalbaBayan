@@ -126,6 +126,7 @@ const sos = await rest("rescue_requests", {
     lat: 14.28,
     lng: 121.41,
     accuracy_m: 12,
+    notes: "rls-test",
     requested_by: me,
   },
 });
@@ -197,6 +198,7 @@ const ownedHazard = await rest("hazard_reports", {
     purok_id: purok,
     category: "other",
     status: "open",
+    description: "rls-test",
     reported_by: me,
   },
 });
@@ -473,6 +475,23 @@ if (promote.status === 404) {
   console.log(`  UNKNOWN set_demo_role answered ${promote.status}.`);
   console.log("  SKIPPED the official's advisory checks — they need an official account.");
 }
+
+/*
+ * Clean up. This runs against the live project, and every row written above
+ * is real: left behind, they showed every resident a barangay full of open
+ * hazards and every responder a queue of SOS calls (migration 0035).
+ */
+const leftoverBefore = rows(await rest("rescue_requests?select=id&notes=eq.rls-test", { jwt }));
+for (const token of [jwt, otherJwt, promoteJwt]) {
+  await rest("rpc/purge_my_rls_test_rows", { jwt: token, method: "POST", body: {} });
+}
+// Asked as the owner, the only non-staff account that could still see it.
+const leftoverSos = await rest(`rescue_requests?select=id&id=eq.${sosId}`, { jwt });
+check(
+  "left no test rows behind",
+  leftoverBefore >= 1 && rows(leftoverSos) === 0,
+  `before ${leftoverBefore}, after ${rows(leftoverSos)}`,
+);
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

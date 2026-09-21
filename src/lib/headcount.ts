@@ -65,23 +65,30 @@ export async function recordDelta(evacCenterId: string, delta: number) {
  * the most recent entries; the count must never be derived from this, because
  * the count is a sum over the whole ledger. See `centreTotal`.
  */
-export async function ledger(evacCenterId: string, limit = 40): Promise<LedgerEntry[]> {
+export async function ledger(
+  evacCenterId: string,
+  since: string | null,
+  limit = 40,
+): Promise<LedgerEntry[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("headcounts")
     .select("id,evac_center_id,delta,ts,recorded_by")
-    .eq("evac_center_id", evacCenterId)
-    .order("ts", { ascending: false })
-    .limit(limit);
+    .eq("evac_center_id", evacCenterId);
+  if (since) query = query.gte("ts", since);
+  const { data, error } = await query.order("ts", { ascending: false }).limit(limit);
 
   if (error) return [];
   return (data ?? []) as LedgerEntry[];
 }
 
 /** Ledger rows still in the local write queue, shaped like rows. */
-export async function queuedLedger(evacCenterId: string): Promise<LedgerEntry[]> {
+export async function queuedLedger(
+  evacCenterId: string,
+  since: string | null,
+): Promise<LedgerEntry[]> {
   const rows = await queuedWrites();
   return rows
     .filter(
@@ -100,7 +107,8 @@ export async function queuedLedger(evacCenterId: string): Promise<LedgerEntry[]>
         ts: p.ts ?? new Date(row.createdAt).toISOString(),
         recorded_by: p.recorded_by ?? null,
       };
-    });
+    })
+    .filter((row) => !since || row.ts >= since);
 }
 
 /**
@@ -111,10 +119,13 @@ export async function queuedLedger(evacCenterId: string): Promise<LedgerEntry[]>
  * again — and unlike a duplicate report, a duplicate headcount silently
  * corrupts the figure a rescue decision is made from.
  */
-export async function fullLedger(evacCenterId: string): Promise<LedgerEntry[]> {
+export async function fullLedger(
+  evacCenterId: string,
+  since: string | null,
+): Promise<LedgerEntry[]> {
   const [remote, local] = await Promise.all([
-    ledger(evacCenterId),
-    queuedLedger(evacCenterId),
+    ledger(evacCenterId, since),
+    queuedLedger(evacCenterId, since),
   ]);
 
   const byId = new Map<string, LedgerEntry>();
@@ -142,18 +153,18 @@ export async function fullLedger(evacCenterId: string): Promise<LedgerEntry[]> {
  * right far more than it has to be small. `id` rides along only so a row that
  * is on the server AND still in the local queue cannot be counted twice.
  */
-export async function centreTotal(evacCenterId: string): Promise<number> {
+export async function centreTotal(evacCenterId: string, since: string | null): Promise<number> {
   const supabase = getSupabase();
 
-  const local = await queuedLedger(evacCenterId);
+  const local = await queuedLedger(evacCenterId, since);
   const byId = new Map<string, number>();
   for (const row of local) byId.set(row.id, row.delta);
 
   if (supabase) {
-    const { data, error } = await supabase
-      .from("headcounts")
-      .select("id,delta")
-      .eq("evac_center_id", evacCenterId);
+    let query = supabase.from("headcounts").select("id,delta").eq("evac_center_id", evacCenterId);
+    // Only the current evacuation. The earlier ledger stays as history.
+    if (since) query = query.gte("ts", since);
+    const { data, error } = await query;
 
     // Offline this is simply unavailable, and the queued deltas alone are what
     // this device can honestly account for. Same rule as everywhere else here:

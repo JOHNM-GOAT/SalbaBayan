@@ -21,19 +21,20 @@ export function DeviceArrival({
   const { snapshot } = useSync();
   const t = useT();
   const centre = snapshot?.centers[0] ?? null;
+  const start = snapshot?.barangay.evacuation_started_at ?? null;
 
   const [people, setPeople] = useState(1);
   const [arrival, setArrival] = useState<Arrival | null | undefined>(undefined);
 
   useEffect(() => {
     let live = true;
-    void recentArrival(code).then((found) => {
+    void recentArrival(code, start).then((found) => {
       if (live) setArrival(found);
     });
     return () => {
       live = false;
     };
-  }, [code]);
+  }, [code, start]);
 
   const step = (by: number) => setPeople((n) => Math.min(50, Math.max(1, n + by)));
 

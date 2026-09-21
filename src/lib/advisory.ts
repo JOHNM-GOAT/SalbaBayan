@@ -35,6 +35,8 @@ export type Barangay = {
   evacuate_by: string | null;
   default_language: string;
   expected_households: number | null;
+  /** When the current evacuation began; the hall counts only from here. */
+  evacuation_started_at: string | null;
   /** The barangay's own point — where every map opens. */
   lat: number | null;
   lng: number | null;
@@ -232,7 +234,7 @@ export async function fetchAdvisory(
         // level, and a concatenated string is not a literal type, so it
         // resolves to an error type instead of the row shape.
         .select(
-          "id,name,municipality,province,current_signal_level,signal_set_at,storm_name,bulletin_no,wind_kph,evacuate_by,default_language,expected_households,lat,lng,boundary_geojson,population,population_source",
+          "id,name,municipality,province,current_signal_level,signal_set_at,storm_name,bulletin_no,wind_kph,evacuate_by,default_language,expected_households,evacuation_started_at,lat,lng,boundary_geojson,population,population_source",
         )
         .limit(1),
       supabase
