@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSync, useT } from "./AppRuntime";
 import { HoldToConfirm } from "./HoldToConfirm";
+import { QrScanner } from "./QrScanner";
 import {
   deviceCodeOf,
   listStaff,
@@ -37,6 +38,7 @@ export function RoleManager() {
   const [role, setRole] = useState<UserRole>("volunteer");
   const [staff, setStaff] = useState<StaffMember[] | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
   const reload = useCallback(async () => {
@@ -89,7 +91,8 @@ export function RoleManager() {
         <p className="mt-1 text-[11.5px] leading-snug text-paper-2">{t("roles.intro")}</p>
       </div>
 
-      <label className="grid gap-1.5">
+      <div className="flex items-end gap-2">
+      <label className="grid flex-1 gap-1.5">
         <span className="lbl">{t("roles.code")}</span>
         <input
           value={code}
@@ -105,6 +108,32 @@ export function RoleManager() {
           className="tap mono w-full rounded-instrument border-[1.5px] border-line-soft bg-ink-900 px-3 text-[16px] tracking-[2px] text-paper uppercase placeholder:text-paper-3 focus:border-hv focus:outline-none"
         />
       </label>
+        <button
+          type="button"
+          onClick={() => {
+            setScanning((on) => !on);
+            setMessage(null);
+          }}
+          aria-pressed={scanning}
+          className={`tap mono shrink-0 rounded-instrument border-[1.5px] px-3 text-[10.5px] font-bold tracking-[1px] ${
+            scanning ? "border-hv bg-ink-900 text-hv" : "border-line-soft text-paper-2"
+          }`}
+        >
+          {t("roles.scan")}
+        </button>
+      </div>
+
+      {scanning && (
+        <QrScanner
+          onDecode={(text) => {
+            // The ME tab QR holds the bare 8-character device code.
+            const scanned = text.replace(/[\s-]/g, "").toUpperCase();
+            if (!/^[0-9A-F]{8}$/.test(scanned)) return;
+            setCode(scanned);
+            setScanning(false);
+          }}
+        />
+      )}
 
       {code.trim() !== "" && !valid && (
         <p className="mono text-[10.5px] font-bold tracking-[0.5px] text-alarm" role="alert">

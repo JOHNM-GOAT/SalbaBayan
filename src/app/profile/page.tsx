@@ -3,6 +3,7 @@
 import { useSync, useT } from "@/components/AppRuntime";
 import { useMyRole } from "@/components/useMyRole";
 import { RoleManager } from "@/components/RoleManager";
+import { DeviceQr } from "@/components/DeviceQr";
 
 /**
  * "Ako" — this device (design: `stage-2/design/artboards/DeviceRole.dc.html`).
@@ -41,7 +42,12 @@ export default function ProfilePage() {
         <p className="mono mt-1.5 text-[28px] leading-none font-bold tracking-[2px] text-hv">
           {deviceCode ?? "—"}
         </p>
-        <p className="mt-2 text-[11.5px] leading-snug text-paper-2">
+        {deviceCode && (
+          <div className="mt-3 flex justify-center">
+            <DeviceQr code={deviceCode} />
+          </div>
+        )}
+        <p className="mt-3 text-[11.5px] leading-snug text-paper-2">
           {t("me.device_hint")}
         </p>
       </section>
