@@ -487,11 +487,12 @@ export default function MapPage() {
           id: "centre-dot",
           type: "circle",
           source: "centre",
+          // A hollow ring, so it cannot be mistaken for the solid "you are here" dot.
           paint: {
-            "circle-radius": 10,
-            "circle-color": accent,
-            "circle-stroke-color": ground,
-            "circle-stroke-width": 3,
+            "circle-radius": 9,
+            "circle-color": ground,
+            "circle-stroke-color": accent,
+            "circle-stroke-width": 4,
           },
         });
       }
@@ -520,10 +521,15 @@ export default function MapPage() {
     });
   }, [ready, styleEpoch, frame, purokId]);
 
-  /* The resident's own position. */
+  /*
+   * The resident's own position. An HTML marker, so it does not wait for the
+   * style: gating it on isStyleLoaded dropped the first fix, and a phone
+   * standing still may never send a second one — leaving only the centre dot,
+   * which every phone draws in the same place.
+   */
   useEffect(() => {
     const m = map.current;
-    if (!m || !ready || !fix || !m.isStyleLoaded()) return;
+    if (!m || !ready || !fix) return;
 
     if (!meMarker.current) {
       const dot = document.createElement("div");
@@ -677,6 +683,7 @@ export default function MapPage() {
           <Key colour={accentColour} dashed label={t("map.legend_boundary")} />
           <Key colour={routeColour} label={t("map.legend_route")} />
           <Key colour={dangerColour} dot label={t("map.legend_hazard")} />
+          <Key colour={accentColour} ring label={t("ui.evac_center")} />
           <span className="mono ml-auto truncate text-[9px] font-semibold tracking-[0.7px] text-paper-3">
             {baseLabel}
           </span>
@@ -763,15 +770,23 @@ function Key({
   label,
   dashed,
   dot,
+  ring,
 }: {
   colour: string;
   label: string;
   dashed?: boolean;
   dot?: boolean;
+  ring?: boolean;
 }) {
   return (
     <span className="flex items-center gap-1.5">
-      {dot ? (
+      {ring ? (
+        <span
+          className="size-2.5 shrink-0 rounded-full border-2"
+          style={{ borderColor: colour }}
+          aria-hidden
+        />
+      ) : dot ? (
         <span
           className="size-2 shrink-0 rounded-full"
           style={{ background: colour }}
