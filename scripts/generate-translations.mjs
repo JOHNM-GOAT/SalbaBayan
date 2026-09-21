@@ -63,6 +63,9 @@ for (const [key, texts] of Object.entries(ADDED)) base[key] = { ...base[key], ..
 const keys = Object.keys(base).filter((k) => base[k].en).sort();
 const count = (s) => (s.match(/\{n\}/g) ?? []).length;
 
+// Officials-only screens: a machine language may leave these out and fall back to Tagalog.
+const optional = (key) => key.startsWith("roles.");
+
 const problems = [];
 const files = readdirSync(DIR).filter((f) => f.endsWith(".json")).sort();
 const languages = {};
@@ -72,6 +75,7 @@ for (const file of files) {
   const strings = JSON.parse(readFileSync(join(DIR, file), "utf8"));
   for (const key of keys) {
     const text = strings[key];
+    if (text === undefined && optional(key)) continue;
     if (typeof text !== "string" || !text.trim()) problems.push(`${code}: missing ${key}`);
     else if (count(text) !== count(base[key].en)) problems.push(`${code}: {n} in ${key}`);
   }
@@ -95,7 +99,9 @@ for (const key of Object.keys(ADDED)) {
 }
 for (const key of keys) rows.push(`(${q(key)}, 'fil', ${q(base[key].tl ?? base[key].en)})`);
 for (const [code, strings] of Object.entries(languages)) {
-  for (const key of keys) rows.push(`(${q(key)}, ${q(code)}, ${q(strings[key])})`);
+  for (const key of keys) {
+    if (strings[key] !== undefined) rows.push(`(${q(key)}, ${q(code)}, ${q(strings[key])})`);
+  }
 }
 
 const sql = `-- Every language in the picker, translated.

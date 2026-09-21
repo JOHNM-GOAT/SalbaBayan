@@ -224,3 +224,72 @@ async function readMyRole(): Promise<UserRole> {
   if (error || !data?.role) return "resident";
   return data.role as UserRole;
 }
+
+/* ---------------------------------------------------------------------------
+ * Officials managing roles (migration 0032)
+ * ------------------------------------------------------------------------ */
+
+/** The code the ME tab shows: the first 8 characters of the device's id. */
+export function deviceCodeOf(userId: string): string {
+  return userId.slice(0, 8).toUpperCase();
+}
+
+export type StaffMember = { userId: string; role: UserRole; grantedAt: string };
+
+/** Every volunteer and official. RLS returns rows other than your own only to officials. */
+export async function listStaff(): Promise<StaffMember[] | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("user_roles")
+    .select("user_id,role,granted_at")
+    .in("role", ["volunteer", "official"])
+    .order("role")
+    .order("granted_at");
+  if (error) return null;
+  return data.map((row) => ({
+    userId: row.user_id as string,
+    role: row.role as UserRole,
+    grantedAt: row.granted_at as string,
+  }));
+}
+
+export type SetDeviceRoleOutcome =
+  | "granted"
+  | "invalid"
+  | "not_found"
+  | "self"
+  | "offline"
+  | "failed";
+
+/*
+ * Online only, deliberately not queued: the code is resolved on the server, and
+ * an official reading a code off someone's screen needs to hear "no device has
+ * that code" while that person is still standing there, not hours later.
+ */
+export async function setDeviceRole(code: string, role: UserRole): Promise<SetDeviceRoleOutcome> {
+  const supabase = getSupabase();
+  if (!supabase) return "failed";
+  if (typeof navigator !== "undefined" && !navigator.onLine) return "offline";
+
+  try {
+    const { error } = await supabase.rpc("set_device_role", {
+      device_code: code,
+      new_role: role,
+    });
+    if (!error) return "granted";
+    switch (error.code) {
+      case "22023":
+        return "invalid";
+      case "P0002":
+        return "not_found";
+      case "SB001":
+        return "self";
+      default:
+        console.warn("[set-device-role]", error.code, error.message);
+        return "failed";
+    }
+  } catch {
+    return "offline";
+  }
+}

@@ -288,6 +288,19 @@ if (centreNow) {
   console.log("  SKIPPED  moving the evacuation centre — no centre to aim at");
 }
 
+// Aimed at a code no device has: even if the official check leaked, nothing
+// would be granted — the answer would just be "not found" instead of refused.
+const residentGrant = await rest("rpc/set_device_role", {
+  jwt,
+  method: "POST",
+  body: { device_code: "00000000", new_role: "official" },
+});
+check(
+  "CANNOT grant roles (migration 0032)",
+  residentGrant.status === 403 && residentGrant.body?.code === "42501",
+  `LEAK: status ${residentGrant.status}, code ${residentGrant.body?.code}`,
+);
+
 /* ---------------------------------------------------------------------------
  * The demo self-promotion path (migration 0017)
  *

@@ -2,6 +2,7 @@
 
 import { useSync, useT } from "@/components/AppRuntime";
 import { useMyRole } from "@/components/useMyRole";
+import { RoleManager } from "@/components/RoleManager";
 
 /**
  * "Ako" — this device (design: `stage-2/design/artboards/DeviceRole.dc.html`).
@@ -81,6 +82,8 @@ export default function ProfilePage() {
           )}
         </p>
       </section>
+
+      {role === "official" && <RoleManager />}
     </main>
   );
 }
