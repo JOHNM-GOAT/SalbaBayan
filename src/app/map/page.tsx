@@ -8,6 +8,8 @@ import { useSync, useT } from "@/components/AppRuntime";
 import { deriveAdvisory, FALLBACK_CENTRE } from "@/lib/advisory";
 import { CentreEditor } from "@/components/CentreEditor";
 import { MapLegend } from "@/components/MapLegend";
+import { CentreDetail, YouDetail, type MapSelection } from "@/components/MapDetail";
+import { focusHazard } from "@/lib/hazardFocus";
 import { CENTRE_ICON, HAZARD_ICON, hazardColour, pinElement, pinMarker, youElement } from "@/lib/mapMarks";
 import { sharedView, trackView } from "@/lib/mapView";
 import { CATEGORY_TONE, type Category } from "@/lib/hazards";
@@ -60,6 +62,7 @@ export default function MapPage() {
   const framed = useRef<string | null>(null);
   const [ready, setReady] = useState(false);
   const [fix, setFix] = useState<Fix | null>(null);
+  const [selection, setSelection] = useState<MapSelection>(null);
   const [streets, setStreets] = useState<FeatureCollection | null>(null);
 
   /*
@@ -471,11 +474,19 @@ export default function MapPage() {
         icon: HAZARD_ICON[category] ?? HAZARD_ICON.other,
         label: t(`cat.${category}`),
         height: onRoute ? 40 : 30,
+        // The hazard map already shows a report in full: photo, age, resolve.
+        onClick: () => focusHazard(h.id),
       });
       pins.push(pinMarker(el, h.lng, h.lat).addTo(m));
     }
     if (centre?.lat != null && centre?.lng != null) {
-      const el = pinElement({ colour: "var(--color-clear)", icon: CENTRE_ICON, label: centre.name, height: 38 });
+      const el = pinElement({
+        colour: "var(--color-clear)",
+        icon: CENTRE_ICON,
+        label: centre.name,
+        height: 38,
+        onClick: () => setSelection("centre"),
+      });
       pins.push(pinMarker(el, centre.lng, centre.lat).addTo(m));
     }
     return () => pins.forEach((pin) => pin.remove());
@@ -523,10 +534,12 @@ export default function MapPage() {
     if (!m || !ready || !fix) return;
 
     if (!meMarker.current) {
-      meMarker.current = new maplibregl.Marker({ element: youElement() });
+      meMarker.current = new maplibregl.Marker({
+        element: youElement(() => setSelection("you"), t("sos.location")),
+      });
     }
     meMarker.current.setLngLat([fix.lng, fix.lat]).addTo(m);
-  }, [fix, ready]);
+  }, [fix, ready, t]);
 
   const recentre = useCallback(() => {
     if (fix) map.current?.easeTo({ center: [fix.lng, fix.lat], zoom: 16.5 });
@@ -665,6 +678,16 @@ export default function MapPage() {
           }
         />
         </div>
+
+        {selection === "centre" && centre && (
+          <CentreDetail
+            centre={centre}
+            metres={routeMetres || undefined}
+            minutes={routeMetres ? walkMinutes(routeMetres) : undefined}
+            onClose={() => setSelection(null)}
+          />
+        )}
+        {selection === "you" && fix && <YouDetail fix={fix} onClose={() => setSelection(null)} />}
 
         {/* The blocked-path warning. Above the destination, because it changes
             whether the destination is reachable at all. */}

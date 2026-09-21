@@ -33,6 +33,7 @@ import {
 } from "@/lib/hazards";
 import { Skeleton, SkeletonRegion, useSkeletonGate } from "./Skeleton";
 import { HazardCategoryKey, MapLegend } from "./MapLegend";
+import { CentreDetail, YouDetail, type MapSelection } from "./MapDetail";
 
 /**
  * The barangay hazard map, reachable from every screen (FR-7.3).
@@ -73,6 +74,7 @@ export function HazardSheet() {
   const framed = useRef(false);
   const [styleEpoch, setStyleEpoch] = useState(0);
   const [fix, setFix] = useState<Fix | null>(null);
+  const [mark, setMark] = useState<MapSelection>(null);
   /* First read finished. "CLEAR" on the handle is a claim about the barangay
      and must not be made before this device has looked. */
   const [settled, setSettled] = useState(false);
@@ -207,9 +209,14 @@ export function HazardSheet() {
   useEffect(() => {
     const m = map.current;
     if (!open || !m || !fix) return;
-    meMarker.current ??= new maplibregl.Marker({ element: youElement() });
+    meMarker.current ??= new maplibregl.Marker({
+      element: youElement(() => {
+        setSelectedId(null);
+        setMark("you");
+      }, t("sos.location")),
+    });
     meMarker.current.setLngLat([fix.lng, fix.lat]).addTo(m);
-  }, [open, fix, styleEpoch]);
+  }, [open, fix, styleEpoch, t]);
 
   /* The barangay outline, as on the evacuation map. Re-added after a style swap. */
   const outline = snapshot?.barangay.boundary_geojson ?? null;
@@ -250,7 +257,16 @@ export function HazardSheet() {
 
       const centre = snapshot?.centers[0];
       if (centre?.lat != null && centre?.lng != null) {
-        const el = pinElement({ colour: "var(--color-clear)", icon: CENTRE_ICON, label: centre.name, height: 38 });
+        const el = pinElement({
+          colour: "var(--color-clear)",
+          icon: CENTRE_ICON,
+          label: centre.name,
+          height: 38,
+          onClick: () => {
+            setSelectedId(null);
+            setMark("centre");
+          },
+        });
         markers.current.push(pinMarker(el, centre.lng, centre.lat).addTo(m));
       }
 
@@ -263,6 +279,7 @@ export function HazardSheet() {
           label: `${t(`cat.${hazard.category}`)} — ${purokName(hazard.purok_id)}`,
           height: hazard.id === selectedId ? 42 : 34,
           onClick: () => {
+            setMark(null);
             setSelectedId(hazard.id);
             m.easeTo({ center: [lng, lat], zoom: Math.max(m.getZoom(), 16.5) });
           },
@@ -435,6 +452,14 @@ export function HazardSheet() {
                   }}
                   onDismiss={() => setSelectedId(null)}
                 />
+              ) : mark === "centre" && snapshot?.centers[0] ? (
+                <div className="p-2">
+                  <CentreDetail centre={snapshot.centers[0]} onClose={() => setMark(null)} />
+                </div>
+              ) : mark === "you" && fix ? (
+                <div className="p-2">
+                  <YouDetail fix={fix} onClose={() => setMark(null)} />
+                </div>
               ) : (
                 <p className="mono px-3.5 py-3 text-[10px] tracking-[0.6px] text-paper-3">
                   {placed.length > 0 ? t("hz.tap") : t("hz.none")}

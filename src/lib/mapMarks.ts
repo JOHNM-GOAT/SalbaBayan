@@ -84,17 +84,21 @@ export function hazardColour(tone: "alarm" | "caution"): string {
 }
 
 /** The device's own position: a blue dot with a white rim and a soft halo. */
-export function youElement(): HTMLElement {
+export function youElement(onClick?: () => void, label = ""): HTMLElement {
   const blue = resolveColour("var(--color-you)");
-  const el = document.createElement("div");
+  const el = document.createElement(onClick ? "button" : "div");
+  if (el instanceof HTMLButtonElement) el.type = "button";
+  if (label) el.setAttribute("aria-label", label);
+  if (onClick) el.addEventListener("click", onClick);
   el.style.cssText = [
+    "padding:0",
     "width:16px",
     "height:16px",
     "border-radius:50%",
     `background:${blue}`,
     "border:3px solid #fff",
     `box-shadow:0 0 0 7px color-mix(in oklab, ${blue} 22%, transparent), 0 1px 3px rgba(0,0,0,0.35)`,
-    "pointer-events:none",
+    onClick ? "cursor:pointer" : "pointer-events:none",
   ].join(";");
   return el;
 }
