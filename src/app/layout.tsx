@@ -5,6 +5,7 @@ import { AppRuntime } from "@/components/AppRuntime";
 import { AppHeader } from "@/components/AppHeader";
 import { Shell } from "@/components/Shell";
 import { ActorSwitch } from "@/components/ActorSwitch";
+import { RouteGuard } from "@/components/RouteGuard";
 import { BottomNav } from "@/components/BottomNav";
 import { HazardSheet } from "@/components/HazardSheet";
 
@@ -90,6 +91,7 @@ export default function RootLayout({
           <div className="flex min-h-dvh flex-col bg-ink-900">
             <AppHeader />
             <ActorSwitch />
+            <RouteGuard />
             <Shell>{children}</Shell>
             {/*
              * The hazard map and the tab bar live here for the same reason the

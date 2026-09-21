@@ -4,6 +4,8 @@ import { useSync, useT } from "@/components/AppRuntime";
 import { useMyRole } from "@/components/useMyRole";
 import { RoleManager } from "@/components/RoleManager";
 import { DeviceQr } from "@/components/DeviceQr";
+import { OfficialSession } from "@/components/OfficialSession";
+import { OfficialCodes } from "@/components/OfficialCodes";
 
 /**
  * "Ako" — this device (design: `stage-2/design/artboards/DeviceRole.dc.html`).
@@ -89,7 +91,9 @@ export default function ProfilePage() {
         </p>
       </section>
 
+      <OfficialSession key={role ?? "none"} />
       {role === "official" && <RoleManager />}
+      {role === "official" && <OfficialCodes />}
     </main>
   );
 }

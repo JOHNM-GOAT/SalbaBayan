@@ -21,7 +21,14 @@ const withSerwist = withSerwistInit({
   reloadOnOnline: false,
 });
 
-const nextConfig: NextConfig = {};
+// /lgu is the address officials are told to type. Redirect sources match
+// without regard to case, so /LGU and /Lgu land here too — which is why the
+// page itself lives at a different path (a /lgu page would redirect to itself).
+const nextConfig: NextConfig = {
+  async redirects() {
+    return [{ source: "/lgu", destination: "/official-login", permanent: false }];
+  },
+};
 
 /*
  * Serwist is applied for builds only — and NOT merely disabled in dev.

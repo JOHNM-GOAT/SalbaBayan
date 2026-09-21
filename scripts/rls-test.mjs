@@ -317,6 +317,35 @@ if (centreForScan) {
   );
 }
 
+const residentCode = await rest("rpc/create_official_code", {
+  jwt,
+  method: "POST",
+  body: { code_label: "rls-test" },
+});
+check(
+  "CANNOT create an official login code (migration 0037)",
+  residentCode.status === 403 && residentCode.body?.code === "42501",
+  `LEAK: status ${residentCode.status}`,
+);
+
+const wrongLogin = await rest("rpc/redeem_official_code", {
+  jwt,
+  method: "POST",
+  body: { code: "AAAA-AAAA-AA" },
+});
+check(
+  "a wrong official code does not log in",
+  wrongLogin.status === 200 && (wrongLogin.body === "wrong" || wrongLogin.body === "locked"),
+  `status ${wrongLogin.status}, answered ${JSON.stringify(wrongLogin.body)}`,
+);
+
+const codeTable = await rest("official_codes?select=code_hash", { jwt });
+check(
+  "CANNOT read official code hashes",
+  rows(codeTable) <= 0,
+  `LEAK: ${rows(codeTable)} rows readable`,
+);
+
 check(
   "CANNOT grant roles (migration 0032)",
   residentGrant.status === 403 && residentGrant.body?.code === "42501",

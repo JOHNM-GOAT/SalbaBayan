@@ -118,6 +118,12 @@ function invalidateRole(): void {
   roleInFlight = null;
 }
 
+/** This device's own role just changed (official login or logout): re-read it everywhere. */
+export function notifyRoleChanged(): void {
+  invalidateRole();
+  for (const listener of [...roleListeners]) listener();
+}
+
 /**
  * Reads the caller's role. Defaults to `resident` — the least-privileged
  * answer — whenever the role cannot be established, including offline.
@@ -158,14 +164,38 @@ async function readMyRole(): Promise<UserRole> {
   const uid = await getCurrentUserId();
   if (!uid) return "resident";
 
-  const { data, error } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", uid)
-    .maybeSingle();
+  /*
+   * A failed read is not an answer. Offline, it used to come back "resident",
+   * which is harmless as a hint but not once screens redirect on it: an
+   * official opening the app with no signal was sent away from their own pages.
+   * So the last role the server confirmed for this uid stands in until it can
+   * be asked again. RLS still decides what the device can actually do.
+   */
+  const key = `salbabayan.role:${uid}`;
+  let result: { data: { role?: string } | null; error: unknown };
+  try {
+    result = await supabase.from("user_roles").select("role").eq("user_id", uid).maybeSingle();
+  } catch (error) {
+    result = { data: null, error };
+  }
 
-  if (error || !data?.role) return "resident";
-  return data.role as UserRole;
+  if (result.error) {
+    try {
+      const cached = localStorage.getItem(key);
+      if (cached === "volunteer" || cached === "official") return cached;
+    } catch {
+      // Storage unavailable: fall through to the least-privileged answer.
+    }
+    return "resident";
+  }
+
+  const role = (result.data?.role as UserRole | undefined) ?? "resident";
+  try {
+    localStorage.setItem(key, role);
+  } catch {
+    // Not remembered; the next offline start simply shows the resident view.
+  }
+  return role;
 }
 
 /* ---------------------------------------------------------------------------
