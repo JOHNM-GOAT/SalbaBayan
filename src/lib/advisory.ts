@@ -11,9 +11,9 @@
  *   - There is exactly one `fetchedAt`, so "cache age" is a single honest
  *     number rather than a different age per table.
  *
- * The data is tiny — one barangay, 8 Puroks, ~33 protocols, ~30 translations —
- * so fetching all of it costs less than the round trips needed to fetch only
- * the slice one resident happens to need.
+ * The data is small — one barangay, a handful of areas and protocols — apart
+ * from the translations, which are only re-downloaded when they change (see
+ * `fetchAdvisory`).
  */
 
 import Dexie, { type Table } from "dexie";
@@ -103,6 +103,8 @@ export type AdvisorySnapshot = {
   centers: EvacCenter[];
   hazards: Hazard[];
   translations: TranslationMap;
+  /** Server fingerprint of `translations`; absent in snapshots cached before it existed. */
+  translationsVersion?: string;
   /** When the network genuinely answered. Never set from a cache read. */
   fetchedAt: number;
 };
@@ -209,11 +211,20 @@ async function fetchAllTranslations(
   return { data: rows, error: null };
 }
 
-export async function fetchAdvisory(): Promise<AdvisorySnapshot> {
+/*
+ * The snapshot is refetched on every live change, and in a storm those come
+ * often. The translations are almost all of its weight (~600 KB) and almost
+ * never change, so the phone asks for their fingerprint first and keeps the
+ * cached ones when it matches. All languages stay on the phone, so switching
+ * language still works offline.
+ */
+export async function fetchAdvisory(
+  previous: AdvisorySnapshot | null = null,
+): Promise<AdvisorySnapshot> {
   const supabase = getSupabase();
   if (!supabase) throw new Error("no supabase client");
 
-  const [barangays, puroks, protocols, centers, translations, hazards] =
+  const [barangays, puroks, protocols, centers, version, hazards] =
     await Promise.all([
       supabase
         .from("barangays")
@@ -232,7 +243,7 @@ export async function fetchAdvisory(): Promise<AdvisorySnapshot> {
         .from("protocols")
         .select("id,purok_id,signal_level,route,route_geojson,action_key,evac_center_id"),
       supabase.from("evac_centers").select("id,purok_id,name,capacity,lat,lng"),
-      fetchAllTranslations(supabase),
+      supabase.rpc("translations_version"),
       // Only open hazards. Resolved ones are history, and history on an
       // evacuation map is noise that hides the thing you must avoid.
       supabase
@@ -246,16 +257,28 @@ export async function fetchAdvisory(): Promise<AdvisorySnapshot> {
     puroks.error ??
     protocols.error ??
     centers.error ??
-    translations.error ??
     hazards.error;
   if (failure) throw new Error(failure.message);
 
   const barangay = barangays.data?.[0];
   if (!barangay) throw new Error("no barangay configured");
 
-  const map: TranslationMap = {};
-  for (const row of translations.data ?? []) {
-    (map[row.message_key] ??= {})[row.language] = row.text;
+  // A failed version check just means downloading them, as before.
+  const translationsVersion =
+    !version.error && typeof version.data === "string" ? version.data : undefined;
+
+  let map: TranslationMap;
+  if (translationsVersion && previous?.translationsVersion === translationsVersion) {
+    map = previous.translations;
+  } else {
+    // Fetched after the version, so the rows are never older than the hash
+    // stored with them — at worst newer, which only costs one more download.
+    const translations = await fetchAllTranslations(supabase);
+    if (translations.error) throw new Error(translations.error.message);
+    map = {};
+    for (const row of translations.data ?? []) {
+      (map[row.message_key] ??= {})[row.language] = row.text;
+    }
   }
 
   return {
@@ -265,6 +288,7 @@ export async function fetchAdvisory(): Promise<AdvisorySnapshot> {
     centers: (centers.data ?? []) as EvacCenter[],
     hazards: (hazards.data ?? []) as Hazard[],
     translations: map,
+    translationsVersion,
     fetchedAt: Date.now(),
   };
 }
@@ -272,7 +296,7 @@ export async function fetchAdvisory(): Promise<AdvisorySnapshot> {
 /** Fetch and cache in one step. Returns null when the network could not answer. */
 export async function refreshAdvisory(): Promise<AdvisorySnapshot | null> {
   try {
-    const snapshot = await fetchAdvisory();
+    const snapshot = await fetchAdvisory(await readCachedAdvisory());
     await writeCachedAdvisory(snapshot);
     return snapshot;
   } catch {
