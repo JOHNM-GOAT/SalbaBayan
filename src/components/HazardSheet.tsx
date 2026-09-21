@@ -13,16 +13,26 @@ import { onQueueChanged } from "@/lib/offlineQueue";
 import { onHazardFocus } from "@/lib/hazardFocus";
 import { agoLabel } from "@/lib/water";
 import { resolveColour } from "@/lib/signal";
+import { startPositionWatch, type Fix } from "@/lib/sos";
+import {
+  CENTRE_ICON,
+  HAZARD_ICON,
+  hazardColour,
+  pinElement,
+  pinMarker,
+  youElement,
+} from "@/lib/mapMarks";
+import { sharedView, trackView } from "@/lib/mapView";
 import {
   allOpenHazards,
   canResolveHazard,
   resolveHazard,
   subscribeHazards,
   CATEGORY_TONE,
-  type Category,
   type Hazard,
 } from "@/lib/hazards";
 import { Skeleton, SkeletonRegion, useSkeletonGate } from "./Skeleton";
+import { HazardCategoryKey, MapLegend } from "./MapLegend";
 
 /**
  * The barangay hazard map, reachable from every screen (FR-7.3).
@@ -40,24 +50,13 @@ import { Skeleton, SkeletonRegion, useSkeletonGate } from "./Skeleton";
  * opened and torn down when it is closed.
  */
 
-/**
- * Five categories, five marks. The colour still says severity — alarm for the
- * two that can kill someone who walks into them in the dark, caution for the
- * rest — so the category has to be carried by SHAPE, which is the right answer
- * anyway: roughly a tenth of Filipino men cannot separate the red from the
- * green, and this map's whole job is to be read at a glance.
+/*
+ * Pins, the boundary, the centre and the device's own position are drawn
+ * exactly as on the evacuation map (lib/mapMarks.ts), and the two maps share a
+ * camera (lib/mapView.ts), so they read as one map.
  */
-const PIN_ICON: Record<Category, string> = {
-  flooding: "<path d='M12 3s7 7.58 7 12a7 7 0 0 1-14 0c0-4.42 7-12 7-12z'/>",
-  fallen_tree:
-    "<path d='M12 22v-5'/><path d='M12 17l-6-5h3.2L5 7.5h3.2L12 2l3.8 5.5H19L15.8 12H19z'/>",
-  blocked_road: "<path d='M3 20h18'/><path d='M8.5 20 12 4l3.5 16'/><path d='M9.6 12h4.8'/>",
-  downed_lines: "<path d='M13 2 4 14h6l-1 8 9-12h-6z'/>",
-  other: "<path d='M12 7v6'/><path d='M12 17h.01'/><circle cx='12' cy='12' r='9'/>",
-};
-
 export function HazardSheet() {
-  const { snapshot, userId } = useSync();
+  const { snapshot, userId, online } = useSync();
   const t = useT();
   const role = useMyRole();
   const width = useShellWidth();
@@ -70,8 +69,10 @@ export function HazardSheet() {
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
+  const meMarker = useRef<maplibregl.Marker | null>(null);
   const framed = useRef(false);
   const [styleEpoch, setStyleEpoch] = useState(0);
+  const [fix, setFix] = useState<Fix | null>(null);
   /* First read finished. "CLEAR" on the handle is a claim about the barangay
      and must not be made before this device has looked. */
   const [settled, setSettled] = useState(false);
@@ -162,8 +163,11 @@ export function HazardSheet() {
 
     const observer = new ResizeObserver(() => instance.resize());
     observer.observe(node);
+    const stopTracking = trackView(instance, () => framed.current);
 
-    void loadStreetStyle().then((style) => {
+    // Same rule as the evacuation map: offline, the drawn grid is the better
+    // map, because the style is cached far more readily than the tiles.
+    if (online) void loadStreetStyle().then((style) => {
       if (!style || map.current !== instance) return;
       instance.setStyle(style, { diff: false });
       onStyleReady(instance, () => {
@@ -178,15 +182,62 @@ export function HazardSheet() {
 
     return () => {
       observer.disconnect();
+      stopTracking();
       markers.current.forEach((m) => m.remove());
       markers.current = [];
+      meMarker.current?.remove();
+      meMarker.current = null;
       instance.remove();
       map.current = null;
       // A request to centre on a report that was never pinned — because it has
       // no GPS fix — must not survive to hijack the next opening.
       pendingFocus.current = null;
     };
+    // `online` is read once, at opening: a signal that drops mid-look must not
+    // pull the street map out from under the reader.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  /* The device's own position, only while the sheet is open. */
+  useEffect(() => {
+    if (!open) return;
+    return startPositionWatch((next) => setFix(next));
+  }, [open]);
+
+  useEffect(() => {
+    const m = map.current;
+    if (!open || !m || !fix) return;
+    meMarker.current ??= new maplibregl.Marker({ element: youElement() });
+    meMarker.current.setLngLat([fix.lng, fix.lat]).addTo(m);
+  }, [open, fix, styleEpoch]);
+
+  /* The barangay outline, as on the evacuation map. Re-added after a style swap. */
+  const outline = snapshot?.barangay.boundary_geojson ?? null;
+  useEffect(() => {
+    const m = map.current;
+    if (!open || !m || !outline) return;
+    return onStyleReady(m, () => {
+      const accent = resolveColour("var(--color-hv)");
+      const data = { type: "Feature", properties: {}, geometry: outline } as const;
+      const source = m.getSource("boundary") as maplibregl.GeoJSONSource | undefined;
+      if (source) source.setData(data);
+      else m.addSource("boundary", { type: "geojson", data });
+      if (!m.getLayer("boundary-line")) {
+        m.addLayer({
+          id: "boundary-fill",
+          type: "fill",
+          source: "boundary",
+          paint: { "fill-color": accent, "fill-opacity": 0.07 },
+        });
+        m.addLayer({
+          id: "boundary-line",
+          type: "line",
+          source: "boundary",
+          paint: { "line-color": accent, "line-width": 2, "line-dasharray": [3, 2] },
+        });
+      }
+    });
+  }, [open, outline, styleEpoch]);
 
   /* Pins. Re-plotted whenever the reports change or the style is replaced. */
   useEffect(() => {
@@ -197,49 +248,26 @@ export function HazardSheet() {
       markers.current.forEach((marker) => marker.remove());
       markers.current = [];
 
-      const ground = resolveColour("var(--color-ink-900)");
+      const centre = snapshot?.centers[0];
+      if (centre?.lat != null && centre?.lng != null) {
+        const el = pinElement({ colour: "var(--color-clear)", icon: CENTRE_ICON, label: centre.name, height: 38 });
+        markers.current.push(pinMarker(el, centre.lng, centre.lat).addTo(m));
+      }
 
       for (const hazard of placed) {
-        const tone = CATEGORY_TONE[hazard.category];
-        const colour = `var(--color-${tone})`;
-
-        const pin = document.createElement("button");
-        pin.type = "button";
-        pin.setAttribute(
-          "aria-label",
-          `${t(`cat.${hazard.category}`)} — ${purokName(hazard.purok_id)}`,
-        );
-        pin.style.cssText = [
-          "width:30px",
-          "height:30px",
-          "border-radius:50%",
-          "display:flex",
-          "align-items:center",
-          "justify-content:center",
-          `background:${colour}`,
-          `border:2.5px solid ${ground}`,
-          "box-shadow:0 1px 4px rgba(0,0,0,0.28)",
-          "cursor:pointer",
-          "padding:0",
-        ].join(";");
-        pin.innerHTML =
-          `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${ground}"` +
-          ` stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">` +
-          `${PIN_ICON[hazard.category]}</svg>`;
-
-        pin.addEventListener("click", () => {
-          setSelectedId(hazard.id);
-          m.easeTo({
-            center: [hazard.lng as number, hazard.lat as number],
-            zoom: Math.max(m.getZoom(), 16.5),
-          });
+        const lng = hazard.lng as number;
+        const lat = hazard.lat as number;
+        const el = pinElement({
+          colour: hazardColour(CATEGORY_TONE[hazard.category]),
+          icon: HAZARD_ICON[hazard.category],
+          label: `${t(`cat.${hazard.category}`)} — ${purokName(hazard.purok_id)}`,
+          height: hazard.id === selectedId ? 42 : 34,
+          onClick: () => {
+            setSelectedId(hazard.id);
+            m.easeTo({ center: [lng, lat], zoom: Math.max(m.getZoom(), 16.5) });
+          },
         });
-
-        markers.current.push(
-          new maplibregl.Marker({ element: pin })
-            .setLngLat([hazard.lng as number, hazard.lat as number])
-            .addTo(m),
-        );
+        markers.current.push(pinMarker(el, lng, lat).addTo(m));
       }
 
       /*
@@ -262,6 +290,14 @@ export function HazardSheet() {
         return;
       }
 
+      /* Open where the evacuation map was left, if it has been looked at. */
+      const saved = framed.current ? null : sharedView();
+      if (saved) {
+        framed.current = true;
+        m.jumpTo(saved);
+        return;
+      }
+
       /* Frame them once per opening — after that the reader is in charge. */
       if (!framed.current && placed.length > 0) {
         framed.current = true;
@@ -276,7 +312,7 @@ export function HazardSheet() {
         );
       }
     });
-  }, [open, placed, styleEpoch, t, purokName]);
+  }, [open, placed, styleEpoch, t, purokName, snapshot, selectedId]);
 
   const canFix = selected
     ? canResolveHazard(selected, userId ?? null, role)
@@ -371,8 +407,11 @@ export function HazardSheet() {
               </button>
             </div>
 
+            <HazardCategoryKey />
+
             <div className="relative flex-1">
               <div ref={container} style={{ position: "absolute", inset: 0 }} />
+              <MapLegend />
 
               {placed.length === 0 && (
                 <p className="mono pointer-events-none absolute inset-x-0 top-1/2 px-6 text-center text-[11px] leading-relaxed text-paper-3">

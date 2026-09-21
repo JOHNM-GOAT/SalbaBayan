@@ -7,6 +7,10 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useSync, useT } from "@/components/AppRuntime";
 import { deriveAdvisory, FALLBACK_CENTRE } from "@/lib/advisory";
 import { CentreEditor } from "@/components/CentreEditor";
+import { MapLegend } from "@/components/MapLegend";
+import { CENTRE_ICON, HAZARD_ICON, hazardColour, pinElement, pinMarker, youElement } from "@/lib/mapMarks";
+import { sharedView, trackView } from "@/lib/mapView";
+import { CATEGORY_TONE, type Category } from "@/lib/hazards";
 import type { Streets } from "@/lib/walkRoute";
 import { resolveColour, signalStyle } from "@/lib/signal";
 import { startPositionWatch, type Fix } from "@/lib/sos";
@@ -318,7 +322,6 @@ export default function MapPage() {
      */
     const ground = resolveColour("var(--color-ink-900)");
     const accent = resolveColour("var(--color-hv)");
-    const danger = resolveColour("var(--color-alarm)");
 
     const setSource = (id: string, data: Feature | FeatureCollection) => {
       const existing = m.getSource(id) as maplibregl.GeoJSONSource | undefined;
@@ -446,59 +449,37 @@ export default function MapPage() {
       }
     }
 
-    /* Hazards. Ones on the route are drawn larger — the overlay exists to
-       answer "can I get there", not "what is happening generally". */
-    const placed = (snapshot?.hazards ?? []).filter(
-      (h) => h.lat != null && h.lng != null,
-    );
-    setSource("hazards", {
-      type: "FeatureCollection",
-      features: placed.map((h) => ({
-        type: "Feature",
-        properties: { onRoute: blocking.some((b) => b.id === h.id) },
-        geometry: { type: "Point", coordinates: [h.lng as number, h.lat as number] },
-      })),
-    } as FeatureCollection);
+  }, [ready, styleEpoch, base, streets, purok, route, snapshot, advisory]);
 
-    if (!m.getLayer("hazard-dots")) {
-      m.addLayer({
-        id: "hazard-dots",
-        type: "circle",
-        source: "hazards",
-        paint: {
-          "circle-radius": ["case", ["get", "onRoute"], 9, 6],
-          "circle-color": danger,
-          "circle-stroke-color": ground,
-          "circle-stroke-width": 2.5,
-        },
+  /*
+   * Hazards and the destination, as pins (lib/mapMarks.ts) — the same marks as
+   * the hazard map. HTML markers, so they survive a basemap swap untouched.
+   * Hazards on the route are drawn larger: the overlay exists to answer "can I
+   * get there", not "what is happening generally".
+   */
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready) return;
+
+    const pins: maplibregl.Marker[] = [];
+    for (const h of snapshot?.hazards ?? []) {
+      if (h.lat == null || h.lng == null) continue;
+      const category = h.category as Category;
+      const onRoute = blocking.some((b) => b.id === h.id);
+      const el = pinElement({
+        colour: hazardColour(CATEGORY_TONE[category] ?? "alarm"),
+        icon: HAZARD_ICON[category] ?? HAZARD_ICON.other,
+        label: t(`cat.${category}`),
+        height: onRoute ? 40 : 30,
       });
+      pins.push(pinMarker(el, h.lng, h.lat).addTo(m));
     }
-
-    /* Destination. */
     if (centre?.lat != null && centre?.lng != null) {
-      setSource("centre", {
-        type: "Feature",
-        properties: {},
-        geometry: { type: "Point", coordinates: [centre.lng, centre.lat] },
-      } as Feature);
-
-      if (!m.getLayer("centre-dot")) {
-        m.addLayer({
-          id: "centre-dot",
-          type: "circle",
-          source: "centre",
-          // A hollow ring, so it cannot be mistaken for the solid "you are here" dot.
-          paint: {
-            "circle-radius": 9,
-            "circle-color": ground,
-            "circle-stroke-color": accent,
-            "circle-stroke-width": 4,
-          },
-        });
-      }
+      const el = pinElement({ colour: "var(--color-clear)", icon: CENTRE_ICON, label: centre.name, height: 38 });
+      pins.push(pinMarker(el, centre.lng, centre.lat).addTo(m));
     }
-
-  }, [ready, styleEpoch, base, streets, purok, route, centre, snapshot, blocking, advisory]);
+    return () => pins.forEach((pin) => pin.remove());
+  }, [ready, snapshot, blocking, centre, t]);
 
   /*
    * Framing, and only when the thing being framed changes.
@@ -516,10 +497,20 @@ export default function MapPage() {
     if (framed.current === key) return;
 
     return onStyleReady(m, () => {
+      // The first framing of this map opens where the hazard map was left
+      // (lib/mapView.ts); a later change of area frames that area's route.
+      const saved = framed.current === null ? sharedView() : null;
       framed.current = key;
-      m.fitBounds(frame, { padding: 44, duration: 0, maxZoom: 16.5 });
+      if (saved) m.jumpTo(saved);
+      else m.fitBounds(frame, { padding: 44, duration: 0, maxZoom: 16.5 });
     });
   }, [ready, styleEpoch, frame, purokId]);
+
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready) return;
+    return trackView(m, () => framed.current !== null);
+  }, [ready]);
 
   /*
    * The resident's own position. An HTML marker, so it does not wait for the
@@ -532,19 +523,7 @@ export default function MapPage() {
     if (!m || !ready || !fix) return;
 
     if (!meMarker.current) {
-      const dot = document.createElement("div");
-      const accent = resolveColour("var(--color-hv)");
-      dot.style.cssText = [
-        "width:18px",
-        "height:18px",
-        "border-radius:50%",
-        `background:${accent}`,
-        `border:3px solid ${resolveColour("var(--color-ink-900)")}`,
-        // A halo, so the fix stays findable on a pale basemap where a plain dot
-        // the size of a fingertip does not.
-        `box-shadow:0 0 0 6px color-mix(in oklab, ${accent} 28%, transparent)`,
-      ].join(";");
-      meMarker.current = new maplibregl.Marker({ element: dot });
+      meMarker.current = new maplibregl.Marker({ element: youElement() });
     }
     meMarker.current.setLngLat([fix.lng, fix.lat]).addTo(m);
   }, [fix, ready]);
@@ -573,8 +552,6 @@ export default function MapPage() {
     base === "streets" ? t("map.base_streets") : t("map.base_sketch");
 
   const routeColour = signalStyle(advisory?.signalLevel ?? 0).cssVar;
-  const accentColour = "var(--color-hv)";
-  const dangerColour = "var(--color-alarm)";
 
   return (
     <>
@@ -679,15 +656,14 @@ export default function MapPage() {
           content. This costs no layout height, occludes nothing but the bottom
           edge, and has room on the right to name the base map.
         */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-3 border-t border-line-soft bg-ink-900/92 px-2.5 py-1.5">
-          <Key colour={accentColour} dashed label={t("map.legend_boundary")} />
-          <Key colour={routeColour} label={t("map.legend_route")} />
-          <Key colour={dangerColour} dot label={t("map.legend_hazard")} />
-          <Key colour={accentColour} ring label={t("ui.evac_center")} />
-          <span className="mono ml-auto truncate text-[9px] font-semibold tracking-[0.7px] text-paper-3">
-            {baseLabel}
-          </span>
-        </div>
+        <MapLegend
+          routeColour={routeColour}
+          right={
+            <span className="mono text-[9px] font-semibold tracking-[0.7px] text-paper-3">
+              {baseLabel}
+            </span>
+          }
+        />
         </div>
 
         {/* The blocked-path warning. Above the destination, because it changes
@@ -755,57 +731,5 @@ export default function MapPage() {
         <CentreEditor mapRef={map} streets={streets as unknown as Streets | null} />
       </main>
     </>
-  );
-}
-
-/**
- * One legend key. The swatch is drawn the way the layer is drawn — a dashed
- * rule for the dashed boundary, a dot for the hazard circles — so the legend
- * can be matched to the map by shape and not only by colour. Roughly a tenth of
- * Filipino men are red-green colour blind, and this is a map whose two most
- * important marks are a red one and a green one.
- */
-function Key({
-  colour,
-  label,
-  dashed,
-  dot,
-  ring,
-}: {
-  colour: string;
-  label: string;
-  dashed?: boolean;
-  dot?: boolean;
-  ring?: boolean;
-}) {
-  return (
-    <span className="flex items-center gap-1.5">
-      {ring ? (
-        <span
-          className="size-2.5 shrink-0 rounded-full border-2"
-          style={{ borderColor: colour }}
-          aria-hidden
-        />
-      ) : dot ? (
-        <span
-          className="size-2 shrink-0 rounded-full"
-          style={{ background: colour }}
-          aria-hidden
-        />
-      ) : (
-        <span
-          className="h-[3px] w-3.5 shrink-0"
-          style={
-            dashed
-              ? { backgroundImage: `repeating-linear-gradient(90deg, ${colour} 0 4px, transparent 4px 7px)` }
-              : { background: colour }
-          }
-          aria-hidden
-        />
-      )}
-      <span className="mono text-[9px] font-semibold tracking-[0.6px] text-paper-2">
-        {label}
-      </span>
-    </span>
   );
 }

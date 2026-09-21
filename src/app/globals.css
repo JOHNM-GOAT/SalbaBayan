@@ -66,6 +66,8 @@
   --color-alarm: oklch(0.52 0.21 28);
   --color-caution: oklch(0.55 0.13 78);
   --color-clear: oklch(0.5 0.14 148);
+  /* the device's own position on maps — blue, the convention every map app uses */
+  --color-you: oklch(0.56 0.19 258);
 
   /* type — self-hosted via next/font so they survive offline */
   --font-display: var(--font-archivo), "Arial Narrow", Helvetica, sans-serif;
