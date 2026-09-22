@@ -360,34 +360,31 @@ if (centreForScan) {
   );
 }
 
-const residentCode = await rest("rpc/create_official_code", {
-  jwt,
-  method: "POST",
-  body: { code_label: "rls-test" },
-});
+/*
+ * Official access (migration 0042). The PIN answers false for anyone who is
+ * not already an official, and every administration call is refused. A wrong
+ * ACCESS code is deliberately not tried here: each one counts toward the
+ * 10-per-10-minutes lock that protects the real code.
+ */
+const residentPin = await rest("rpc/verify_official_pin", { jwt, method: "POST", body: { pin: "1234" } });
 check(
-  "CANNOT create an official login code (migration 0037)",
-  residentCode.status === 403 && residentCode.body?.code === "42501",
-  `LEAK: status ${residentCode.status}`,
+  "the official PIN unlocks nothing for a resident",
+  residentPin.status === 200 && residentPin.body === false,
+  `LEAK: status ${residentPin.status}, answered ${JSON.stringify(residentPin.body)}`,
 );
 
-const wrongLogin = await rest("rpc/redeem_official_code", {
-  jwt,
-  method: "POST",
-  body: { code: "AAAA-AAAA-AA" },
-});
-check(
-  "a wrong official code does not log in",
-  wrongLogin.status === 200 && (wrongLogin.body === "wrong" || wrongLogin.body === "locked"),
-  `status ${wrongLogin.status}, answered ${JSON.stringify(wrongLogin.body)}`,
-);
+const residentList = await rest("rpc/list_users", { jwt, method: "POST", body: { search: "" } });
+check("CANNOT list users (full access only)", rows(residentList) <= 0, `LEAK: ${rows(residentList)} rows`);
 
-const codeTable = await rest("official_codes?select=code_hash", { jwt });
-check(
-  "CANNOT read official code hashes",
-  rows(codeTable) <= 0,
-  `LEAK: ${rows(codeTable)} rows readable`,
-);
+for (const [name, fn, body] of [
+  ["CANNOT change the official PIN", "set_official_pin", { new_pin: "0000" }],
+  ["CANNOT change the access code", "set_access_code", { new_code: "rls-test-code" }],
+  ["CANNOT switch the access code", "set_access_code_enabled", { enabled: false }],
+  ["CANNOT change anyone's role (full access only)", "set_user_role", { device_code: "00000000", new_role: "official" }],
+]) {
+  const res = await rest(`rpc/${fn}`, { jwt, method: "POST", body });
+  check(name, res.status === 403 && res.body?.code === "42501", `LEAK: status ${res.status}`);
+}
 
 check(
   "CANNOT grant roles (migration 0032)",

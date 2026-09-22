@@ -4,8 +4,7 @@ import { useSync, useT } from "@/components/AppRuntime";
 import { useMyRole } from "@/components/useMyRole";
 import { RoleManager } from "@/components/RoleManager";
 import { DeviceQr } from "@/components/DeviceQr";
-import { OfficialSession } from "@/components/OfficialSession";
-import { OfficialCodes } from "@/components/OfficialCodes";
+import { OfficialAccessCard } from "@/components/OfficialAccessCard";
 import { ProfileCard } from "@/components/ProfileCard";
 
 /**
@@ -94,9 +93,8 @@ export default function ProfilePage() {
         </p>
       </section>
 
-      <OfficialSession key={role ?? "none"} />
       {role === "official" && <RoleManager />}
-      {role === "official" && <OfficialCodes />}
+      {role === "official" && <OfficialAccessCard />}
     </main>
   );
 }
