@@ -14,7 +14,7 @@ import { directionsUrl, type DashItem } from "@/lib/dashboard";
 import { resolveHazard } from "@/lib/hazards";
 import { signalStyle } from "@/lib/signal";
 import { acknowledge, markRescued } from "@/lib/sos";
-import { agoLabel } from "@/lib/water";
+import { agoLabel, clearWaterReport } from "@/lib/water";
 
 export type Tab = "sos" | "hazards" | "water" | "centres";
 
@@ -325,6 +325,15 @@ export function ItemDetail({
           holdingLabel={t("sos.cancelling")}
           tone="accent"
           onConfirm={() => void resolveHazard(item.id).then(onChanged)}
+        />
+      )}
+      {/* Officials only (0051); this screen is officials-only too. */}
+      {item.kind === "water" && (
+        <HoldToConfirm
+          label={t("dash.water_gone")}
+          holdingLabel={t("sos.cancelling")}
+          tone="accent"
+          onConfirm={() => void clearWaterReport(item.id).then(onClose)}
         />
       )}
 

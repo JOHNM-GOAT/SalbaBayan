@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useSync, useT } from "../AppRuntime";
 import { HoldToConfirm } from "../HoldToConfirm";
 import { submitHazard, type Category } from "@/lib/hazards";
-import { DEPTHS, submitWaterReport, type Depth } from "@/lib/water";
+import { DEPTHS, submitWaterReport, type WaterLevel } from "@/lib/water";
 import { MAX_CENTRES, parseCapacity } from "@/lib/centres";
 import { CENTRE_ICON, HAZARD_ICON, WATER_ICON, teardropSvg } from "@/lib/mapMarks";
 
@@ -26,7 +26,8 @@ const HAZARDS: { category: Category; key: string }[] = [
   { category: "other", key: "dash.h_other" },
 ];
 
-const DEPTH_TONE: Record<Depth, string> = {
+const DEPTH_TONE: Record<WaterLevel, string> = {
+  none: "col-span-2 border-line text-paper-2",
   knee: "border-clear text-clear",
   waist: "border-caution text-caution",
   chest: "border-alarm text-alarm",
@@ -156,7 +157,7 @@ export function PinMenu({
         <div className="grid gap-1.5 border-l-2 border-hv pl-2.5">
           <p className="lbl text-[9px]">{t("dash.which_depth")}</p>
           <div className="grid grid-cols-2 gap-1.5">
-            {DEPTHS.map((depth) => (
+            {[...DEPTHS, "none" as const].map((depth: WaterLevel) => (
               <button
                 key={depth}
                 type="button"
@@ -173,10 +174,11 @@ export function PinMenu({
                 }
                 className={`mono min-h-10 rounded-[3px] border-[1.5px] bg-ink-800 px-2 text-[10px] font-bold tracking-[0.6px] disabled:opacity-40 ${DEPTH_TONE[depth]}`}
               >
-                {t(`water.${depth}`)}
+                {depth === "none" ? t("dash.no_water") : t(`water.${depth}`)}
               </button>
             ))}
           </div>
+          <p className="text-[10.5px] leading-snug text-paper-3">{t("dash.replaces")}</p>
         </div>
       )}
 

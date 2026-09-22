@@ -134,11 +134,12 @@ check(
   `LEAK: status ${residentConfirm.status}`,
 );
 
+const waterId = crypto.randomUUID();
 const allowed = await rest("water_reports", {
   jwt,
   method: "POST",
   body: {
-    id: crypto.randomUUID(),
+    id: waterId,
     purok_id: purok,
     location_label: "rls-test",
     level_category: "knee",
@@ -146,6 +147,28 @@ const allowed = await rest("water_reports", {
   },
 });
 check("can submit a water report", allowed.status === 201, `status ${allowed.status}`);
+
+// Clearing a flood report is for officials only (migration 0051).
+const residentClear = await rest(`water_reports?id=eq.${waterId}`, {
+  jwt,
+  method: "PATCH",
+  body: { cleared_at: new Date().toISOString() },
+});
+check(
+  "CANNOT clear a flood report (officials only)",
+  Array.isArray(residentClear.body) ? residentClear.body.length === 0 : residentClear.status >= 400,
+  `LEAK: status ${residentClear.status}`,
+);
+const residentNoWater = await rest("water_reports", {
+  jwt,
+  method: "POST",
+  body: { id: crypto.randomUUID(), purok_id: purok, location_label: "rls-test", level_category: "none", reported_by: me },
+});
+check(
+  "CANNOT send NO WATER (officials only)",
+  residentNoWater.status === 403 && residentNoWater.body?.code === "42501",
+  `LEAK: status ${residentNoWater.status}`,
+);
 const sosId = crypto.randomUUID();
 const sos = await rest("rescue_requests", {
   jwt,

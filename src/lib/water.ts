@@ -10,7 +10,7 @@
  */
 
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { enqueueWrite, newClientId, queuedWrites } from "./offlineQueue";
+import { enqueueUpdate, enqueueWrite, newClientId, queuedWrites } from "./offlineQueue";
 import { getSupabase } from "./supabase";
 
 /**
@@ -19,6 +19,13 @@ import { getSupabase } from "./supabase";
  */
 export const DEPTHS = ["knee", "waist", "chest", "above_head"] as const;
 export type Depth = (typeof DEPTHS)[number];
+
+/**
+ * What an official may record at a spot: a depth, or "none" — NO WATER, which
+ * clears the spot and is stored already cleared (0051). Residents and
+ * volunteers only ever send a depth; the database refuses "none" from them.
+ */
+export type WaterLevel = Depth | "none";
 
 export type WaterReport = {
   id: string;
@@ -57,7 +64,7 @@ export const DEPTH_TONE: Record<Depth, string> = {
  */
 export async function submitWaterReport(input: {
   purokId: string;
-  depth: Depth;
+  depth: WaterLevel;
   locationLabel?: string;
   /** A point: picked on the map, or the reporter's location if they ticked "use my current location". */
   at?: { lat: number; lng: number };
@@ -80,6 +87,8 @@ export async function recentWaterReports(limit = 12): Promise<WaterReport[]> {
   const { data, error } = await supabase
     .from("water_reports")
     .select("id,purok_id,location_label,level_category,ts,reported_by,lat,lng")
+    // Cleared by an official (0051): off every map and list.
+    .is("cleared_at", null)
     .order("ts", { ascending: false })
     .limit(limit);
 
@@ -103,7 +112,14 @@ export async function recentWaterReports(limit = 12): Promise<WaterReport[]> {
 export async function queuedWaterReports(): Promise<WaterReport[]> {
   const rows = await queuedWrites();
   return rows
-    .filter((row) => row.table === "water_reports" && !row.blocked)
+    .filter(
+      (row) =>
+        row.table === "water_reports" &&
+        !row.blocked &&
+        (row.op ?? "insert") === "insert" &&
+        // NO WATER is not a flood; it only clears one.
+        (row.payload as { level_category?: string }).level_category !== "none",
+    )
     .map((row) => {
       const p = row.payload as Partial<WaterReport>;
       return {
@@ -124,14 +140,23 @@ export async function queuedWaterReports(): Promise<WaterReport[]> {
  * collision — once a report has landed, that copy is authoritative.
  */
 export async function allWaterReports(limit = 12): Promise<WaterReport[]> {
-  const [remote, local] = await Promise.all([
+  const [remote, local, rows] = await Promise.all([
     recentWaterReports(limit),
     queuedWaterReports(),
+    queuedWrites(),
   ]);
+
+  // A clear still waiting to be sent already hides the report on this phone.
+  const clearing = new Set(
+    rows
+      .filter((row) => row.table === "water_reports" && row.op === "update" && !row.blocked)
+      .map((row) => row.id.replace(/:update$/, "")),
+  );
 
   const byId = new Map<string, WaterReport>();
   for (const row of local) byId.set(row.id, row);
   for (const row of remote) byId.set(row.id, row);
+  for (const id of clearing) byId.delete(id);
 
   return [...byId.values()]
     .sort((a, b) => b.ts.localeCompare(a.ts))
@@ -140,6 +165,13 @@ export async function allWaterReports(limit = 12): Promise<WaterReport[]> {
 
 let liveChannel: RealtimeChannel | null = null;
 const liveListeners = new Set<() => void>();
+/*
+ * Each channel gets a fresh name. Removing one is asynchronous, so when the
+ * last listener leaves and a new one arrives at once (a page change, React's
+ * development double-mount), reusing "water-live" handed back the channel still
+ * being torn down — already subscribed — and supabase-js threw.
+ */
+let channelSeq = 0;
 
 /**
  * Live updates (FR-6.3, and the §7.6 acceptance criterion: a report reaches a
@@ -160,10 +192,11 @@ export function subscribeWaterReports(onChange: () => void): () => void {
 
   if (!liveChannel) {
     liveChannel = supabase
-      .channel("water-live")
+      .channel(`water-live-${++channelSeq}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "water_reports" },
+        // Every change, not only new reports: a clear must leave open maps too.
+        { event: "*", schema: "public", table: "water_reports" },
         () => {
           for (const listener of [...liveListeners]) listener();
         },
@@ -187,4 +220,12 @@ export function agoLabel(iso: string, now: number): string {
   if (minutes < 1) return "NGAYON";
   if (minutes < 60) return `${minutes} MIN`;
   return `${Math.floor(minutes / 60)} ORAS`;
+}
+
+/**
+ * WATER GONE — officials only (RLS and a trigger, 0051). Through the queue, so
+ * it works from a hall with no signal; the database stamps who cleared it.
+ */
+export async function clearWaterReport(id: string): Promise<void> {
+  await enqueueUpdate("water_reports", id, { cleared_at: new Date().toISOString() });
 }
