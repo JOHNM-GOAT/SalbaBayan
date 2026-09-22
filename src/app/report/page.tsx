@@ -27,6 +27,8 @@ import {
   type Hazard,
 } from "@/lib/hazards";
 import { useMyRole } from "@/components/useMyRole";
+import { useMyProfile } from "@/components/useMyProfile";
+import { ProfileForm } from "@/components/ProfileForm";
 import { focusHazard } from "@/lib/hazardFocus";
 import { pendingPhotoCount } from "@/lib/photoQueue";
 import { startPositionWatch, type Fix } from "@/lib/sos";
@@ -45,6 +47,10 @@ export default function ReportPage() {
   const { purokId, snapshot, online, userId } = useSync();
   const t = useT();
   const role = useMyRole();
+  const { profile, loaded: profileLoaded } = useMyProfile();
+  /* Reports need a name on file (migration 0039); the form asks here, with no
+     LATER, and keeps whatever the resident already filled in above. */
+  const needsName = profileLoaded && !profile;
 
   const [category, setCategory] = useState<Category | null>(null);
   const [depth, setDepth] = useState<Depth | null>(null);
@@ -315,6 +321,9 @@ export default function ReportPage() {
           </>
         )}
 
+        {needsName ? (
+          <ProfileForm title={t("profile.required_for_reports")} />
+        ) : (
         <button
           type="button"
           onClick={onSubmit}
@@ -323,6 +332,7 @@ export default function ReportPage() {
         >
           {t("hazard.submit")}
         </button>
+        )}
 
         <p className="mono -mt-2 text-center text-[9.5px] tracking-[0.7px] text-paper-3">
           {!category

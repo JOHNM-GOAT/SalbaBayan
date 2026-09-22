@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { Shell } from "@/components/Shell";
 import { ActorSwitch } from "@/components/ActorSwitch";
 import { RouteGuard } from "@/components/RouteGuard";
+import { ProfilePrompt } from "@/components/ProfilePrompt";
 import { BottomNav } from "@/components/BottomNav";
 import { HazardSheet } from "@/components/HazardSheet";
 
@@ -92,6 +93,7 @@ export default function RootLayout({
             <AppHeader />
             <ActorSwitch />
             <RouteGuard />
+            <ProfilePrompt />
             <Shell>{children}</Shell>
             {/*
              * The hazard map and the tab bar live here for the same reason the

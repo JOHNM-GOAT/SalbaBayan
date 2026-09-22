@@ -27,6 +27,7 @@ export type QueueTable =
   | "headcounts"
   | "checkins"
   | "device_checkins"
+  | "profiles"
   | "barangays"
   | "evac_centers"
   | "protocols";
@@ -48,6 +49,8 @@ const OWNER_COLUMN: Record<QueueTable, string | null> = {
   headcounts: "recorded_by",
   checkins: "scanned_by",
   device_checkins: "scanned_by",
+  // The row id IS the owner (the device's own uid), set by the caller.
+  profiles: null,
   /*
    * Never stamped from here. Owner stamping runs only on INSERTS, and the only
    * write to barangays is an UPDATE from setAdvisory — where the

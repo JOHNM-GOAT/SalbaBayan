@@ -104,6 +104,36 @@ const purok = (await rest("puroks?select=id&limit=1", { jwt })).body?.[0]?.id;
 // Without it the insert succeeds but the row is unreadable to its author.
 const me = JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString()).sub;
 
+/* Names (migration 0038). Reports need one on file (0039), so this comes first. */
+const ownProfile = await rest("profiles", {
+  jwt,
+  method: "POST",
+  body: { id: me, first_name: "rls-test", last_name: "rls-test" },
+});
+check("can save own name", ownProfile.status === 201, `status ${ownProfile.status}`);
+
+const selfConfirmed = await rest(`profiles?id=eq.${me}`, {
+  jwt,
+  method: "PATCH",
+  body: { confirmed_at: new Date().toISOString() },
+});
+check(
+  "CANNOT confirm own name",
+  selfConfirmed.status === 200 && selfConfirmed.body?.[0]?.confirmed_at == null,
+  `LEAK: confirmed_at ${selfConfirmed.body?.[0]?.confirmed_at}`,
+);
+
+const residentConfirm = await rest("rpc/confirm_resident", {
+  jwt,
+  method: "POST",
+  body: { device_code: me.slice(0, 8) },
+});
+check(
+  "CANNOT confirm anyone (staff only)",
+  residentConfirm.status === 403 && residentConfirm.body?.code === "42501",
+  `LEAK: status ${residentConfirm.status}`,
+);
+
 const allowed = await rest("water_reports", {
   jwt,
   method: "POST",
@@ -141,6 +171,19 @@ check("can read back their own SOS", rows(mine) === 1, `got ${rows(mine)} rows`)
 const otherJwt = await signInAnonymously();
 const theirs = await rest(`rescue_requests?id=eq.${sosId}&select=id`, { jwt: otherJwt });
 check("CANNOT read another resident's SOS", rows(theirs) === 0, `LEAK: got ${rows(theirs)} rows`);
+
+const theirName = await rest(`profiles?id=eq.${me}&select=first_name`, { jwt: otherJwt });
+check("CANNOT read another resident's name", rows(theirName) === 0, `LEAK: got ${rows(theirName)} rows`);
+const theirCard = await rest("rpc/profile_for_device", {
+  jwt: otherJwt,
+  method: "POST",
+  body: { device_code: me.slice(0, 8) },
+});
+check(
+  "CANNOT look up a name by device code (staff only)",
+  rows(theirCard) === 0,
+  `LEAK: got ${rows(theirCard)} rows`,
+);
 
 console.log("\nResident must NOT be able to:");
 const proto = await rest("protocols", {

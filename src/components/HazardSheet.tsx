@@ -33,6 +33,9 @@ import {
 } from "@/lib/hazards";
 import { Skeleton, SkeletonRegion, useSkeletonGate } from "./Skeleton";
 import { HazardCategoryKey, MapLegend } from "./MapLegend";
+import { PersonLabel } from "./PersonLabel";
+import { namesFor, type NamedPerson } from "@/lib/profile";
+import { isStaffRole } from "@/lib/supabase";
 import { CentreDetail, YouDetail, type MapSelection } from "./MapDetail";
 
 /**
@@ -331,6 +334,21 @@ export function HazardSheet() {
     });
   }, [open, placed, styleEpoch, t, purokName, snapshot, selectedId]);
 
+  /* Who reported it — staff only (names are staff-only by RLS). */
+  const staff = isStaffRole(role);
+  const reporterId = selected?.reported_by ?? null;
+  const [reporter, setReporter] = useState<{ id: string; person: NamedPerson | undefined } | null>(null);
+  useEffect(() => {
+    if (!staff || !reporterId) return;
+    let live = true;
+    void namesFor([reporterId]).then((found) => {
+      if (live) setReporter({ id: reporterId, person: found.get(reporterId) });
+    });
+    return () => {
+      live = false;
+    };
+  }, [staff, reporterId]);
+
   const canFix = selected
     ? canResolveHazard(selected, userId ?? null, role)
     : false;
@@ -445,6 +463,9 @@ export function HazardSheet() {
                   now={now}
                   purokName={purokName}
                   canFix={canFix}
+                  reporter={
+                    staff ? (reporter?.id === reporterId ? reporter.person : undefined) : null
+                  }
                   onFix={async () => {
                     await resolveHazard(selected.id);
                     setSelectedId(null);
@@ -481,11 +502,14 @@ function HazardDetail({
   canFix,
   onFix,
   onDismiss,
+  reporter,
 }: {
   hazard: Hazard;
   now: number;
   purokName: (id: string) => string;
   canFix: boolean;
+  /** Staff only: who reported it. `null` for residents, who never see names. */
+  reporter: NamedPerson | undefined | null;
   onFix: () => void;
   onDismiss: () => void;
 }) {
@@ -538,6 +562,12 @@ function HazardDetail({
           </>
         )}
       </p>
+
+      {reporter !== null && (
+        <div className="mt-2">
+          <PersonLabel person={reporter} />
+        </div>
+      )}
 
       {hazard.photo_url && <HazardPhoto path={hazard.photo_url} />}
 

@@ -18,6 +18,8 @@ import {
   type RescueRequest,
 } from "@/lib/sos";
 import { SkeletonLines, useSkeletonGate } from "@/components/Skeleton";
+import { PersonLabel } from "@/components/PersonLabel";
+import { namesFor, type NamedPerson } from "@/lib/profile";
 
 /**
  * Live rescue map (PRD §7.4, FR-4.6).
@@ -46,6 +48,8 @@ export default function ResponderPage() {
   const markers = useRef<maplibregl.Marker[]>([]);
 
   const [queue, setQueue] = useState<RescueRequest[]>([]);
+  /* Who is asking, for the responder. Names are staff-only by RLS. */
+  const [people, setPeople] = useState<Map<string, NamedPerson>>(new Map());
   const [now, setNow] = useState(() => Date.now());
   const [mapReady, setMapReady] = useState(false);
   /* First read finished — not "there is somebody waiting". An empty queue is a
@@ -53,7 +57,9 @@ export default function ResponderPage() {
   const [settled, setSettled] = useState(false);
 
   const refresh = useCallback(async () => {
-    setQueue(await activeQueue());
+    const rows = await activeQueue();
+    setQueue(rows);
+    setPeople(await namesFor(rows.map((r) => r.requested_by ?? "")));
     setSettled(true);
   }, []);
 
@@ -213,6 +219,9 @@ export default function ResponderPage() {
                     : "border-alarm"
                 }`}
               >
+                <div className="mb-1.5">
+                  <PersonLabel person={people.get(request.requested_by ?? "")} />
+                </div>
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="mono text-[11px] tracking-[0.5px] text-paper-2">
                     {request.lat != null && request.lng != null

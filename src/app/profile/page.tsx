@@ -6,6 +6,7 @@ import { RoleManager } from "@/components/RoleManager";
 import { DeviceQr } from "@/components/DeviceQr";
 import { OfficialSession } from "@/components/OfficialSession";
 import { OfficialCodes } from "@/components/OfficialCodes";
+import { ProfileCard } from "@/components/ProfileCard";
 
 /**
  * "Ako" — this device (design: `stage-2/design/artboards/DeviceRole.dc.html`).
@@ -53,6 +54,8 @@ export default function ProfilePage() {
           {t("me.device_hint")}
         </p>
       </section>
+
+      <ProfileCard />
 
       <dl className="grid gap-2 @xl:grid-cols-2">
         <div className="rounded-instrument border-[1.5px] border-line-soft bg-ink-800 px-3.5 py-3">
