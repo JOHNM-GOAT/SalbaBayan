@@ -38,13 +38,30 @@ import { useSync } from "./AppRuntime";
  */
 const WIDE_ACTORS = new Set(["official"]);
 
-/** The Tailwind max-width this actor's content is held to. */
+/**
+ * The Tailwind max-width this actor's chrome (header, strip, tab bar) is held
+ * to. Only the official's dashboard widens its chrome with the map; on the
+ * resident's map the tab bar stays a phone-width row instead of five tabs
+ * spread across a laptop screen.
+ */
 export function useShellWidth(): string {
   const { actor } = useSync();
   const pathname = usePathname();
-  // The official's map dashboard is a map first: it gets the whole screen.
   if (pathname === "/official") return "max-w-none";
   return WIDE_ACTORS.has(actor) ? "max-w-[76rem]" : "max-w-[34rem]";
+}
+
+/**
+ * The page content's max-width. Map screens are a map first: the evacuation
+ * map gets the whole screen, and the rescue map room for its map beside the
+ * queue.
+ */
+function useContentWidth(): string {
+  const pathname = usePathname();
+  const chrome = useShellWidth();
+  if (pathname === "/map") return "max-w-none";
+  if (pathname === "/responder") return "max-w-[76rem]";
+  return chrome;
 }
 
 /**
@@ -62,7 +79,7 @@ export function useShellWidth(): string {
  * 1024px, which is exactly the squashed layout they were added to prevent.
  */
 export function Shell({ children }: { children: React.ReactNode }) {
-  const width = useShellWidth();
+  const width = useContentWidth();
   return (
     <div className={`@container mx-auto flex w-full flex-1 flex-col ${width}`}>
       {children}

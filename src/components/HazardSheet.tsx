@@ -477,7 +477,8 @@ export function HazardSheet() {
           />
 
           <section
-            className={`relative mx-auto flex h-[82dvh] w-full flex-col overflow-hidden rounded-t-instrument border-t-[1.5px] border-line bg-ink-900 ${width}`}
+            // The whole screen on every size: the map is what it is opened for.
+            className="relative flex h-dvh w-full flex-col overflow-hidden bg-ink-900"
             role="dialog"
             aria-modal="true"
             aria-label={t("hz.title")}

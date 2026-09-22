@@ -76,6 +76,8 @@ export default function MapPage() {
   const [fix, setFix] = useState<Fix | null>(null);
   const [selection, setSelection] = useState<MapSelection>(null);
   const [streets, setStreets] = useState<FeatureCollection | null>(null);
+  /** The other centres under the nearest one: folded away until asked for. */
+  const [showOthers, setShowOthers] = useState(false);
 
   /*
    * Which base is on screen, and a counter that ticks every time a style
@@ -139,9 +141,12 @@ export default function MapPage() {
 
   const guidance = useMemo(() => {
     if (!route.length) return null;
-    const from: Point = fix ? [fix.lng, fix.lat] : route[0];
+    // Only from the phone's own position when it is near the barangay, the
+    // same rule as the route: a phone in another town would otherwise be told
+    // the next turn is hundreds of kilometres away.
+    const from: Point = fromYou && fix ? [fix.lng, fix.lat] : route[0];
     return nextTurn(route, from);
-  }, [route, fix]);
+  }, [route, fix, fromYou]);
 
   /*
    * What the map should frame: the route, the destination AND the Purok
@@ -249,7 +254,7 @@ export default function MapPage() {
     // reading this one-handed in the rain should not have to pinch.
     map.current.addControl(
       new maplibregl.NavigationControl({ showCompass: false }),
-      "top-right",
+      "bottom-right",
     );
 
     map.current.on("load", () => {
@@ -347,7 +352,7 @@ export default function MapPage() {
       onStyleReady(m, () => {
         if (map.current !== m) return;
         // A licence condition of the OpenStreetMap data, not decoration.
-        m.addControl(new maplibregl.AttributionControl({ compact: true }), "top-left");
+        m.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
         setBase("streets");
         setStyleEpoch((n) => n + 1);
       });
@@ -653,221 +658,226 @@ export default function MapPage() {
   const selectedRank = ranked.find((r) => r.centre.id === selectedCentre?.id);
   const others = ranked.slice(1);
 
-  return (
-    <>
-      <div className="flex items-center gap-3 px-3.5 py-3">
-        <Link href="/" aria-label="Back" className="shrink-0">
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--color-paper-2)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
-        </Link>
-        <h1 className="flex-1 font-display text-base font-extrabold tracking-[0.4px]">
-          {t("map.title")} · {purok?.name ?? ""}
-        </h1>
-        {/*
-          States what the map is running on. Offline this is the reassurance
-          that matters; online it is a quiet reminder that it would still work.
-        */}
-        <span className="mono text-[9px] font-bold tracking-[0.7px] text-clear">
-          {online ? t("map.offline_ready") : t("map.offline_now")}
-        </span>
-      </div>
+  /* The avoid warning names the hazard: its note if it has one, else its kind. */
+  const blockingLabel = blocking[0]
+    ? (blocking[0].description ?? t(`cat.${blocking[0].category}`))
+    : "";
 
-      {/* One rhythm for the whole screen — the same `gap-2.5 p-3.5` column
-          every other page is built on, so the map reads as one card among
-          several rather than as a slab wedged between two loose strips. */}
-      <main className="flex flex-1 flex-col gap-2.5 p-3.5 pt-0">
-        {guidance && route.length > 0 && (
-        <div className="flex items-center gap-3 rounded-instrument border-[1.5px] border-line-soft bg-ink-800 px-3.5 py-3">
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke={routeColour}
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="shrink-0"
-            style={{
-              transform:
-                guidance.turn === "left"
-                  ? "rotate(-90deg)"
-                  : guidance.turn === "right"
-                    ? "rotate(90deg)"
-                    : "none",
-            }}
-            aria-hidden
-          >
-            <path d="M12 20V5" />
-            <path d="M5 12l7-7 7 7" />
-          </svg>
-          <span className="flex-1 text-[15px] font-bold">{turnLabel}</span>
-          <span className="mono text-[17px] font-bold">
-            {guidance.metres}
-            <span className="text-[11px] text-paper-3"> m</span>
+  return (
+    /*
+     * The map is the screen: it fills everything between the header and the
+     * tab bar, and the instructions float over it — the next turn and any
+     * hazard on the way at the top, the destination at the foot. On a wide
+     * screen the cards keep a readable width at the left instead of
+     * stretching across the map (the shell is full width here, see Shell).
+     */
+    <main className="relative flex min-h-[28rem] flex-1 flex-col overflow-hidden">
+      {/*
+        Absolutely positioned, and inline rather than by class. Two separate
+        things conspire to collapse this box to zero height, and it needs both
+        fixes:
+
+        1. `height: 100%` does not work here. The wrapper is a flex item, and
+           a percentage height inside one resolves against an indefinite
+           containing block — so it computes to auto, and with the canvas
+           absolutely positioned there is no content to give it height.
+        2. `absolute` as a utility class does not work either. MapLibre adds
+           `.maplibregl-map` to this element after mount, and `maplibre-gl.css`
+           sets `position: relative` on it, loading after the utilities and
+           winning the cascade.
+
+        Absolute + inset against the sized `relative` wrapper solves (1);
+        being an inline style keeps it out of (2). The symptom of getting
+        either wrong is a blank rectangle with every layer correctly loaded
+        behind it, which reads as a data problem and is not one.
+      */}
+      <div
+        ref={container}
+        style={{ position: "absolute", inset: 0 }}
+        // Controls and the map credit sit above the legend bar (two lines on a phone).
+        className="[&_.maplibregl-ctrl-bottom-left]:bottom-14! [&_.maplibregl-ctrl-bottom-right]:bottom-14! sm:[&_.maplibregl-ctrl-bottom-left]:bottom-9! sm:[&_.maplibregl-ctrl-bottom-right]:bottom-9!"
+      />
+
+      {/* Top: where this is, the next turn, and anything blocking the way. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 grid gap-2 p-2.5 sm:max-w-md">
+        <div className="pointer-events-auto flex items-center gap-2.5 rounded-instrument border-[1.5px] border-line-soft bg-ink-900/95 px-3 py-2 shadow-md">
+          <Link href="/" aria-label="Back" className="shrink-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-paper-2)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+          </Link>
+          <h1 className="min-w-0 flex-1 truncate font-display text-[14.5px] font-extrabold tracking-[0.4px]">
+            {t("map.title")} · {purok?.name ?? ""}
+          </h1>
+          {/*
+            States what the map is running on. Offline this is the reassurance
+            that matters; online it is a quiet reminder that it would still work.
+          */}
+          <span className="mono shrink-0 text-[8.5px] font-bold tracking-[0.7px] text-clear">
+            {online ? t("map.offline_ready") : t("map.offline_now")}
           </span>
         </div>
-      )}
 
-        {/* A floor as well as `flex-1`: on a short viewport the cards below
-            would otherwise squeeze the map to a sliver, and a map too small to
-            show the next corner is not worth the space it holds. */}
-        <div className="relative min-h-56 flex-1 overflow-hidden rounded-instrument border-[1.5px] border-line-soft">
-        {/*
-          Absolutely positioned, and inline rather than by class. Two separate
-          things conspire to collapse this box to zero height, and it needs both
-          fixes:
-
-          1. `height: 100%` does not work here. The wrapper is a flex item, and
-             a percentage height inside one resolves against an indefinite
-             containing block — so it computes to auto, and with the canvas
-             absolutely positioned there is no content to give it height.
-          2. `absolute` as a utility class does not work either. MapLibre adds
-             `.maplibregl-map` to this element after mount, and `maplibre-gl.css`
-             sets `position: relative` on it, loading after the utilities and
-             winning the cascade.
-
-          Absolute + inset against the sized `relative` wrapper solves (1);
-          being an inline style keeps it out of (2). The symptom of getting
-          either wrong is a blank rectangle with every layer correctly loaded
-          behind it, which reads as a data problem and is not one.
-        */}
-        <div
-          ref={container}
-          style={{ position: "absolute", inset: 0 }}
-        />
-
-        <button
-          type="button"
-          onClick={recentre}
-          disabled={!fix}
-          aria-label={t("map.recentre")}
-          className="tap absolute right-2.5 bottom-11 flex size-11 items-center justify-center rounded-[3px] border-[1.5px] border-line bg-ink-800/95 disabled:opacity-40"
-        >
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--color-hv)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <circle cx="12" cy="12" r="3.5" />
-            <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
-          </svg>
-        </button>
-
-        {/*
-          The legend, as a status bar across the foot of the map rather than a
-          floating block on top of it. The floating version covered a quarter of
-          the canvas on a phone — on the one screen where the canvas IS the
-          content. This costs no layout height, occludes nothing but the bottom
-          edge, and has room on the right to name the base map.
-        */}
-        <MapLegend
-          water
-          routeColour={routeColour}
-          right={
-            <span className="mono text-[9px] font-semibold tracking-[0.7px] text-paper-3">
-              {baseLabel}
+        {guidance && route.length > 0 && (
+          <div className="pointer-events-auto flex items-center gap-3 rounded-instrument border-[1.5px] border-line-soft bg-ink-900/95 px-3.5 py-2.5 shadow-md">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={ROUTE_EDGE}
+              strokeWidth="2.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0"
+              style={{
+                transform:
+                  guidance.turn === "left"
+                    ? "rotate(-90deg)"
+                    : guidance.turn === "right"
+                      ? "rotate(90deg)"
+                      : "none",
+              }}
+              aria-hidden
+            >
+              <path d="M12 20V5" />
+              <path d="M5 12l7-7 7 7" />
+            </svg>
+            <span className="flex-1 text-[15px] font-bold">{turnLabel}</span>
+            <span className="mono text-[17px] font-bold">
+              {guidance.metres}
+              <span className="text-[11px] text-paper-3"> m</span>
             </span>
-          }
-        />
-        </div>
-
-        {selectedCentre && (
-          <CentreDetail
-            centre={selectedCentre}
-            metres={selectedRank?.metres}
-            minutes={selectedRank ? walkMinutes(selectedRank.metres) : undefined}
-            onClose={() => setSelection(null)}
-          />
+          </div>
         )}
-        {selection === "you" && fix && <YouDetail fix={fix} onClose={() => setSelection(null)} />}
 
-        {/* The blocked-path warning. Above the destination, because it changes
-            whether the destination is reachable at all. */}
+        {/* The blocked-path warning: it changes whether the destination is reachable at all. */}
         {blocking.length > 0 && (
-          <div className="flex items-center gap-2.5 rounded-instrument border-[1.5px] border-alarm bg-alarm/10 px-3 py-2.5">
+          <div className="pointer-events-auto flex items-center gap-2.5 rounded-instrument border-[1.5px] border-alarm bg-ink-900/95 px-3 py-2.5 shadow-md">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--color-alarm)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
               <path d="M12 9v5" /><path d="M12 17h.01" />
               <path d="M10.3 3.9L2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
             </svg>
-            <span className="flex-1 text-[12.5px] leading-snug font-semibold">
-              {blocking[0].description ?? blocking[0].category}
-            </span>
+            <span className="min-w-0 flex-1 truncate text-[12.5px] leading-snug font-semibold">{blockingLabel}</span>
             <span className="mono shrink-0 text-[10px] font-bold tracking-[0.8px] text-alarm">
               {t("map.avoid")}
             </span>
           </div>
         )}
+      </div>
 
-        {/*
-          The destination, as a card rather than as loose text under the map.
-          It is the same fact the advisory card on the home screen ends with, so
-          it is given the same shape: label, name, and the numbers in mono on
-          the right where every other screen puts its numbers.
-        */}
-        {centre ? (
-          <section className="flex items-center gap-3 rounded-instrument border-[1.5px] border-line-soft bg-ink-800 px-3.5 py-3">
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--color-hv)"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="shrink-0"
-              aria-hidden
+      {/* Bottom: the destination, or whatever was tapped on the map. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-14 z-10 grid gap-2 p-2.5 pr-14 sm:bottom-9 sm:max-w-md sm:pr-2.5">
+        {selectedCentre ? (
+          <div className="pointer-events-auto shadow-md">
+            <CentreDetail
+              centre={selectedCentre}
+              metres={selectedRank?.metres}
+              minutes={selectedRank ? walkMinutes(selectedRank.metres) : undefined}
+              onClose={() => setSelection(null)}
+            />
+          </div>
+        ) : selection === "you" && fix ? (
+          <div className="pointer-events-auto shadow-md">
+            <YouDetail fix={fix} onClose={() => setSelection(null)} />
+          </div>
+        ) : centre ? (
+          <section className="pointer-events-auto grid gap-1.5 rounded-instrument border-[1.5px] border-line-soft bg-ink-900/95 px-3.5 py-2.5 shadow-md">
+            <button
+              type="button"
+              onClick={() => setShowOthers((open) => !open)}
+              aria-expanded={showOthers}
+              disabled={others.length === 0}
+              className="flex items-center gap-3 text-left"
             >
-              <circle cx="6" cy="19" r="2" />
-              <circle cx="18" cy="5" r="2" />
-              <path d="M8 19h7a4 4 0 0 0 4-4v-1a4 4 0 0 0-4-4H9a4 4 0 0 1-4-4v-1" />
-            </svg>
-            <div className="min-w-0 flex-1">
-              <p className="lbl text-[9px]">
-                {ranked.length > 1 ? t("evac.nearest") : t("ui.evac_center")}
-              </p>
-              <h2 className="truncate font-display text-[18px] leading-tight font-extrabold tracking-[0.3px]">
-                {centre.name.toUpperCase()}
-              </h2>
-            </div>
-            <div className="shrink-0 text-right">
-              <p className="mono text-[17px] leading-none font-bold">
-                {Math.round(routeMetres)}
-                <span className="text-[11px] text-paper-3"> M</span>
-              </p>
-              <p className="mono mt-1 text-[9.5px] tracking-[0.6px] text-paper-3">
-                {walkMinutes(routeMetres)} {t("map.walk")}
-              </p>
-            </div>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-hv)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
+                <circle cx="6" cy="19" r="2" />
+                <circle cx="18" cy="5" r="2" />
+                <path d="M8 19h7a4 4 0 0 0 4-4v-1a4 4 0 0 0-4-4H9a4 4 0 0 1-4-4v-1" />
+              </svg>
+              <div className="min-w-0 flex-1">
+                <p className="lbl text-[9px]">
+                  {ranked.length > 1 ? t("evac.nearest") : t("ui.evac_center")}
+                </p>
+                <h2 className="truncate font-display text-[17px] leading-tight font-extrabold tracking-[0.3px]">
+                  {centre.name.toUpperCase()}
+                </h2>
+                {nearest && (
+                  <p className="mono text-[8.5px] tracking-[0.6px] text-paper-3">
+                    {fromYou ? t("evac.from_you") : t("evac.from_street")}
+                  </p>
+                )}
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="mono text-[17px] leading-none font-bold">
+                  {Math.round(routeMetres)}
+                  <span className="text-[11px] text-paper-3"> M</span>
+                </p>
+                <p className="mono mt-1 text-[9.5px] tracking-[0.6px] text-paper-3">
+                  {walkMinutes(routeMetres)} {t("map.walk")}
+                </p>
+              </div>
+              {others.length > 0 && (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-paper-3)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 transition-transform ${showOthers ? "" : "rotate-180"}`} aria-hidden>
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              )}
+            </button>
+
+            {/* The other centres, nearest first: somewhere to go if the first is full or cut off. */}
+            {showOthers && others.length > 0 && (
+              <div className="grid gap-0.5 border-t border-line-soft pt-1.5">
+                <p className="lbl text-[9px]">{t("evac.other_centres")}</p>
+                {others.map((r) => (
+                  <button
+                    key={r.centre.id}
+                    type="button"
+                    onClick={() => setSelection({ centre: r.centre.id })}
+                    className="flex min-h-10 items-center gap-2 text-left"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{r.centre.name}</span>
+                    <span className="mono shrink-0 text-[12px] font-bold">
+                      {r.metres}
+                      <span className="text-[10px] text-paper-3">
+                        {" "}M · {walkMinutes(r.metres)} {t("map.walk")}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </section>
         ) : (
-          <p className="mono text-[11px] text-paper-3">{t("ui.no_protocol")}</p>
-        )}
-        {nearest && (
-          <p className="mono -mt-1 text-[9px] tracking-[0.6px] text-paper-3">
-            {fromYou ? t("evac.from_you") : t("evac.from_street")}
+          <p className="pointer-events-auto mono rounded-instrument bg-ink-900/95 px-3 py-2 text-[11px] text-paper-3 shadow-md">
+            {t("ui.no_protocol")}
           </p>
         )}
+      </div>
 
-        {/* The other centres, nearest first: somewhere to go if the first is full or cut off. */}
-        {others.length > 0 && (
-          <section className="grid gap-0.5 rounded-instrument border-[1.5px] border-line-soft bg-ink-800 px-3.5 py-2.5">
-            <p className="lbl text-[9px]">{t("evac.other_centres")}</p>
-            {others.map((r) => (
-              <button
-                key={r.centre.id}
-                type="button"
-                onClick={() => setSelection({ centre: r.centre.id })}
-                className="flex min-h-10 items-center gap-2 text-left"
-              >
-                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{r.centre.name}</span>
-                <span className="mono shrink-0 text-[12px] font-bold">
-                  {r.metres}
-                  <span className="text-[10px] text-paper-3">
-                    {" "}M · {walkMinutes(r.metres)} {t("map.walk")}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </section>
-        )}
-      </main>
-    </>
+      <button
+        type="button"
+        onClick={recentre}
+        disabled={!fix}
+        aria-label={t("map.recentre")}
+        className="tap absolute right-2.5 bottom-[140px] z-10 sm:bottom-[118px] flex size-11 items-center justify-center rounded-[3px] border-[1.5px] border-line bg-ink-800/95 shadow-sm disabled:opacity-40"
+      >
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--color-hv)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <circle cx="12" cy="12" r="3.5" />
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+        </svg>
+      </button>
+
+      {/*
+        The legend, as a status bar across the foot of the map rather than a
+        floating block on top of it, with room on the right to name the base map.
+      */}
+      <MapLegend
+        water
+        routeColour={routeColour}
+        right={
+          <span className="mono text-[9px] font-semibold tracking-[0.7px] text-paper-3">
+            {baseLabel}
+          </span>
+        }
+      />
+    </main>
   );
 }

@@ -175,7 +175,7 @@ export default function ResponderPage() {
       <main className="flex flex-1 flex-col gap-3 p-3.5 @4xl:grid @4xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] @4xl:items-start @4xl:gap-4">
         <div
           ref={container}
-          className="h-64 w-full shrink-0 overflow-hidden rounded-instrument border-[1.5px] border-line-soft @4xl:sticky @4xl:top-3.5 @4xl:h-[calc(100dvh-11rem)]"
+          className="h-[55dvh] min-h-72 w-full shrink-0 overflow-hidden rounded-instrument border-[1.5px] border-line-soft @4xl:sticky @4xl:top-3.5 @4xl:h-[calc(100dvh-11rem)]"
         />
 
         <div className="flex flex-col gap-3">
