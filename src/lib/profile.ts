@@ -1,4 +1,4 @@
-import { enqueueUpdate, enqueueWrite } from "./offlineQueue";
+import { enqueueUpdate, enqueueWrite, queuedWrites } from "./offlineQueue";
 import { getCurrentUserId, getSupabase } from "./supabase";
 
 /**
@@ -37,6 +37,22 @@ function writeCache(uid: string, profile: Profile): void {
 
 const listeners = new Set<() => void>();
 
+/**
+ * Drop the phone's copy of this device's name — when the server has removed
+ * it, e.g. logging out of full access removes the "LGU" name (0046). Without
+ * this the old name lingered on the ME tab and on the next report.
+ */
+export async function forgetMyProfile(): Promise<void> {
+  const uid = await getCurrentUserId();
+  if (!uid) return;
+  try {
+    localStorage.removeItem(key(uid));
+  } catch {
+    // Nothing cached to forget.
+  }
+  for (const listener of [...listeners]) listener();
+}
+
 export function onProfileChanged(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
@@ -59,7 +75,21 @@ export async function loadMyProfile(): Promise<Profile | null> {
       .eq("id", uid)
       .maybeSingle();
     if (error) return cached;
-    if (!data) return cached; // a save may still be waiting in the queue
+    if (!data) {
+      // No row on the server. Keep the phone's copy only while a save of it
+      // is still waiting to be sent; otherwise the server removed it (a
+      // full-access logout) and the copy is stale.
+      const waiting = (await queuedWrites()).some((row) => row.table === "profiles" && !row.blocked);
+      if (waiting) return cached;
+      if (cached) {
+        try {
+          localStorage.removeItem(key(uid));
+        } catch {
+          // ignore
+        }
+      }
+      return null;
+    }
     writeCache(uid, data as Profile);
     return data as Profile;
   } catch {

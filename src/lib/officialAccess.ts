@@ -5,6 +5,7 @@ import {
   notifyRoleChanged,
   type UserRole,
 } from "./supabase";
+import { forgetMyProfile } from "./profile";
 
 /**
  * Official access (migration 0042).
@@ -218,6 +219,8 @@ export async function leaveFullAccess(): Promise<boolean> {
     const { error } = await supabase.rpc("leave_full_access");
     if (error) return false;
     setUnlocked(false);
+    // The server removed the "LGU" name (0046); forget the phone's copy too.
+    await forgetMyProfile();
     notifyRoleChanged();
     return true;
   } catch {
