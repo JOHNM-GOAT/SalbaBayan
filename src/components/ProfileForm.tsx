@@ -27,9 +27,6 @@ export function ProfileForm({
   const [busy, setBusy] = useState(false);
 
   const valid = cleanName(first) !== "" && cleanName(last) !== "";
-  const renaming =
-    !!initial?.confirmed_at &&
-    (cleanName(first) !== initial.first_name || cleanName(last) !== initial.last_name);
 
   const field = (
     label: string,
@@ -79,12 +76,6 @@ export function ProfileForm({
       })}
 
       <p className="text-[10.5px] leading-snug text-paper-3">{t("profile.privacy")}</p>
-
-      {renaming && (
-        <p className="mono text-[10.5px] font-bold tracking-[0.4px] text-caution" role="status">
-          {t("profile.edit_warning")}
-        </p>
-      )}
 
       <button
         type="submit"

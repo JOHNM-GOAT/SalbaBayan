@@ -6,7 +6,7 @@ import { HoldToConfirm } from "./HoldToConfirm";
 import { useMyCentre } from "./useMyCentre";
 import { clockLabel } from "@/lib/ledger";
 import { countDeviceIn, recentArrival, type Arrival } from "@/lib/deviceCheckin";
-import { confirmResident, profileForDevice, type ConfirmOutcome, type DeviceProfile } from "@/lib/profile";
+import { profileForDevice, type DeviceProfile } from "@/lib/profile";
 
 /**
  * A resident's phone QR, scanned at the hall: how many came with it, then a
@@ -29,7 +29,6 @@ export function DeviceArrival({
   const [arrival, setArrival] = useState<Arrival | null | undefined>(undefined);
   /* The name behind this phone: undefined while unknown/offline, null if none given. */
   const [person, setPerson] = useState<DeviceProfile | null | undefined>(undefined);
-  const [confirmMessage, setConfirmMessage] = useState<ConfirmOutcome | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -59,7 +58,7 @@ export function DeviceArrival({
         {t("ci.phone", { n: code })}
       </h2>
 
-      {/* Who this is, and the staff confirmation (migration 0038). */}
+      {/* Who this is: the name the phone gave. Taken as given, not confirmed. */}
       {person === null && (
         <p className="mono text-[10.5px] font-bold tracking-[0.5px] text-caution">{t("profile.none_on_device")}</p>
       )}
@@ -69,37 +68,6 @@ export function DeviceArrival({
             {person.first_name} {person.last_name}
           </p>
           {person.address && <p className="text-[12px] text-paper-2">{person.address}</p>}
-          {person.confirmed_at ? (
-            <p className="mono text-[10px] font-bold tracking-[0.7px] text-clear">{t("profile.confirmed")}</p>
-          ) : (
-            <>
-              <p className="mono text-[10px] font-bold tracking-[0.7px] text-caution">{t("profile.unconfirmed")}</p>
-              <HoldToConfirm
-                label={t("profile.confirm")}
-                holdingLabel={t("sos.cancelling")}
-                tone="accent"
-                onConfirm={() => {
-                  void confirmResident(code).then((outcome) => {
-                    setConfirmMessage(outcome);
-                    if (outcome === "confirmed") setPerson({ ...person, confirmed_at: new Date().toISOString() });
-                  });
-                }}
-              />
-            </>
-          )}
-          {confirmMessage && confirmMessage !== "confirmed" && (
-            <p className="mono text-[10.5px] font-bold tracking-[0.5px] text-alarm" role="alert">
-              {t(
-                confirmMessage === "self"
-                  ? "profile.self"
-                  : confirmMessage === "offline"
-                    ? "roles.offline"
-                    : confirmMessage === "no_name"
-                      ? "profile.none_on_device"
-                      : "roles.failed",
-              )}
-            </p>
-          )}
         </div>
       )}
 

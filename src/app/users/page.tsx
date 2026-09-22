@@ -235,7 +235,6 @@ function UserList() {
                     <p className="truncate text-[13px] font-semibold">{name}</p>
                     <p className="mono text-[9.5px] tracking-[0.5px] text-paper-3">
                       {user.device_code}
-                      {user.first_name && ` · ${user.confirmed ? t("profile.confirmed") : t("profile.unconfirmed")}`}
                       {user.is_super && ` · ${t("acc.via_code")}`}
                     </p>
                   </div>

@@ -170,20 +170,3 @@ export async function profileForDevice(code: string): Promise<DeviceProfile | nu
     return undefined;
   }
 }
-
-export type ConfirmOutcome = "confirmed" | "no_name" | "self" | "offline" | "failed";
-
-export async function confirmResident(code: string): Promise<ConfirmOutcome> {
-  const supabase = getSupabase();
-  if (!supabase) return "failed";
-  if (typeof navigator !== "undefined" && !navigator.onLine) return "offline";
-  try {
-    const { error } = await supabase.rpc("confirm_resident", { device_code: code });
-    if (!error) return "confirmed";
-    if (error.code === "P0002") return "no_name";
-    if (error.code === "SB001") return "self";
-    return "failed";
-  } catch {
-    return "offline";
-  }
-}
