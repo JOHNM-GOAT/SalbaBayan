@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { ProfileForm } from "./ProfileForm";
 import { useMyProfile } from "./useMyProfile";
+import { useSync } from "./AppRuntime";
 
 const LATER_KEY = "salbabayan.profile.later";
 
@@ -32,15 +33,17 @@ function laterThisSession(): boolean {
 export function ProfilePrompt() {
   const pathname = usePathname();
   const { profile, loaded } = useMyProfile();
+  const { actor } = useSync();
   const [later, setLater] = useState(laterThisSession);
 
   if (!loaded || profile || later || NEVER_ON.includes(pathname)) return null;
 
   return (
     // Stops above the tab bar, so the SOS button stays reachable underneath.
+    // Officials have no tab bar.
     <div
       className="fixed inset-x-0 top-0 z-50 flex items-end justify-center bg-paper/30 p-3 sm:items-center"
-      style={{ bottom: "calc(74px + env(safe-area-inset-bottom))" }}
+      style={{ bottom: actor === "official" ? 0 : "calc(74px + env(safe-area-inset-bottom))" }}
     >
       <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto" role="dialog" aria-modal="true">
         <ProfileForm

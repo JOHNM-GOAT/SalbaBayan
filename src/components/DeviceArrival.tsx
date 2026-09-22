@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSync, useT } from "./AppRuntime";
 import { HoldToConfirm } from "./HoldToConfirm";
+import { useMyCentre } from "./useMyCentre";
 import { clockLabel } from "@/lib/ledger";
 import { countDeviceIn, recentArrival, type Arrival } from "@/lib/deviceCheckin";
 import { confirmResident, profileForDevice, type ConfirmOutcome, type DeviceProfile } from "@/lib/profile";
@@ -21,7 +22,7 @@ export function DeviceArrival({
 }) {
   const { snapshot } = useSync();
   const t = useT();
-  const centre = snapshot?.centers[0] ?? null;
+  const { centres, centre, setCentre } = useMyCentre();
   const start = snapshot?.barangay.evacuation_started_at ?? null;
 
   const [people, setPeople] = useState(1);
@@ -132,6 +133,27 @@ export function DeviceArrival({
               +
             </button>
           </div>
+          {/* Which centre they are arriving at, when there is more than one. */}
+          {centres.length > 1 && (
+            <div className="grid gap-1.5">
+              <p className="lbl text-[9px]">{t("evac.at_centre")}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {centres.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    aria-pressed={c.id === centre?.id}
+                    onClick={() => setCentre(c.id)}
+                    className={`mono rounded-[3px] px-2.5 py-1.5 text-[10px] font-bold tracking-[0.6px] ${
+                      c.id === centre?.id ? "bg-hv text-hv-ink" : "border-[1.5px] border-line-soft bg-ink-900 text-paper-3"
+                    }`}
+                  >
+                    {c.name.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {centre && (
             <HoldToConfirm
               label={t("ci.hold_count", { n: people })}

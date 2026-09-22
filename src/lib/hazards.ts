@@ -77,9 +77,11 @@ export async function submitHazard(input: {
   category: Category;
   description?: string;
   photo?: Blob | null;
+  /** A point picked on the map. Without it, the phone's own fix is used. */
+  at?: { lat: number; lng: number };
 }) {
   const id = newClientId();
-  const fix = currentFix();
+  const fix = input.at ?? currentFix();
 
   const outcome = await enqueueWrite("hazard_reports", {
     id,

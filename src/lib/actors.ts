@@ -99,9 +99,9 @@ export const ACTORS: readonly Actor[] = [
     home: "/official",
     nav: [
       /*
-       * The dashboard already holds rescue, hazards, water, readiness and
-       * coverage (its Barangay tab links to them), so the official's bar is
-       * just the dashboard and ME.
+       * Officials have no tab bar: the dashboard is home, and ME and the menu
+       * sit in the header (AppHeader). These two stay as the official's
+       * destinations for the header links and the active state.
        */
       { href: "/official", key: "nav.home", icon: "home" },
       { href: "/profile", key: "nav.me", icon: "person" },

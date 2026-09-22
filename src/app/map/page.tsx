@@ -5,8 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useSync, useT } from "@/components/AppRuntime";
-import { deriveAdvisory, FALLBACK_CENTRE } from "@/lib/advisory";
-import { CentreEditor } from "@/components/CentreEditor";
+import { barangayCentre, deriveAdvisory, FALLBACK_CENTRE } from "@/lib/advisory";
+import { graphFor, rankCentres } from "@/lib/centres";
 import { MapLegend } from "@/components/MapLegend";
 import { CentreDetail, YouDetail, type MapSelection } from "@/components/MapDetail";
 import { focusHazard } from "@/lib/hazardFocus";
@@ -14,7 +14,7 @@ import { CENTRE_ICON, HAZARD_ICON, hazardColour, pinElement, pinMarker, youEleme
 import { sharedView, trackView } from "@/lib/mapView";
 import { CATEGORY_TONE, type Category } from "@/lib/hazards";
 import type { Streets } from "@/lib/walkRoute";
-import { resolveColour, signalStyle } from "@/lib/signal";
+import { resolveColour } from "@/lib/signal";
 import { startPositionWatch, type Fix } from "@/lib/sos";
 import {
   loadStreetStyle,
@@ -26,6 +26,7 @@ import type { Feature, FeatureCollection } from "geojson";
 import {
   hazardsOnRoute,
   lineLength,
+  metresBetween,
   nextTurn,
   walkMinutes,
   type Point,
@@ -47,6 +48,15 @@ import {
  * in that order and not the other.
  */
 
+/*
+ * The route to the centre: light green, and thin enough that the street names
+ * under it stay readable. A darker edge keeps it visible on the light basemap.
+ */
+const ROUTE_COLOUR = "#4ade80";
+const ROUTE_EDGE = "#15803d";
+
+/** A phone further than this from the barangay is not walking from where it is. */
+const NEAR_BARANGAY_M = 2_500;
 
 export default function MapPage() {
 
@@ -81,13 +91,43 @@ export default function MapPage() {
   );
 
   const purok = snapshot?.puroks.find((p) => p.id === purokId) ?? null;
-  const route = useMemo(
+  /* The street's planned route: the fallback when the nearest centre cannot be worked out here. */
+  const plannedRoute = useMemo(
     () => (advisory?.routeProtocol?.route_geojson?.coordinates ?? []) as Point[],
     [advisory],
   );
-  const centre = advisory?.center ?? null;
 
-  const routeMetres = useMemo(() => (route.length ? lineLength(route) : 0), [route]);
+  /*
+   * The nearest of the barangay's centres (up to 3), by walking distance along
+   * the streets: from where the phone is when it has a fix near the barangay,
+   * otherwise from the start of the resident's street. The fix is rounded to
+   * about 10 m so a drifting GPS does not re-route on every reading.
+   */
+  const graph = useMemo(() => (streets ? graphFor(streets as unknown as Streets) : null), [streets]);
+  const home = barangayCentre(snapshot?.barangay);
+  const fixKey =
+    fix && metresBetween([fix.lng, fix.lat], home) <= NEAR_BARANGAY_M
+      ? `${fix.lng.toFixed(4)},${fix.lat.toFixed(4)}`
+      : null;
+  const areaStart = purok?.lat != null && purok.lng != null ? `${purok.lng},${purok.lat}` : null;
+  const startKey = fixKey ?? areaStart ?? (plannedRoute[0] ? plannedRoute[0].join(",") : null);
+  const ranked = useMemo(() => {
+    if (!startKey || !snapshot) return [];
+    return rankCentres(graph, startKey.split(",").map(Number) as Point, snapshot.centers);
+  }, [graph, startKey, snapshot]);
+  const nearest = ranked[0] ?? null;
+  const fromYou = fixKey !== null;
+
+  const route = useMemo(
+    () => (nearest?.line && nearest.line.length >= 2 ? nearest.line : plannedRoute),
+    [nearest, plannedRoute],
+  );
+  const centre = nearest?.centre ?? advisory?.center ?? null;
+
+  const routeMetres = useMemo(
+    () => (nearest?.line ? nearest.metres : route.length ? lineLength(route) : 0),
+    [nearest, route],
+  );
 
   /* Hazards sitting on this route, which is the whole point of the overlay. */
   const blocking = useMemo(
@@ -323,7 +363,6 @@ export default function MapPage() {
      * eye. Reading them from the tokens means the next palette change is one
      * file again.
      */
-    const ground = resolveColour("var(--color-ink-900)");
     const accent = resolveColour("var(--color-hv)");
 
     const setSource = (id: string, data: Feature | FeatureCollection) => {
@@ -422,8 +461,7 @@ export default function MapPage() {
       }
     }
 
-    /* The route, in the severity colour of the current signal — the same ramp
-       as the placard, so the map is legibly part of the same advisory. */
+    /* The route to the nearest centre (ROUTE_COLOUR above). */
     if (route.length) {
       setSource("route", {
         type: "Feature",
@@ -431,28 +469,32 @@ export default function MapPage() {
         geometry: { type: "LineString", coordinates: route },
       } as Feature);
 
-      const colour = resolveColour(signalStyle(advisory?.signalLevel ?? 0).cssVar);
       if (!m.getLayer("route-line")) {
         m.addLayer({
           id: "route-casing",
           type: "line",
           source: "route",
-          paint: { "line-color": ground, "line-width": 11 },
+          paint: {
+            "line-color": ROUTE_EDGE,
+            "line-opacity": 0.55,
+            "line-width": ["interpolate", ["linear"], ["zoom"], 13, 3, 17, 5.5],
+          },
           layout: { "line-cap": "round", "line-join": "round" },
         });
         m.addLayer({
           id: "route-line",
           type: "line",
           source: "route",
-          paint: { "line-color": colour, "line-width": 6 },
+          paint: {
+            "line-color": ROUTE_COLOUR,
+            "line-width": ["interpolate", ["linear"], ["zoom"], 13, 1.8, 17, 3.5],
+          },
           layout: { "line-cap": "round", "line-join": "round" },
         });
-      } else {
-        m.setPaintProperty("route-line", "line-color", colour);
       }
     }
 
-  }, [ready, styleEpoch, base, streets, purok, route, snapshot, advisory]);
+  }, [ready, styleEpoch, base, streets, purok, route, snapshot]);
 
   /*
    * Hazards and the destination, as pins (lib/mapMarks.ts) — the same marks as
@@ -479,15 +521,19 @@ export default function MapPage() {
       });
       pins.push(pinMarker(el, h.lng, h.lat).addTo(m));
     }
-    if (centre?.lat != null && centre?.lng != null) {
+    /* Every centre; the nearest one, where the route goes, drawn larger. */
+    for (const c of snapshot?.centers ?? []) {
+      if (c.lat == null || c.lng == null) continue;
       const el = pinElement({
         colour: "var(--color-clear)",
         icon: CENTRE_ICON,
-        label: centre.name,
-        height: 38,
-        onClick: () => setSelection("centre"),
+        label: c.name,
+        height: c.id === centre?.id ? 40 : 30,
+        onClick: () => setSelection({ centre: c.id }),
       });
-      pins.push(pinMarker(el, centre.lng, centre.lat).addTo(m));
+      const marker = pinMarker(el, c.lng, c.lat).addTo(m);
+      if (c.id === centre?.id) marker.getElement().style.zIndex = "2";
+      pins.push(marker);
     }
     return () => pins.forEach((pin) => pin.remove());
   }, [ready, snapshot, blocking, centre, t]);
@@ -564,7 +610,11 @@ export default function MapPage() {
   const baseLabel =
     base === "streets" ? t("map.base_streets") : t("map.base_sketch");
 
-  const routeColour = signalStyle(advisory?.signalLevel ?? 0).cssVar;
+  const routeColour = ROUTE_COLOUR;
+  const selectedCentre =
+    selection && selection !== "you" ? (snapshot?.centers.find((c) => c.id === selection.centre) ?? null) : null;
+  const selectedRank = ranked.find((r) => r.centre.id === selectedCentre?.id);
+  const others = ranked.slice(1);
 
   return (
     <>
@@ -679,11 +729,11 @@ export default function MapPage() {
         />
         </div>
 
-        {selection === "centre" && centre && (
+        {selectedCentre && (
           <CentreDetail
-            centre={centre}
-            metres={routeMetres || undefined}
-            minutes={routeMetres ? walkMinutes(routeMetres) : undefined}
+            centre={selectedCentre}
+            metres={selectedRank?.metres}
+            minutes={selectedRank ? walkMinutes(selectedRank.metres) : undefined}
             onClose={() => setSelection(null)}
           />
         )}
@@ -731,7 +781,9 @@ export default function MapPage() {
               <path d="M8 19h7a4 4 0 0 0 4-4v-1a4 4 0 0 0-4-4H9a4 4 0 0 1-4-4v-1" />
             </svg>
             <div className="min-w-0 flex-1">
-              <p className="lbl text-[9px]">{t("ui.evac_center")}</p>
+              <p className="lbl text-[9px]">
+                {ranked.length > 1 ? t("evac.nearest") : t("ui.evac_center")}
+              </p>
               <h2 className="truncate font-display text-[18px] leading-tight font-extrabold tracking-[0.3px]">
                 {centre.name.toUpperCase()}
               </h2>
@@ -749,9 +801,34 @@ export default function MapPage() {
         ) : (
           <p className="mono text-[11px] text-paper-3">{t("ui.no_protocol")}</p>
         )}
+        {nearest && (
+          <p className="mono -mt-1 text-[9px] tracking-[0.6px] text-paper-3">
+            {fromYou ? t("evac.from_you") : t("evac.from_street")}
+          </p>
+        )}
 
-        {/* Officials only — renders nothing for anyone else. */}
-        <CentreEditor mapRef={map} streets={streets as unknown as Streets | null} />
+        {/* The other centres, nearest first: somewhere to go if the first is full or cut off. */}
+        {others.length > 0 && (
+          <section className="grid gap-0.5 rounded-instrument border-[1.5px] border-line-soft bg-ink-800 px-3.5 py-2.5">
+            <p className="lbl text-[9px]">{t("evac.other_centres")}</p>
+            {others.map((r) => (
+              <button
+                key={r.centre.id}
+                type="button"
+                onClick={() => setSelection({ centre: r.centre.id })}
+                className="flex min-h-10 items-center gap-2 text-left"
+              >
+                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{r.centre.name}</span>
+                <span className="mono shrink-0 text-[12px] font-bold">
+                  {r.metres}
+                  <span className="text-[10px] text-paper-3">
+                    {" "}M · {walkMinutes(r.metres)} {t("map.walk")}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </section>
+        )}
       </main>
     </>
   );

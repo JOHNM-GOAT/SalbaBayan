@@ -258,16 +258,16 @@ export function HazardSheet() {
       markers.current.forEach((marker) => marker.remove());
       markers.current = [];
 
-      const centre = snapshot?.centers[0];
-      if (centre?.lat != null && centre?.lng != null) {
+      for (const centre of snapshot?.centers ?? []) {
+        if (centre.lat == null || centre.lng == null) continue;
         const el = pinElement({
           colour: "var(--color-clear)",
           icon: CENTRE_ICON,
           label: centre.name,
-          height: 38,
+          height: 36,
           onClick: () => {
             setSelectedId(null);
-            setMark("centre");
+            setMark({ centre: centre.id });
           },
         });
         markers.current.push(pinMarker(el, centre.lng, centre.lat).addTo(m));
@@ -360,6 +360,9 @@ export function HazardSheet() {
    * "this device has not looked yet".
    */
   const loadingCount = useSkeletonGate(settled);
+
+  const markedCentre =
+    mark && mark !== "you" ? (snapshot?.centers.find((c) => c.id === mark.centre) ?? null) : null;
 
   // Officials see every hazard on their dashboard map; the bar would repeat it.
   if (actor === "official") return null;
@@ -476,9 +479,9 @@ export function HazardSheet() {
                   }}
                   onDismiss={() => setSelectedId(null)}
                 />
-              ) : mark === "centre" && snapshot?.centers[0] ? (
+              ) : markedCentre ? (
                 <div className="p-2">
-                  <CentreDetail centre={snapshot.centers[0]} onClose={() => setMark(null)} />
+                  <CentreDetail centre={markedCentre} onClose={() => setMark(null)} />
                 </div>
               ) : mark === "you" && fix ? (
                 <div className="p-2">

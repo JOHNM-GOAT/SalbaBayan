@@ -19,6 +19,7 @@ import {
   type VulnerabilityBreakdown,
 } from "@/lib/headcount";
 import { SkeletonLines, useSkeletonGate } from "@/components/Skeleton";
+import { useMyCentre } from "@/components/useMyCentre";
 
 /**
  * Evacuation centre headcount (PRD §7.8).
@@ -31,7 +32,6 @@ export default function HeadcountPage() {
   const { snapshot } = useSync();
   const t = useT();
 
-  const [centreId, setCentreId] = useState<string | null>(null);
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [tags, setTags] = useState<VulnerabilityBreakdown>({
     medical: 0,
@@ -57,12 +57,10 @@ export default function HeadcountPage() {
      has arrived at yet — and must not be confused with one not yet read. */
   const [settled, setSettled] = useState(false);
 
-  const centres = snapshot?.centers ?? [];
-  // Derived, not synced into state: the first centre is the default until the
-  // volunteer picks another. An effect mirroring this would fire on every
-  // snapshot refresh and fight the selection.
-  const activeId = centreId ?? centres[0]?.id ?? null;
-  const centre = centres.find((c) => c.id === activeId) ?? null;
+  // The centre this phone counts into, remembered across screens and shared
+  // with QR check-in (useMyCentre).
+  const { centres, centre, setCentre } = useMyCentre();
+  const activeId = centre?.id ?? null;
 
   /* A display hint only. The real boundary is insert_headcounts, which
      requires staff AND that the recorder is the caller. */
@@ -138,7 +136,7 @@ export default function HeadcountPage() {
               <button
                 key={c.id}
                 type="button"
-                onClick={() => setCentreId(c.id)}
+                onClick={() => setCentre(c.id)}
                 className={`mono shrink-0 rounded-[3px] px-2.5 py-1.5 text-[10px] font-bold tracking-[0.6px] ${
                   c.id === activeId
                     ? "bg-hv text-hv-ink"

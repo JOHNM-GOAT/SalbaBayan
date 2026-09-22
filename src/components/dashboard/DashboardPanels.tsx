@@ -6,19 +6,17 @@ import { useSync, useT } from "../AppRuntime";
 import { AdvisoryBanner } from "../AdvisoryBanner";
 import { HazardPhoto } from "../HazardPhoto";
 import { HoldToConfirm } from "../HoldToConfirm";
-import { HouseholdsCard } from "../HouseholdsCard";
 import { PersonLabel } from "../PersonLabel";
-import { PopulationCard } from "../PopulationCard";
-import { buildCoverage } from "@/lib/advisory";
+import type { EvacCenter } from "@/lib/advisory";
+import { MAX_CENTRES } from "@/lib/centres";
+import { capacityState, centreTotal, subscribeHeadcounts } from "@/lib/headcount";
 import { directionsUrl, type DashItem } from "@/lib/dashboard";
 import { resolveHazard } from "@/lib/hazards";
-import { loadReadiness } from "@/lib/readinessData";
-import { overallStatus, readyCount, type ReadinessCheck } from "@/lib/readiness";
 import { signalStyle } from "@/lib/signal";
 import { acknowledge, markRescued } from "@/lib/sos";
 import { agoLabel } from "@/lib/water";
 
-export type Tab = "sos" | "hazards" | "water" | "barangay";
+export type Tab = "sos" | "hazards" | "water" | "centres";
 
 export function clockLabel(iso: string): string {
   return new Date(iso)
@@ -93,7 +91,7 @@ export function Tabs({
 }: {
   tab: Tab;
   onTab: (tab: Tab) => void;
-  counts: Record<Exclude<Tab, "barangay">, number>;
+  counts: Record<Tab, number>;
 }) {
   const t = useT();
   const item = (id: Tab, label: string, count?: number) => (
@@ -116,7 +114,7 @@ export function Tabs({
       {item("sos", t("dash.tab_sos"), counts.sos)}
       {item("hazards", t("dash.tab_hazards"), counts.hazards)}
       {item("water", t("dash.tab_water"), counts.water)}
-      {item("barangay", t("dash.tab_barangay"))}
+      {item("centres", t("dash.tab_centres"), counts.centres)}
     </div>
   );
 }
@@ -345,59 +343,150 @@ export function ItemDetail({
 }
 
 /* ---------------------------------------------------------------------------
- * Barangay tab: what the official home used to be
+ * Centres: up to three, each with its live headcount
  * ------------------------------------------------------------------------ */
 
-export function BarangayPanel() {
+/** People inside each centre in the current evacuation, live. */
+export function useCentreCounts(centres: EvacCenter[]): Map<string, number> {
   const { snapshot } = useSync();
-  const t = useT();
-  const [checks, setChecks] = useState<ReadinessCheck[] | null>(null);
+  const since = snapshot?.barangay.evacuation_started_at ?? null;
+  const [counts, setCounts] = useState<Map<string, number>>(new Map());
+  const ids = centres.map((c) => c.id).join(",");
 
   useEffect(() => {
     let live = true;
-    void loadReadiness(snapshot).then((next) => {
-      if (live) setChecks(next);
-    });
+    const load = () =>
+      void Promise.all(ids.split(",").filter(Boolean).map(async (id) => [id, await centreTotal(id, since)] as const)).then(
+        (pairs) => {
+          if (live) setCounts(new Map(pairs));
+        },
+      );
+    load();
+    const stop = subscribeHeadcounts(load);
     return () => {
       live = false;
+      stop();
     };
-  }, [snapshot]);
+  }, [ids, since]);
 
-  const coverage = snapshot ? buildCoverage(snapshot) : null;
-  const overall = checks ? overallStatus(checks) : "unknown";
-  const tone =
-    overall === "ready" ? "text-clear" : overall === "missing" ? "text-alarm" : overall === "partial" ? "text-caution" : "text-paper-3";
+  return counts;
+}
 
+function Fill({ count, capacity }: { count: number | undefined; capacity: number | null }) {
+  const t = useT();
+  const state = capacity ? capacityState(count ?? 0, capacity) : "ok";
+  const tone = state === "full" ? "bg-alarm" : state === "filling" ? "bg-caution" : "bg-clear";
+  const pct = capacity ? Math.min(100, Math.round(((count ?? 0) / capacity) * 100)) : 0;
   return (
-    <div className="grid gap-2.5 p-3">
-      <div className="grid grid-cols-2 gap-2">
-        <Link href="/readiness" className="rounded-instrument border-[1.5px] border-line-soft bg-ink-800 px-3 py-2.5">
-          <p className="lbl">{t("off.readiness")}</p>
-          <p className="mt-1 flex items-baseline gap-1">
-            <span className={`mono text-[24px] leading-none font-bold ${tone}`}>{checks ? readyCount(checks) : "—"}</span>
-            {checks && <span className="mono text-[12px] text-paper-3">/{checks.length}</span>}
-          </p>
-        </Link>
-        <Link href="/coverage" className="rounded-instrument border-[1.5px] border-line-soft bg-ink-800 px-3 py-2.5">
-          <p className="lbl">{t("off.gaps")}</p>
-          <p className="mt-1 flex items-baseline gap-1">
-            <span
-              className={`mono text-[24px] leading-none font-bold ${coverage && coverage.totalGaps > 0 ? "text-caution" : "text-clear"}`}
-            >
-              {coverage?.totalGaps ?? "—"}
-            </span>
-            <span className="mono text-[12px] text-paper-3">/{(coverage?.rows.length ?? 0) * 5}</span>
-          </p>
-        </Link>
+    <div className="grid gap-1">
+      <p className="mono flex items-baseline gap-1 text-[11px]">
+        <span className="text-[17px] leading-none font-bold">{count ?? "—"}</span>
+        <span className="text-paper-3">/ {capacity ?? "—"}</span>
+        <span className="ml-auto text-[9px] font-bold tracking-[0.6px] text-paper-3">{t("dash.inside")}</span>
+      </p>
+      {capacity != null && (
+        <div className="h-1.5 overflow-hidden rounded-full bg-ink-700" aria-hidden>
+          <div className={`h-full ${tone}`} style={{ width: `${pct}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function CentreList({
+  centres,
+  counts,
+  selectedId,
+  onSelect,
+}: {
+  centres: EvacCenter[];
+  counts: Map<string, number>;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const t = useT();
+  return (
+    <div className="grid gap-2 p-3">
+      {centres.map((centre) => (
+        <button
+          key={centre.id}
+          type="button"
+          onClick={() => onSelect(centre.id)}
+          aria-current={centre.id === selectedId}
+          className={`grid gap-2 rounded-instrument border-[1.5px] px-3 py-2.5 text-left ${
+            centre.id === selectedId ? "border-hv bg-hv/10" : "border-line-soft bg-ink-800 hover:border-line"
+          }`}
+        >
+          <span className="truncate text-[13px] font-bold">{centre.name}</span>
+          <Fill count={counts.get(centre.id)} capacity={centre.capacity} />
+        </button>
+      ))}
+      <p className="mono text-[9.5px] tracking-[0.5px] text-paper-3">
+        {t("dash.centres_of", { n: centres.length })}
+      </p>
+      <p className="text-[11.5px] leading-snug text-paper-3">
+        {centres.length >= MAX_CENTRES ? t("dash.centres_full") : t("dash.tap_hint")}
+      </p>
+    </div>
+  );
+}
+
+export function CentreDetail({
+  centre,
+  count,
+  onlyOne,
+  onEdit,
+  onRemove,
+}: {
+  centre: EvacCenter;
+  count: number | undefined;
+  /** The last centre cannot be removed (0047). */
+  onlyOne: boolean;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="grid gap-3 p-3.5">
+      <div>
+        <p className="mono text-[10px] font-bold tracking-[0.7px] text-clear">{t("ui.evac_center")}</p>
+        <h2 className="mt-0.5 font-display text-[18px] leading-tight font-extrabold">{centre.name}</h2>
       </div>
-      <PopulationCard />
-      <HouseholdsCard />
-      <Link
-        href="/headcount"
-        className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3"
+      <Fill count={count} capacity={centre.capacity} />
+      {centre.lat != null && centre.lng != null && (
+        <Row label={t("dash.location")}>
+          <p className="mono text-[11px] text-paper-2">
+            {centre.lat.toFixed(5)}, {centre.lng.toFixed(5)}
+          </p>
+        </Row>
+      )}
+      <button
+        type="button"
+        onClick={onEdit}
+        className="tap mono rounded-instrument border-[1.5px] border-hv text-[10.5px] font-bold tracking-[1px] text-hv"
       >
-        {t("nav.count")}
-      </Link>
+        {t("dash.edit_centre")}
+      </button>
+      {onlyOne ? (
+        <p className="text-[11px] leading-snug text-paper-3">{t("dash.last_centre")}</p>
+      ) : (
+        <HoldToConfirm
+          label={t("dash.hold_remove")}
+          holdingLabel={t("sos.cancelling")}
+          tone="alarm"
+          onConfirm={onRemove}
+        />
+      )}
+      {centre.lat != null && centre.lng != null && (
+        <a
+          href={directionsUrl(centre.lat, centre.lng)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="tap flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[12px] font-bold text-paper-2"
+        >
+          {t("dash.directions")}
+        </a>
+      )}
     </div>
   );
 }

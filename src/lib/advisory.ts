@@ -244,7 +244,8 @@ export async function fetchAdvisory(
       supabase
         .from("protocols")
         .select("id,purok_id,signal_level,route,route_geojson,action_key,evac_center_id"),
-      supabase.from("evac_centers").select("id,purok_id,name,capacity,lat,lng"),
+      // A removed centre is archived (0047) and is no longer anyone's destination.
+      supabase.from("evac_centers").select("id,purok_id,name,capacity,lat,lng").is("archived_at", null),
       supabase.rpc("translations_version"),
       // Only open hazards. Resolved ones are history, and history on an
       // evacuation map is noise that hides the thing you must avoid.

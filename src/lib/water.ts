@@ -26,6 +26,9 @@ export type WaterReport = {
   level_category: Depth;
   ts: string;
   reported_by: string | null;
+  /** Set only when an official pins the reading on the map (migration 0047). */
+  lat?: number | null;
+  lng?: number | null;
 };
 
 /**
@@ -55,12 +58,15 @@ export async function submitWaterReport(input: {
   purokId: string;
   depth: Depth;
   locationLabel?: string;
+  /** A point on the map; residents report by area and leave it out. */
+  at?: { lat: number; lng: number };
 }) {
   return enqueueWrite("water_reports", {
     id: newClientId(),
     purok_id: input.purokId,
     level_category: input.depth,
     location_label: input.locationLabel?.trim() || null,
+    ...(input.at ? { lat: input.at.lat, lng: input.at.lng } : {}),
     ts: new Date().toISOString(),
   });
 }
@@ -72,7 +78,7 @@ export async function recentWaterReports(limit = 12): Promise<WaterReport[]> {
 
   const { data, error } = await supabase
     .from("water_reports")
-    .select("id,purok_id,location_label,level_category,ts,reported_by")
+    .select("id,purok_id,location_label,level_category,ts,reported_by,lat,lng")
     .order("ts", { ascending: false })
     .limit(limit);
 
@@ -106,6 +112,8 @@ export async function queuedWaterReports(): Promise<WaterReport[]> {
         level_category: (p.level_category ?? "knee") as Depth,
         ts: p.ts ?? new Date(row.createdAt).toISOString(),
         reported_by: p.reported_by ?? null,
+        lat: p.lat ?? null,
+        lng: p.lng ?? null,
       };
     });
 }

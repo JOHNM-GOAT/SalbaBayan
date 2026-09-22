@@ -6,7 +6,7 @@ import type { EvacCenter } from "@/lib/advisory";
 import type { Fix } from "@/lib/sos";
 
 /** What a tapped map mark says about itself, on either map. */
-export type MapSelection = "centre" | "you" | null;
+export type MapSelection = "you" | { centre: string } | null;
 
 export function CentreDetail({
   centre,

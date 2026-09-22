@@ -1,10 +1,14 @@
 "use client";
 
-import { useSync } from "./AppRuntime";
+import Link from "next/link";
+import { useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
+import { useSync, useT } from "./AppRuntime";
 import { LanguageSwitch } from "./LanguageSwitch";
 import { SyncStrip } from "./SyncStrip";
 import { useShellWidth } from "./Shell";
 import { signalStyle } from "@/lib/signal";
+import { dashboardMenu } from "@/lib/dashboardMenu";
 
 /**
  * App chrome: severity rail, wordmark, language switch, sync strip.
@@ -15,7 +19,7 @@ import { signalStyle } from "@/lib/signal";
  * "all clear" when the truth is "not yet known".
  */
 export function AppHeader() {
-  const { snapshot } = useSync();
+  const { snapshot, actor } = useSync();
   const level = snapshot?.barangay.current_signal_level;
   const rail = level === undefined ? "bg-ink-600" : signalStyle(level).bg;
   const width = useShellWidth();
@@ -52,11 +56,70 @@ export function AppHeader() {
           </span>
         </div>
 
-          <LanguageSwitch />
+          <div className="flex items-center gap-1.5">
+            <LanguageSwitch />
+            {actor === "official" && <OfficialLinks />}
+          </div>
         </div>
       </div>
 
       <SyncStrip />
     </header>
+  );
+}
+
+const ICON_BUTTON =
+  "flex size-8 items-center justify-center rounded-[3px] border-[1.5px] border-line-soft bg-ink-800 text-paper-2 hover:text-paper";
+
+/**
+ * Officials have no tab bar. The header carries what it held: ME, a way back
+ * to the dashboard from any other screen, and on the dashboard the menu that
+ * opens its right sidebar.
+ */
+function OfficialLinks() {
+  const t = useT();
+  const pathname = usePathname();
+  const menuOpen = useSyncExternalStore(dashboardMenu.subscribe, dashboardMenu.get, () => false);
+  const onDashboard = pathname === "/official";
+
+  return (
+    <>
+      {!onDashboard && (
+        <Link href="/official" aria-label={t("dash.home")} title={t("dash.home")} className={ICON_BUTTON}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2V6z" />
+            <path d="M9 4v14" />
+            <path d="M15 6v14" />
+          </svg>
+        </Link>
+      )}
+      <Link
+        href="/profile"
+        aria-label={t("nav.me")}
+        title={t("nav.me")}
+        aria-current={pathname === "/profile" ? "page" : undefined}
+        className={`${ICON_BUTTON} ${pathname === "/profile" ? "border-hv text-hv" : ""}`}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
+        </svg>
+      </Link>
+      {onDashboard && (
+        <button
+          type="button"
+          onClick={() => dashboardMenu.set(!menuOpen)}
+          aria-label={t("dash.menu")}
+          title={t("dash.menu")}
+          aria-expanded={menuOpen}
+          aria-controls="dashboard-menu"
+          className={`${ICON_BUTTON} ${menuOpen ? "border-hv bg-hv text-hv-ink hover:text-hv-ink" : ""}`}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden>
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        </button>
+      )}
+    </>
   );
 }

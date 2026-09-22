@@ -70,6 +70,9 @@ export function BottomNav() {
   const active = activeHref(current, pathname);
   const rescue = useRescueWaiting();
 
+  // Officials work from the dashboard; ME and the menu are in the header.
+  if (actor === "official") return null;
+
   /*
    * Three outcomes, and the difference between the last two is the point:
    *

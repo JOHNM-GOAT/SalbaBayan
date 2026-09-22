@@ -10,7 +10,8 @@ import { allWaterReports, type WaterReport } from "./water";
  *
  * A report with no GPS fix is placed at its area's point and marked `approx`,
  * rather than dropped: "somewhere on Asuncion Street" is still worth a pin, as
- * long as the pin says it is not exact. Water reports never carry GPS.
+ * long as the pin says it is not exact. A water report has a point only when
+ * an official pinned it on the map (0047).
  */
 
 export type ItemKind = "sos" | "hazard" | "water";
@@ -93,7 +94,7 @@ export async function loadDashboard(snapshot: AdvisorySnapshot | null): Promise<
         purokId: w.purok_id,
         person: people.get(w.reported_by ?? ""),
         water: w,
-        ...place(snapshot, w.purok_id, null, null),
+        ...place(snapshot, w.purok_id, w.lat ?? null, w.lng ?? null),
       }))
       .sort((a, b) => b.ts.localeCompare(a.ts)),
   };

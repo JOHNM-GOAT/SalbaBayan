@@ -78,3 +78,10 @@ export const purokPref = createPrefStore("salbabayan.purok");
  * preference, and RLS is unaffected by it.
  */
 export const actorPref = createPrefStore("salbabayan.actor");
+
+/*
+ * The evacuation centre this staff phone is standing at. Headcount and QR
+ * check-in count into it, so a volunteer at the second centre does not have to
+ * pick it again on every scan.
+ */
+export const centrePref = createPrefStore("salbabayan.centre");
