@@ -9,6 +9,7 @@
  * their "60cm" does not.
  */
 
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { enqueueWrite, newClientId, queuedWrites } from "./offlineQueue";
 import { getSupabase } from "./supabase";
 
@@ -26,7 +27,7 @@ export type WaterReport = {
   level_category: Depth;
   ts: string;
   reported_by: string | null;
-  /** Set only when an official pins the reading on the map (migration 0047). */
+  /** A point: pinned on the map by an official, or the reporter's own location if they chose to attach it (0047). */
   lat?: number | null;
   lng?: number | null;
 };
@@ -58,7 +59,7 @@ export async function submitWaterReport(input: {
   purokId: string;
   depth: Depth;
   locationLabel?: string;
-  /** A point on the map; residents report by area and leave it out. */
+  /** A point: picked on the map, or the reporter's location if they ticked "use my current location". */
   at?: { lat: number; lng: number };
 }) {
   return enqueueWrite("water_reports", {
@@ -137,25 +138,46 @@ export async function allWaterReports(limit = 12): Promise<WaterReport[]> {
     .slice(0, limit);
 }
 
+let liveChannel: RealtimeChannel | null = null;
+const liveListeners = new Set<() => void>();
+
 /**
  * Live updates (FR-6.3, and the §7.6 acceptance criterion: a report reaches a
  * second connected device within five seconds, with no refresh).
  */
+
 export function subscribeWaterReports(onChange: () => void): () => void {
   const supabase = getSupabase();
   if (!supabase) return () => {};
 
-  const channel = supabase
-    .channel("water-live")
-    .on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "water_reports" },
-      () => onChange(),
-    )
-    .subscribe();
+  /*
+   * One channel, many listeners — the same shape as subscribeHazards, and for
+   * the same reason: the hazard sheet (on every screen) and the report screen
+   * now both watch water, and a second `.channel("water-live")` returns the
+   * already-subscribed one, which supabase-js refuses to add callbacks to.
+   */
+  liveListeners.add(onChange);
+
+  if (!liveChannel) {
+    liveChannel = supabase
+      .channel("water-live")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "water_reports" },
+        () => {
+          for (const listener of [...liveListeners]) listener();
+        },
+      )
+      .subscribe();
+  }
 
   return () => {
-    void supabase.removeChannel(channel);
+    liveListeners.delete(onChange);
+    if (liveListeners.size === 0 && liveChannel) {
+      const channel = liveChannel;
+      liveChannel = null;
+      void supabase.removeChannel(channel);
+    }
   };
 }
 

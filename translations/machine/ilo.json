@@ -205,6 +205,8 @@
 "hz.tap": "IPINDOT TI PIN PARA ITI DETALYE",
 "hz.title": "MAPA TI PELIGRO",
 "hz.where": "EKSAKTO A LOKASION",
+"loc.use_hint": "I-tsek laeng no adda ka mismo iti lugar nga ireport-mo. No saan, maikabil ti report iti kalsada.",
+"loc.use_mine": "Usaren ti ayanko ita",
 "login.as": "NAKA-LOG IN A KAS OPISYAL · {n}",
 "login.code": "OFFICIAL CODE",
 "login.done": "Naka-log in on. Para iti opisyal daytoy a telepono.",

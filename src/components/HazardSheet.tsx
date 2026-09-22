@@ -11,12 +11,14 @@ import { loadStreetStyle, onStyleReady, sketchStyle } from "@/lib/basemap";
 import { FALLBACK_CENTRE } from "@/lib/advisory";
 import { onQueueChanged } from "@/lib/offlineQueue";
 import { onHazardFocus } from "@/lib/hazardFocus";
-import { agoLabel } from "@/lib/water";
+import { agoLabel, allWaterReports, subscribeWaterReports, type WaterReport } from "@/lib/water";
+import { DEPTH_COLOUR, placeWater, type PlacedWater } from "@/lib/waterMap";
 import { resolveColour } from "@/lib/signal";
 import { startPositionWatch, type Fix } from "@/lib/sos";
 import {
   CENTRE_ICON,
   HAZARD_ICON,
+  WATER_ICON,
   hazardColour,
   pinElement,
   pinMarker,
@@ -68,6 +70,9 @@ export function HazardSheet() {
   const [open, setOpen] = useState(false);
   const [hazards, setHazards] = useState<Hazard[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /* Water readings: residents', volunteers' and officials' alike. */
+  const [water, setWater] = useState<WaterReport[]>([]);
+  const [waterId, setWaterId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   const container = useRef<HTMLDivElement | null>(null);
@@ -83,7 +88,9 @@ export function HazardSheet() {
   const [settled, setSettled] = useState(false);
 
   const refresh = useCallback(async () => {
-    setHazards(await allOpenHazards(100));
+    const [open, recent] = await Promise.all([allOpenHazards(100), allWaterReports(40)]);
+    setHazards(open);
+    setWater(recent);
     setSettled(true);
   }, []);
 
@@ -95,10 +102,12 @@ export function HazardSheet() {
   useEffect(() => {
     queueMicrotask(() => void refresh());
     const stopLive = subscribeHazards(() => void refresh());
+    const stopWater = subscribeWaterReports(() => void refresh());
     const stopQueue = onQueueChanged(() => void refresh());
     const tick = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => {
       stopLive();
+      stopWater();
       stopQueue();
       window.clearInterval(tick);
     };
@@ -130,14 +139,24 @@ export function HazardSheet() {
     [snapshot],
   );
 
-  /* A hazard with no fix cannot be pinned. It is counted rather than dropped —
-     the same rule the rescue queue follows for an SOS with no GPS. */
+  /* A hazard with no point of its own (the reporter chose not to attach their
+     location) sits on its street's point, drawn faded. One with neither is
+     counted rather than dropped. */
   const placed = useMemo(
-    () => hazards.filter((h) => h.lat != null && h.lng != null),
-    [hazards],
+    () =>
+      hazards.flatMap((h) => {
+        if (h.lat != null && h.lng != null) return [{ ...h, approx: false }];
+        const area = snapshot?.puroks.find((p) => p.id === h.purok_id);
+        return area?.lat != null && area.lng != null
+          ? [{ ...h, lat: area.lat, lng: area.lng, approx: true }]
+          : [];
+      }),
+    [hazards, snapshot],
   );
   const unplaced = hazards.length - placed.length;
   const selected = hazards.find((h) => h.id === selectedId) ?? null;
+  const placedWater = useMemo(() => placeWater(snapshot, water, now), [snapshot, water, now]);
+  const selectedWater = placedWater.find((w) => w.report.id === waterId) ?? null;
 
   /* Build the map when the sheet opens; tear it down when it closes. */
   useEffect(() => {
@@ -215,6 +234,7 @@ export function HazardSheet() {
     meMarker.current ??= new maplibregl.Marker({
       element: youElement(() => {
         setSelectedId(null);
+        setWaterId(null);
         setMark("you");
       }, t("sos.location")),
     });
@@ -267,6 +287,7 @@ export function HazardSheet() {
           height: 36,
           onClick: () => {
             setSelectedId(null);
+            setWaterId(null);
             setMark({ centre: centre.id });
           },
         });
@@ -283,11 +304,31 @@ export function HazardSheet() {
           height: hazard.id === selectedId ? 42 : 34,
           onClick: () => {
             setMark(null);
+            setWaterId(null);
             setSelectedId(hazard.id);
             m.easeTo({ center: [lng, lat], zoom: Math.max(m.getZoom(), 16.5) });
           },
         });
+        if (hazard.approx && hazard.id !== selectedId) el.style.opacity = "0.7";
         markers.current.push(pinMarker(el, lng, lat).addTo(m));
+      }
+
+      for (const w of placedWater) {
+        const el = pinElement({
+          colour: DEPTH_COLOUR[w.report.level_category],
+          icon: WATER_ICON,
+          label: `${t(`water.${w.report.level_category}`)} — ${purokName(w.report.purok_id)}`,
+          height: w.report.id === waterId ? 40 : 30,
+          onClick: () => {
+            setMark(null);
+            setSelectedId(null);
+            setWaterId(w.report.id);
+            m.easeTo({ center: [w.lng, w.lat], zoom: Math.max(m.getZoom(), 16.5) });
+          },
+        });
+        // A street's point, not the reporter's: "somewhere here", drawn faded.
+        if (w.approx && w.report.id !== waterId) el.style.opacity = "0.7";
+        markers.current.push(pinMarker(el, w.lng, w.lat).addTo(m));
       }
 
       /*
@@ -319,10 +360,14 @@ export function HazardSheet() {
       }
 
       /* Frame them once per opening — after that the reader is in charge. */
-      if (!framed.current && placed.length > 0) {
+      const points = [
+        ...placed.map((h) => [h.lng as number, h.lat as number]),
+        ...placedWater.map((w) => [w.lng, w.lat]),
+      ];
+      if (!framed.current && points.length > 0) {
         framed.current = true;
-        const lngs = placed.map((h) => h.lng as number);
-        const lats = placed.map((h) => h.lat as number);
+        const lngs = points.map((p) => p[0]);
+        const lats = points.map((p) => p[1]);
         m.fitBounds(
           [
             [Math.min(...lngs), Math.min(...lats)],
@@ -332,7 +377,7 @@ export function HazardSheet() {
         );
       }
     });
-  }, [open, placed, styleEpoch, t, purokName, snapshot, selectedId]);
+  }, [open, placed, placedWater, styleEpoch, t, purokName, snapshot, selectedId, waterId]);
 
   /* Who reported it — staff only (names are staff-only by RLS). */
   const staff = isStaffRole(role);
@@ -452,9 +497,9 @@ export function HazardSheet() {
 
             <div className="relative flex-1">
               <div ref={container} style={{ position: "absolute", inset: 0 }} />
-              <MapLegend />
+              <MapLegend water />
 
-              {placed.length === 0 && (
+              {placed.length === 0 && placedWater.length === 0 && (
                 <p className="mono pointer-events-none absolute inset-x-0 top-1/2 px-6 text-center text-[11px] leading-relaxed text-paper-3">
                   {hazards.length === 0 ? t("hz.none") : t("hz.no_fix", { n: unplaced })}
                 </p>
@@ -479,6 +524,13 @@ export function HazardSheet() {
                   }}
                   onDismiss={() => setSelectedId(null)}
                 />
+              ) : selectedWater ? (
+                <WaterDetail
+                  water={selectedWater}
+                  now={now}
+                  purokName={purokName}
+                  onDismiss={() => setWaterId(null)}
+                />
               ) : markedCentre ? (
                 <div className="p-2">
                   <CentreDetail centre={markedCentre} onClose={() => setMark(null)} />
@@ -489,7 +541,7 @@ export function HazardSheet() {
                 </div>
               ) : (
                 <p className="mono px-3.5 py-3 text-[10px] tracking-[0.6px] text-paper-3">
-                  {placed.length > 0 ? t("hz.tap") : t("hz.none")}
+                  {placed.length > 0 || placedWater.length > 0 ? t("hz.tap") : t("hz.none")}
                   {unplaced > 0 && ` · ${t("hz.no_fix", { n: unplaced })}`}
                 </p>
               )}
@@ -598,6 +650,45 @@ function HazardDetail({
           {t("hz.only_volunteer")}
         </p>
       )}
+    </div>
+  );
+}
+
+function WaterDetail({
+  water,
+  now,
+  purokName,
+  onDismiss,
+}: {
+  water: PlacedWater;
+  now: number;
+  purokName: (id: string) => string;
+  onDismiss: () => void;
+}) {
+  const t = useT();
+  const { report } = water;
+  const where = report.location_label || purokName(report.purok_id);
+  return (
+    <div className="border-l-4 border-hv px-3.5 py-3">
+      <div className="flex items-center gap-2.5">
+        <span className="mono shrink-0 text-[11px] font-bold tracking-[0.7px] text-hv">
+          {t("dash.tab_water")}
+        </span>
+        <span className="font-display text-[15px] font-extrabold">{t(`water.${report.level_category}`)}</span>
+        <span className="mono ml-auto shrink-0 text-[10px] text-paper-3">{agoLabel(report.ts, now)}</span>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label={t("hz.close")}
+          className="shrink-0 px-1 text-[15px] leading-none text-paper-3"
+        >
+          ×
+        </button>
+      </div>
+      <p className="mt-1.5 text-[13px] leading-snug">
+        {where}
+        {water.approx && <span className="mono text-[10px] text-caution"> · {t("dash.area_only")}</span>}
+      </p>
     </div>
   );
 }

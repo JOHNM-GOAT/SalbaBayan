@@ -68,7 +68,16 @@ export default function ReportPage() {
   const fileInput = useRef<HTMLInputElement | null>(null);
 
   /*
-   * The position, warmed from the moment this screen opens.
+   * "Use my current location" — optional, and off until ticked. A report is
+   * often filed from somewhere else: someone sees water on Otis St., evacuates,
+   * and reports it from the hall. Their position then would put the flood in
+   * the wrong place, so the street they pick (or their own street) is used
+   * unless they say they are standing at it.
+   */
+  const [useLocation, setUseLocation] = useState(false);
+
+  /*
+   * The position, warmed from the moment the box is ticked.
    *
    * This is what puts hazards on the hazard map at all. `submitHazard` stamps
    * the report with `currentFix()`, and the watch used to be started only by
@@ -84,14 +93,13 @@ export default function ReportPage() {
    */
   const [fix, setFix] = useState<Fix | null>(null);
   const [fixError, setFixError] = useState<string | null>(null);
-  useEffect(
-    () =>
-      startPositionWatch((next, error) => {
-        setFix(next);
-        setFixError(error);
-      }),
-    [],
-  );
+  useEffect(() => {
+    if (!useLocation) return;
+    return startPositionWatch((next, error) => {
+      setFix(next);
+      setFixError(error);
+    });
+  }, [useLocation]);
 
   const purokName = (id: string) =>
     snapshot?.puroks.find((p) => p.id === id)?.name ?? "";
@@ -136,11 +144,13 @@ export default function ReportPage() {
   async function onSubmit() {
     if (!purokId || !category) return;
 
+    // Only when ticked; otherwise the report carries its street and no point.
+    const at = useLocation && fix ? { lat: fix.lat, lng: fix.lng } : null;
     if (isFlood) {
       if (!depth) return;
-      await submitWaterReport({ purokId, depth, locationLabel: label });
+      await submitWaterReport({ purokId, depth, locationLabel: label, at: at ?? undefined });
     } else {
-      await submitHazard({ purokId, category, description: detail, photo });
+      await submitHazard({ purokId, category, description: detail, photo, at });
     }
 
     // The write is durable, not delivered — worded by connectivity rather than
@@ -295,30 +305,38 @@ export default function ReportPage() {
               />
             </section>
 
-            {/*
-              Whether this report is going to carry a location, said before the
-              tap rather than discovered afterwards.
-
-              Three states, not two. "Still looking" is not a failure — a cold
-              fix indoors takes time and the report is never held up waiting for
-              one — but it is different from "this device has no GPS", and a
-              resident deciding whether to add a landmark to the description is
-              entitled to know which one they are in. It is also the thing that
-              makes the silent version of this failure loud the next time it
-              happens: a screen filing coordinate-less reports now says so.
-            */}
-            <p
-              className={`mono text-[9.5px] leading-relaxed tracking-[0.6px] ${
-                fix ? "text-clear" : fixError ? "text-paper-3" : "text-caution"
-              }`}
-            >
-              {fix
-                ? t("hazard.gps_on")
-                : fixError
-                  ? t("hazard.gps_off")
-                  : t("hazard.gps_wait")}
-            </p>
           </>
+        )}
+
+        {/*
+          Whether this report carries a location, said before the tap rather
+          than discovered afterwards. Three states once ticked: found, still
+          looking (the report never waits for it), and no GPS on this device.
+        */}
+        {category && (
+          <section className="grid gap-1.5">
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-instrument border-[1.5px] border-line-soft bg-ink-800 px-3.5 py-2.5">
+              <input
+                type="checkbox"
+                checked={useLocation}
+                onChange={(event) => setUseLocation(event.target.checked)}
+                className="size-5 shrink-0 accent-[var(--color-hv)]"
+              />
+              <span className="grid gap-0.5">
+                <span className="text-[13.5px] font-semibold">{t("loc.use_mine")}</span>
+                <span className="text-[11px] leading-snug text-paper-3">{t("loc.use_hint")}</span>
+              </span>
+            </label>
+            {useLocation && (
+              <p
+                className={`mono text-[9.5px] leading-relaxed tracking-[0.6px] ${
+                  fix ? "text-clear" : fixError ? "text-paper-3" : "text-caution"
+                }`}
+              >
+                {fix ? t("hazard.gps_on") : fixError ? t("hazard.gps_off") : t("hazard.gps_wait")}
+              </p>
+            )}
+          </section>
         )}
 
         {needsName ? (

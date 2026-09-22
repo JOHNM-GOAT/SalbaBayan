@@ -13,6 +13,7 @@ export function MapLegend({
   routeColour,
   right,
   rescue,
+  water,
   position = "bottom-0",
 }: {
   /** Shown only on the evacuation map, which is the only one with a route. */
@@ -20,6 +21,8 @@ export function MapLegend({
   right?: ReactNode;
   /** The official dashboard also draws SOS calls and water readings. */
   rescue?: boolean;
+  /** Water readings, on the hazard and evacuation maps too. */
+  water?: boolean;
   /** Where the bar sits; the dashboard lifts it above its phone sheet. */
   position?: string;
 }) {
@@ -45,7 +48,7 @@ export function MapLegend({
       <Item label={t("map.legend_hazard")}>
         <Pin colour="var(--color-alarm)" icon={HAZARD_ICON.other} />
       </Item>
-      {rescue && (
+      {(rescue || water) && (
         <Item label={t("dash.tab_water")}>
           <Pin colour="var(--color-caution)" icon={WATER_ICON} />
         </Item>

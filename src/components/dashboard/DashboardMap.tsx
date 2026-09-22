@@ -13,6 +13,7 @@ import { addCentre, areaFor, loadStreets, nearestStreet } from "@/lib/centres";
 import { CATEGORY_TONE } from "@/lib/hazards";
 import { resolveColour } from "@/lib/signal";
 import type { DashItem } from "@/lib/dashboard";
+import { DEPTH_COLOUR } from "@/lib/waterMap";
 import type { Point } from "@/lib/geo";
 import type { Streets } from "@/lib/walkRoute";
 import { pointInRing } from "@/lib/walkRoute";
@@ -27,12 +28,6 @@ import {
   teardropSvg,
 } from "@/lib/mapMarks";
 
-const DEPTH_COLOUR = {
-  knee: "var(--color-clear)",
-  waist: "var(--color-caution)",
-  chest: "var(--color-alarm)",
-  above_head: "var(--color-alarm)",
-} as const;
 
 /** The draft pin takes the look of what is being placed. */
 const DRAFT_LOOK: Record<PinKind | "none", { colour: string; icon: string }> = {

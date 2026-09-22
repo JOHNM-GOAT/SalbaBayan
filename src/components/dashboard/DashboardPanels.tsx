@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSync, useT } from "../AppRuntime";
 import { AdvisoryBanner } from "../AdvisoryBanner";
+import { AdvisoryModal } from "../AdvisoryEditor";
 import { HazardPhoto } from "../HazardPhoto";
 import { HoldToConfirm } from "../HoldToConfirm";
 import { PersonLabel } from "../PersonLabel";
@@ -31,6 +31,7 @@ export function clockLabel(iso: string): string {
 export function SignalHeader() {
   const { snapshot } = useSync();
   const t = useT();
+  const [advisoryOpen, setAdvisoryOpen] = useState(false);
   if (!snapshot) return null;
   const level = snapshot.barangay.current_signal_level;
   const style = signalStyle(level);
@@ -52,12 +53,14 @@ export function SignalHeader() {
           </p>
         </div>
       </div>
-      <Link
-        href="/advisory"
+      <button
+        type="button"
+        onClick={() => setAdvisoryOpen(true)}
         className="tap mono flex items-center justify-center rounded-instrument bg-hv text-[10.5px] font-bold tracking-[1px] text-hv-ink"
       >
         {t("off.change_advisory")}
-      </Link>
+      </button>
+      {advisoryOpen && <AdvisoryModal onClose={() => setAdvisoryOpen(false)} />}
       <AdvisoryBanner barangayId={snapshot.barangay.id} />
     </div>
   );
