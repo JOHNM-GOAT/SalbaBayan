@@ -60,7 +60,7 @@ import { CentreDetail, YouDetail, type MapSelection } from "./MapDetail";
  * camera (lib/mapView.ts), so they read as one map.
  */
 export function HazardSheet() {
-  const { snapshot, userId, online } = useSync();
+  const { snapshot, userId, online, actor } = useSync();
   const t = useT();
   const role = useMyRole();
   const width = useShellWidth();
@@ -360,6 +360,9 @@ export function HazardSheet() {
    * "this device has not looked yet".
    */
   const loadingCount = useSkeletonGate(settled);
+
+  // Officials see every hazard on their dashboard map; the bar would repeat it.
+  if (actor === "official") return null;
 
   return (
     <>

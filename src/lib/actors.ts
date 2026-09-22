@@ -98,10 +98,12 @@ export const ACTORS: readonly Actor[] = [
     key: "actor.official",
     home: "/official",
     nav: [
+      /*
+       * The dashboard already holds rescue, hazards, water, readiness and
+       * coverage (its Barangay tab links to them), so the official's bar is
+       * just the dashboard and ME.
+       */
       { href: "/official", key: "nav.home", icon: "home" },
-      { href: "/readiness", key: "nav.ready", icon: "check" },
-      { href: "/responder", key: "nav.rescue", icon: "sos", raised: true, badge: "rescue" },
-      { href: "/coverage", key: "nav.coverage", icon: "grid" },
       { href: "/profile", key: "nav.me", icon: "person" },
     ],
   },

@@ -113,15 +113,25 @@ console.log("\nEvery page survives a lost connection, not only the tabs:");
 
 console.log("\nShape of each tab bar:");
 for (const actor of ACTORS) {
-  check(`${actor.id}: five tabs`, actor.nav.length === 5, `got ${actor.nav.length}`);
+  /*
+   * Residents and volunteers keep five tabs around a raised centre control.
+   * Officials have two — their dashboard holds rescue, hazards and the rest —
+   * and no raised control: the dashboard map is where they act.
+   */
+  if (actor.id === "official") {
+    check("official: two tabs, dashboard and ME", actor.nav.length === 2 && actor.nav[1]?.href === "/profile", `got ${actor.nav.map((i) => i.href).join(", ")}`);
+    check("official: no raised control", !actor.nav.some((i) => i.raised));
+  } else {
+    check(`${actor.id}: five tabs`, actor.nav.length === 5, `got ${actor.nav.length}`);
 
-  const raised = actor.nav.filter((i) => i.raised);
-  check(`${actor.id}: exactly one raised control`, raised.length === 1, `got ${raised.length}`);
+    const raised = actor.nav.filter((i) => i.raised);
+    check(`${actor.id}: exactly one raised control`, raised.length === 1, `got ${raised.length}`);
 
-  check(
-    `${actor.id}: the raised control is the middle one`,
-    actor.nav[2]?.raised === true,
-  );
+    check(
+      `${actor.id}: the raised control is the middle one`,
+      actor.nav[2]?.raised === true,
+    );
+  }
 
   check(
     `${actor.id}: home tab matches the actor's home route`,

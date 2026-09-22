@@ -120,7 +120,7 @@ export function DashboardMap({
         // Once per map: the style-ready callback can fire again on a re-render.
         if (credited.current !== m) {
           credited.current = m;
-          m.addControl(new maplibregl.AttributionControl({ compact: true }), "top-left");
+          m.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
         }
         setEpoch((n) => n + 1);
       });
@@ -221,7 +221,8 @@ export function DashboardMap({
   }, [selectedId]);
 
   return (
-    <div className="absolute inset-0">
+    // The map credit sits bottom-right, lifted clear of the legend bar.
+    <div className="absolute inset-0 [&_.maplibregl-ctrl-bottom-right]:bottom-9">
       <div ref={container} style={{ position: "absolute", inset: 0 }} />
       <button
         type="button"
@@ -230,8 +231,7 @@ export function DashboardMap({
       >
         {t("dash.show_all")}
       </button>
-      {/* On a phone the list sheet covers the bottom; the key sits above it. */}
-      <MapLegend rescue position="bottom-[50px] @3xl:bottom-0" />
+      <MapLegend rescue />
     </div>
   );
 }

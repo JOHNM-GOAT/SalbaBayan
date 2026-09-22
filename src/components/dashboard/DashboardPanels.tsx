@@ -392,20 +392,12 @@ export function BarangayPanel() {
       </div>
       <PopulationCard />
       <HouseholdsCard />
-      <div className="grid grid-cols-2 gap-2">
-        <Link
-          href="/headcount"
-          className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3"
-        >
-          {t("nav.count")}
-        </Link>
-        <Link
-          href="/map"
-          className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3"
-        >
-          {t("nav.map")}
-        </Link>
-      </div>
+      <Link
+        href="/headcount"
+        className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-[10px] font-bold tracking-[1px] text-paper-3"
+      >
+        {t("nav.count")}
+      </Link>
     </div>
   );
 }

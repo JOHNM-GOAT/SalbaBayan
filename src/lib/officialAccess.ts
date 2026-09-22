@@ -209,3 +209,18 @@ export async function accessStatus(): Promise<AccessStatus | null> {
     return null;
   }
 }
+
+/** A full-access device gives it up and is a resident's again (migration 0044). */
+export async function leaveFullAccess(): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase || offline()) return false;
+  try {
+    const { error } = await supabase.rpc("leave_full_access");
+    if (error) return false;
+    setUnlocked(false);
+    notifyRoleChanged();
+    return true;
+  } catch {
+    return false;
+  }
+}
