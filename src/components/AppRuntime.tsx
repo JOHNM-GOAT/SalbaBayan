@@ -90,21 +90,30 @@ export const useSync = () => useContext(SyncContext);
 /**
  * Message lookup bound to the current snapshot and language.
  *
- * Returns the key itself when the snapshot has not loaded, which keeps the
- * first frame from flashing empty chrome and makes a missing key obvious on
- * screen instead of invisible.
+ * A key with no text yet renders as nothing, not as the key. On a refresh the
+ * first frames come before the cached snapshot is read from IndexedDB, and a
+ * snapshot cached before a string was added lacks it until the network copy
+ * lands — both used to flash raw keys like "HZ.TITLE" across the screen. A key
+ * missing from the database for good is caught before release by
+ * scripts/check-translations.mjs, and development still shows the key so it is
+ * obvious there.
  */
+const SHOW_MISSING_KEYS = process.env.NODE_ENV === "development";
+
 export function useT() {
   const { snapshot, language } = useSync();
   return useCallback(
-    (key: string, vars?: { n?: string | number }) =>
-      translate(
-        snapshot?.translations ?? {},
+    (key: string, vars?: { n?: string | number }) => {
+      const translations = snapshot?.translations ?? {};
+      if (!translations[key] && !SHOW_MISSING_KEYS) return "";
+      return translate(
+        translations,
         key,
         language,
         snapshot?.barangay.default_language ?? "tl",
         vars,
-      ),
+      );
+    },
     [snapshot, language],
   );
 }
