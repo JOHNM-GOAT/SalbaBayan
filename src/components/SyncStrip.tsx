@@ -1,6 +1,8 @@
 "use client";
 
+import { useCallback, useState } from "react";
 import { useSync, useT } from "./AppRuntime";
+import { FailedWrites } from "./FailedWrites";
 import { useShellWidth } from "./Shell";
 
 /**
@@ -18,6 +20,8 @@ export function SyncStrip() {
   const { online, queued, blocked, cacheAgeMs } = useSync();
   const t = useT();
   const width = useShellWidth();
+  const [showFailed, setShowFailed] = useState(false);
+  const closeFailed = useCallback(() => setShowFailed(false), []);
 
   function age(): string {
     if (cacheAgeMs === null) return t("ui.never_synced");
@@ -59,10 +63,15 @@ export function SyncStrip() {
        * barangay hall and report in person.
        */}
       {blocked > 0 && (
-        <span className="mono ml-auto text-[10px] font-bold tracking-[0.9px] text-alarm">
+        <button
+          type="button"
+          onClick={() => setShowFailed(true)}
+          className="mono ml-auto text-[10px] font-bold tracking-[0.9px] text-alarm underline underline-offset-2"
+        >
           {t("ui.blocked", { n: blocked })}
-        </span>
+        </button>
       )}
+      {showFailed && <FailedWrites onClose={closeFailed} />}
       </div>
     </div>
   );

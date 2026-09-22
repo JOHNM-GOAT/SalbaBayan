@@ -503,3 +503,16 @@ export function startQueueFlushListener(intervalMs = 30_000): () => void {
     listenersInstalled = false;
   };
 }
+
+/**
+ * Discard one write the queue has given up on — for the person looking at it
+ * in the FAILED TO SEND list. Only a blocked row can be discarded; a write
+ * still waiting its turn is never thrown away from here.
+ */
+export async function discardBlockedWrite(id: string): Promise<void> {
+  const database = getDb();
+  if (!database) return;
+  const row = await database.queue.get(id);
+  if (row?.blocked === true) await database.queue.delete(id);
+  notifyQueueChanged();
+}
