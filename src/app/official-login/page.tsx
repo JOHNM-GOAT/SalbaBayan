@@ -44,7 +44,7 @@ export default function OfficialLoginPage() {
   const t = useT();
   const router = useRouter();
   const role = useMyRole();
-  const { unlocked } = useOfficialAccess();
+  const { unlocked, isSuper } = useOfficialAccess();
 
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
@@ -55,12 +55,12 @@ export default function OfficialLoginPage() {
     router.replace(actorById("official").home);
   };
 
-  // Already an unlocked official: straight through.
+  // Already an unlocked official, or a full-access one (never asked for the PIN): straight through.
   useEffect(() => {
-    if (role === "official" && unlocked) open();
-    // `open` is recreated each render; the decision only depends on these two.
+    if (role === "official" && (unlocked || isSuper)) open();
+    // `open` is recreated each render; the decision only depends on these.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, unlocked]);
+  }, [role, unlocked, isSuper]);
 
   const submit = async () => {
     const entry = value.trim();

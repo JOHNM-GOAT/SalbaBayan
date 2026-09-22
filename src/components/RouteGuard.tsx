@@ -27,7 +27,7 @@ export function RouteGuard() {
   const pathname = usePathname();
   const router = useRouter();
   const role = useMyRole();
-  const { unlocked } = useOfficialAccess();
+  const { unlocked, isSuper } = useOfficialAccess();
 
   // A device that is no longer an official loses its unlock at once.
   useEffect(() => {
@@ -36,12 +36,16 @@ export function RouteGuard() {
 
   useEffect(() => {
     if (role === null || unlocked === null) return;
-    if (matches(pathname, OFFICIAL_ONLY) && (role !== "official" || !unlocked)) {
+    // A full-access device logged in with the access code; it is never asked
+    // for the PIN. Wait until that is known before deciding.
+    if (role === "official" && !unlocked && isSuper === null) return;
+    const open = unlocked || isSuper === true;
+    if (matches(pathname, OFFICIAL_ONLY) && (role !== "official" || !open)) {
       router.replace("/official-login");
     } else if (matches(pathname, STAFF_ONLY) && role === "resident") {
       router.replace("/");
     }
-  }, [pathname, role, unlocked, router]);
+  }, [pathname, role, unlocked, isSuper, router]);
 
   return null;
 }

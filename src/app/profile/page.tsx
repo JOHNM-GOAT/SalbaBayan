@@ -5,6 +5,7 @@ import { useMyRole } from "@/components/useMyRole";
 import { RoleManager } from "@/components/RoleManager";
 import { DeviceQr } from "@/components/DeviceQr";
 import { OfficialAccessCard } from "@/components/OfficialAccessCard";
+import { useOfficialAccess } from "@/components/useOfficialAccess";
 import { ProfileCard } from "@/components/ProfileCard";
 
 /**
@@ -27,6 +28,10 @@ export default function ProfilePage() {
   const t = useT();
 
   const role = useMyRole();
+  /* A full-access device stands for the LGU (migration 0046): no device code
+     to read out, no personal name to give. */
+  const { isSuper } = useOfficialAccess();
+  const lgu = role === "official" && isSuper === true;
 
   const purok = snapshot?.puroks.find((p) => p.id === purokId);
 
@@ -39,6 +44,15 @@ export default function ProfilePage() {
 
   return (
     <main className="flex flex-1 flex-col gap-3 p-3.5">
+      {lgu ? (
+        <section className="rounded-instrument border-[1.5px] border-line-soft bg-ink-800 p-4">
+          <p className="font-display text-[28px] leading-none font-extrabold tracking-[1px] text-hv">LGU</p>
+          <p className="mono mt-1.5 text-[10px] tracking-[0.7px] text-paper-3">
+            {snapshot?.barangay.name.toUpperCase()}
+          </p>
+        </section>
+      ) : (
+        <>
       <section className="rounded-instrument border-[1.5px] border-line-soft bg-ink-800 p-4">
         <p className="lbl">{t("me.device_code")}</p>
         <p className="mono mt-1.5 text-[28px] leading-none font-bold tracking-[2px] text-hv">
@@ -55,6 +69,8 @@ export default function ProfilePage() {
       </section>
 
       <ProfileCard />
+        </>
+      )}
 
       <dl className="grid gap-2 @xl:grid-cols-2">
         <div className="rounded-instrument border-[1.5px] border-line-soft bg-ink-800 px-3.5 py-3">

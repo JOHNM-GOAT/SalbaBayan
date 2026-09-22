@@ -29,7 +29,8 @@ export function OfficialAccessCard() {
           {t("acc.users")}
         </Link>
       )}
-      {unlocked ? (
+      {/* Full access is never PIN-locked, so it has LOG OUT instead of LOCK. */}
+      {isSuper ? null : unlocked ? (
         <button
           type="button"
           onClick={() => {

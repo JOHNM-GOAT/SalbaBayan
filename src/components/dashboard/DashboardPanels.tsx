@@ -133,7 +133,7 @@ export function useItemText() {
 function itemText(t: ReturnType<typeof useT>) {
   const title = (item: DashItem): string => {
     if (item.kind === "sos") {
-      return item.person ? `${item.person.first_name} ${item.person.last_name}` : t("profile.no_name");
+      return item.person ? `${item.person.first_name} ${item.person.last_name}`.trim() : t("profile.no_name");
     }
     if (item.kind === "hazard") return t(`cat.${item.hazard.category}`);
     return t(`water.${item.water.level_category}`);
