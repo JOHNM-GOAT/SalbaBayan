@@ -24,6 +24,14 @@ export const HAZARD_ICON: Record<Category, string> = {
   other: "<path d='M12 7v6'/><path d='M12 17h.01'/><circle cx='12' cy='12' r='9'/>",
 };
 
+/** A lifebuoy: someone is asking to be rescued. */
+export const SOS_ICON =
+  "<circle cx='12' cy='12' r='9'/><circle cx='12' cy='12' r='3.5'/><path d='M5.6 5.6l3.9 3.9M14.5 14.5l3.9 3.9M18.4 5.6l-3.9 3.9M9.5 14.5l-3.9 3.9'/>";
+
+/** Waves: a water-level reading. */
+export const WATER_ICON =
+  "<path d='M2 10c2-2 4-2 6 0s4 2 6 0 4-2 6 0'/><path d='M2 16c2-2 4-2 6 0s4 2 6 0 4-2 6 0'/>";
+
 export const CENTRE_ICON =
   "<path d='M3 11.5 12 4l9 7.5'/><path d='M5.5 10v10h13V10'/><path d='M10 20v-5.5h4V20'/>";
 

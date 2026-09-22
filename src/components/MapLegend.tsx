@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useT } from "./AppRuntime";
-import { CENTRE_ICON, HAZARD_ICON } from "@/lib/mapMarks";
+import { CENTRE_ICON, HAZARD_ICON, SOS_ICON, WATER_ICON } from "@/lib/mapMarks";
 import { CATEGORY_TONE, type Category } from "@/lib/hazards";
 
 /**
@@ -12,14 +12,20 @@ import { CATEGORY_TONE, type Category } from "@/lib/hazards";
 export function MapLegend({
   routeColour,
   right,
+  rescue,
+  position = "bottom-0",
 }: {
   /** Shown only on the evacuation map, which is the only one with a route. */
   routeColour?: string;
   right?: ReactNode;
+  /** The official dashboard also draws SOS calls and water readings. */
+  rescue?: boolean;
+  /** Where the bar sits; the dashboard lifts it above its phone sheet. */
+  position?: string;
 }) {
   const t = useT();
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line-soft bg-ink-900/92 px-2.5 py-1.5">
+    <div className={`pointer-events-none absolute inset-x-0 ${position} flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line-soft bg-ink-900/92 px-2.5 py-1.5`}>
       <Item label={t("map.legend_boundary")}>
         <span
           className="h-[3px] w-3.5"
@@ -31,9 +37,19 @@ export function MapLegend({
           <span className="h-[3px] w-3.5" style={{ background: routeColour }} />
         </Item>
       )}
+      {rescue && (
+        <Item label={t("nav.sos")}>
+          <Pin colour="var(--color-alarm)" icon={SOS_ICON} />
+        </Item>
+      )}
       <Item label={t("map.legend_hazard")}>
         <Pin colour="var(--color-alarm)" icon={HAZARD_ICON.other} />
       </Item>
+      {rescue && (
+        <Item label={t("dash.tab_water")}>
+          <Pin colour="var(--color-caution)" icon={WATER_ICON} />
+        </Item>
+      )}
       <Item label={t("ui.evac_center")}>
         <Pin colour="var(--color-clear)" icon={CENTRE_ICON} />
       </Item>

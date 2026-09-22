@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useSync } from "./AppRuntime";
 
 /**
@@ -40,6 +41,9 @@ const WIDE_ACTORS = new Set(["official"]);
 /** The Tailwind max-width this actor's content is held to. */
 export function useShellWidth(): string {
   const { actor } = useSync();
+  const pathname = usePathname();
+  // The official's map dashboard is a map first: it gets the whole screen.
+  if (pathname === "/official") return "max-w-none";
   return WIDE_ACTORS.has(actor) ? "max-w-[76rem]" : "max-w-[34rem]";
 }
 
