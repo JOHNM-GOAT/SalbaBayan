@@ -14,6 +14,7 @@
 "acc.not_allowed": "Dagiti laeng opisyal nga addaan iti naan-anay nga access ti makalukat iti Panangimanehar ti User.",
 "acc.not_official": "Saan a para iti opisyal daytoy a telepono. Masapul nga aramiden daytoy nga opisyal ti maysa nga opisyal (Imanehar dagiti akem).",
 "acc.pin": "PIN TI OPISYAL",
+"acc.pin_or_code": "PIN WENNO ACCESS CODE",
 "acc.pin_saved": "Nabaliwan ti PIN. Ibagam kadagiti opisyal.",
 "acc.pin_wrong": "Biddut a PIN.",
 "acc.role_saved": "Nabaliwan ti akem.",
