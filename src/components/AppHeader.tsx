@@ -34,23 +34,10 @@ export function AppHeader() {
           className={`mx-auto flex w-full items-center justify-between px-3.5 py-3 ${width}`}
         >
         <div className="flex items-center gap-2.5">
-          <div className="flex size-6.5 items-center justify-center rounded-[3px] bg-hv text-hv-ink">
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z" />
-              <path d="M12 8v5" />
-              <path d="M12 16h.01" />
-            </svg>
-          </div>
+          {/* The barangay's mark. Plain <img>: one small PNG, no layout shift
+              (the size is fixed here), and nothing for the optimizer to do. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="" width={26} height={26} className="size-6.5 shrink-0 object-contain" />
           <span className="font-display text-base font-extrabold tracking-[0.4px]">
             SALBABAYAN
           </span>
