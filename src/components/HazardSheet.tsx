@@ -407,7 +407,9 @@ export function HazardSheet() {
   const loadingCount = useSkeletonGate(settled);
 
   const markedCentre =
-    mark && mark !== "you" ? (snapshot?.centers.find((c) => c.id === mark.centre) ?? null) : null;
+    mark && mark !== "you" && "centre" in mark
+      ? (snapshot?.centers.find((c) => c.id === mark.centre) ?? null)
+      : null;
 
   // Officials see every hazard on their dashboard map; the bar would repeat it.
   if (actor === "official") return null;

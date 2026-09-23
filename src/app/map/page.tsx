@@ -10,7 +10,7 @@ import { graphFor, rankCentres } from "@/lib/centres";
 import { allWaterReports, subscribeWaterReports, type WaterReport } from "@/lib/water";
 import { DEPTH_COLOUR, placeWater } from "@/lib/waterMap";
 import { MapLegend } from "@/components/MapLegend";
-import { CentreDetail, YouDetail, type MapSelection } from "@/components/MapDetail";
+import { CentreDetail, HazardBrief, WaterBrief, YouDetail, type MapSelection } from "@/components/MapDetail";
 import { focusHazard } from "@/lib/hazardFocus";
 import { CENTRE_ICON, HAZARD_ICON, WATER_ICON, hazardColour, pinElement, pinMarker, youElement } from "@/lib/mapMarks";
 import { sharedView, trackView } from "@/lib/mapView";
@@ -78,6 +78,12 @@ export default function MapPage() {
   const [streets, setStreets] = useState<FeatureCollection | null>(null);
   /** The other centres under the nearest one: folded away until asked for. */
   const [showOthers, setShowOthers] = useState(false);
+  /** Ticks so "4 MIN" on a tapped pin keeps up without a reload. */
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const tick = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(tick);
+  }, []);
 
   /*
    * Which base is on screen, and a counter that ticks every time a style
@@ -546,8 +552,9 @@ export default function MapPage() {
         icon: HAZARD_ICON[category] ?? HAZARD_ICON.other,
         label: t(`cat.${category}`),
         height: onRoute ? 40 : 30,
-        // The hazard map already shows a report in full: photo, age, resolve.
-        onClick: () => focusHazard(h.id),
+        // Tapping says what it is and where, here on the map. The hazard map,
+        // one button away in that card, holds the photo and RESOLVE.
+        onClick: () => setSelection({ hazard: h.id }),
       });
       if (h.lat == null) el.style.opacity = "0.7";
       pins.push(pinMarker(el, lng, lat).addTo(m));
@@ -558,6 +565,7 @@ export default function MapPage() {
         icon: WATER_ICON,
         label: `${t(`water.${w.report.level_category}`)} — ${w.report.location_label ?? ""}`,
         height: 28,
+        onClick: () => setSelection({ water: w.report.id }),
       });
       // A street's point rather than the reporter's: drawn faded.
       if (w.approx) el.style.opacity = "0.7";
@@ -654,7 +662,18 @@ export default function MapPage() {
 
   const routeColour = ROUTE_COLOUR;
   const selectedCentre =
-    selection && selection !== "you" ? (snapshot?.centers.find((c) => c.id === selection.centre) ?? null) : null;
+    selection && selection !== "you" && "centre" in selection
+      ? (snapshot?.centers.find((c) => c.id === selection.centre) ?? null)
+      : null;
+  const selectedHazard =
+    selection && selection !== "you" && "hazard" in selection
+      ? (snapshot?.hazards.find((h) => h.id === selection.hazard) ?? null)
+      : null;
+  const selectedWater =
+    selection && selection !== "you" && "water" in selection
+      ? (placedWater.find((w) => w.report.id === selection.water) ?? null)
+      : null;
+  const areaName = (id: string) => snapshot?.puroks.find((p) => p.id === id)?.name ?? "";
   const selectedRank = ranked.find((r) => r.centre.id === selectedCentre?.id);
   const others = ranked.slice(1);
 
@@ -751,7 +770,11 @@ export default function MapPage() {
 
         {/* The blocked-path warning: it changes whether the destination is reachable at all. */}
         {blocking.length > 0 && (
-          <div className="pointer-events-auto flex items-center gap-2.5 rounded-instrument border-[1.5px] border-alarm bg-ink-900/95 px-3 py-2.5 shadow-md">
+          <button
+            type="button"
+            // Tapping the warning goes to the thing being warned about.
+            onClick={() => setSelection({ hazard: blocking[0].id })}
+            className="pointer-events-auto flex w-full items-center gap-2.5 rounded-instrument border-[1.5px] border-alarm bg-ink-900/95 px-3 py-2.5 text-left shadow-md">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--color-alarm)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
               <path d="M12 9v5" /><path d="M12 17h.01" />
               <path d="M10.3 3.9L2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
@@ -760,13 +783,33 @@ export default function MapPage() {
             <span className="mono shrink-0 text-[10px] font-bold tracking-[0.8px] text-alarm">
               {t("map.avoid")}
             </span>
-          </div>
+          </button>
         )}
       </div>
 
       {/* Bottom: the destination, or whatever was tapped on the map. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-14 z-10 grid gap-2 p-2.5 pr-14 sm:bottom-9 sm:max-w-md sm:pr-2.5">
-        {selectedCentre ? (
+        {selectedHazard ? (
+          <div className="pointer-events-auto shadow-md">
+            <HazardBrief
+              hazard={selectedHazard}
+              area={areaName(selectedHazard.purok_id)}
+              now={now}
+              onOpen={() => focusHazard(selectedHazard.id)}
+              onClose={() => setSelection(null)}
+            />
+          </div>
+        ) : selectedWater ? (
+          <div className="pointer-events-auto shadow-md">
+            <WaterBrief
+              report={selectedWater.report}
+              area={areaName(selectedWater.report.purok_id)}
+              approx={selectedWater.approx}
+              now={now}
+              onClose={() => setSelection(null)}
+            />
+          </div>
+        ) : selectedCentre ? (
           <div className="pointer-events-auto shadow-md">
             <CentreDetail
               centre={selectedCentre}
