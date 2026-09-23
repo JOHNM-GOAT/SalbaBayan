@@ -1,4 +1,5 @@
 import type { Map as MapLibreMap, StyleSpecification } from "maplibre-gl";
+import { resolveColour } from "./signal";
 
 /**
  * Which base map the evacuation view draws on (PRD §7.5).
@@ -39,14 +40,30 @@ export type Basemap = "sketch" | "streets";
 export const STREET_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 
 /**
+ * The dark theme gets OpenFreeMap's dark style. A white rectangle in a dark
+ * interface is the same mistake as the reverse, and worse at night: it is the
+ * largest lit area on the screen, on the one screen read in the dark.
+ */
+export const STREET_STYLE_URL_DARK = "https://tiles.openfreemap.org/styles/dark";
+
+/**
  * Bounded so a tower that accepts the connection and then stalls cannot leave
  * the upgrade pending for the length of the storm. The sketch is already on
  * screen throughout, so this timeout costs nothing but the upgrade.
  */
 const FETCH_TIMEOUT_MS = 8000;
 
-/** The ground colour, matching `--color-ink-900`, for the sketch's background. */
-const GROUND = "#ffffff";
+/**
+ * The sketch's ground, read from the theme's own token at build time, so the
+ * drawn map matches the screen around it in either theme.
+ *
+ * Through resolveColour, never the raw token: the tokens are authored in
+ * oklch and the browser hands back `lab(...)`, which MapLibre rejects with
+ * "color expected" — taking the whole style, and the map, with it.
+ */
+function ground(): string {
+  return typeof document === "undefined" ? "#ffffff" : resolveColour("var(--color-ink-900)");
+}
 
 /**
  * The style that cannot fail.
@@ -61,13 +78,13 @@ export function sketchStyle(): StyleSpecification {
     version: 8,
     sources: {},
     layers: [
-      { id: "ground", type: "background", paint: { "background-color": GROUND } },
+      { id: "ground", type: "background", paint: { "background-color": ground() } },
     ],
   };
 }
 
-let cached: StyleSpecification | null = null;
-let inflight: Promise<StyleSpecification | null> | null = null;
+const cached = new Map<string, StyleSpecification>();
+const inflight = new Map<string, Promise<StyleSpecification | null>>();
 
 /**
  * Fetch the street style, or resolve `null` if it cannot be had.
@@ -75,23 +92,28 @@ let inflight: Promise<StyleSpecification | null> | null = null;
  * Never rejects. A caller that has to remember to catch is a caller that will
  * one day forget, and the cost of forgetting here is a blank evacuation map.
  */
-export async function loadStreetStyle(): Promise<StyleSpecification | null> {
-  if (cached) return cached;
-  inflight ??= fetchStreetStyle().finally(() => {
-    inflight = null;
-  });
-  const style = await inflight;
+export async function loadStreetStyle(theme: "light" | "dark" = "light"): Promise<StyleSpecification | null> {
+  const url = theme === "dark" ? STREET_STYLE_URL_DARK : STREET_STYLE_URL;
+  const hit = cached.get(url);
+  if (hit) return hit;
+
+  let pending = inflight.get(url);
+  if (!pending) {
+    pending = fetchStreetStyle(url).finally(() => inflight.delete(url));
+    inflight.set(url, pending);
+  }
+  const style = await pending;
   // Only a success is memoised. A failure is usually "no signal right now",
   // which is a statement about this minute and not about the session.
-  if (style) cached = style;
+  if (style) cached.set(url, style);
   return style;
 }
 
-async function fetchStreetStyle(): Promise<StyleSpecification | null> {
+async function fetchStreetStyle(url: string): Promise<StyleSpecification | null> {
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), FETCH_TIMEOUT_MS);
   try {
-    const response = await fetch(STREET_STYLE_URL, { signal: abort.signal });
+    const response = await fetch(url, { signal: abort.signal });
     if (!response.ok) return null;
     const style: unknown = await response.json();
     return isUsableStyle(style) ? style : null;

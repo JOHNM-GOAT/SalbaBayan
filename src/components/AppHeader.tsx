@@ -5,6 +5,7 @@ import { useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { useSync, useT } from "./AppRuntime";
 import { LanguageSwitch } from "./LanguageSwitch";
+import { ThemeSwitch } from "./ThemeSwitch";
 import { SyncStrip } from "./SyncStrip";
 import { useShellWidth } from "./Shell";
 import { signalStyle } from "@/lib/signal";
@@ -44,6 +45,7 @@ export function AppHeader() {
         </div>
 
           <div className="flex items-center gap-1.5">
+            <ThemeSwitch />
             <LanguageSwitch />
             {actor === "official" && <OfficialLinks />}
           </div>

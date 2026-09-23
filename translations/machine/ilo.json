@@ -396,6 +396,8 @@
 "ui.remaining": "NABATI",
 "ui.showing_fallback": "Saan pay a magun-od iti daytoy a pagsasao. Maipakita iti {n}.",
 "ui.signal_no": "SIGNAL NO. {n}",
+"ui.theme_dark": "Nasipnget a mode",
+"ui.theme_light": "Nalawag a mode",
 "ui.what_to_do": "ANIA TI ARAMIDEN",
 "vol.capacity": "KAPASIDAD {n}",
 "vol.capacity_unset": "Saan pay a naikeddeng ti kapasidad",

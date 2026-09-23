@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Archivo, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { AppRuntime } from "@/components/AppRuntime";
@@ -70,8 +71,22 @@ export default function RootLayout({
     <html
       lang="fil"
       className={`${archivo.variable} ${plexSans.variable} ${plexMono.variable}`}
+      // The inline script below sets data-theme and color-scheme here before
+      // React hydrates, which is the whole point of it; React must be told
+      // those two are expected to differ from the server HTML.
+      suppressHydrationWarning
     >
       <body className="bg-ink-900 text-paper antialiased">
+        {/*
+         * The stored theme, applied before the app renders. In an effect it
+         * would land a frame late, and a white flash on a dark phone at night
+         * is exactly what choosing dark is meant to avoid. next/script with
+         * beforeInteractive hoists it into the document head; a bare <script>
+         * in a layout is warned about by React on the client.
+         */}
+        <Script id="theme" strategy="beforeInteractive">
+          {"try{var t=localStorage.getItem('salbabayan.theme');if(t==='dark'){document.documentElement.dataset.theme='dark';document.documentElement.style.colorScheme='dark'}}catch(e){}"}
+        </Script>
         {/*
          * The header — severity rail, wordmark, language switch, sync strip —
          * is rendered HERE rather than by each page.

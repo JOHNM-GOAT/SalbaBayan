@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useSync, useT } from "../AppRuntime";
+import { useTheme } from "../useTheme";
 import { MapLegend } from "../MapLegend";
 import { CentreModal, PinMenu, type Draft, type PinKind } from "./PinMenu";
 import { loadStreetStyle, onStyleReady, sketchStyle } from "@/lib/basemap";
@@ -111,10 +112,12 @@ export function DashboardMap({
 }) {
   const { snapshot, online } = useSync();
   const t = useT();
+  const { theme } = useTheme();
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const framed = useRef(false);
-  const upgraded = useRef(false);
+  /** The theme whose basemap is on screen, so a change swaps it. */
+  const upgraded = useRef<string | null>(null);
   const credited = useRef<maplibregl.Map | null>(null);
   const draftMarker = useRef<maplibregl.Marker | null>(null);
   const [epoch, setEpoch] = useState(0);
@@ -159,7 +162,7 @@ export function DashboardMap({
       instance.remove();
       map.current = null;
       framed.current = false;
-      upgraded.current = false;
+      upgraded.current = null;
     };
     // Built once per visit, centred on the barangay known at that moment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -171,11 +174,11 @@ export function DashboardMap({
    */
   useEffect(() => {
     const m = map.current;
-    if (!m || !online || upgraded.current) return;
-    upgraded.current = true;
-    void loadStreetStyle().then((style) => {
+    if (!m || !online || upgraded.current === theme) return;
+    upgraded.current = theme;
+    void loadStreetStyle(theme).then((style) => {
       if (!style || map.current !== m) {
-        upgraded.current = false;
+        upgraded.current = null;
         return;
       }
       m.setStyle(style, { diff: false });
@@ -189,7 +192,7 @@ export function DashboardMap({
         setEpoch((n) => n + 1);
       });
     });
-  }, [online, epoch]);
+  }, [online, epoch, theme]);
 
   /* The barangay outline, re-added after a style swap. */
   useEffect(() => {

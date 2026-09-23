@@ -80,6 +80,12 @@ export const purokPref = createPrefStore("salbabayan.purok");
 export const actorPref = createPrefStore("salbabayan.actor");
 
 /*
+ * Light or dark. Stored like the others, and read by the inline script in the
+ * layout before the first paint so a dark phone never flashes white.
+ */
+export const themePref = createPrefStore("salbabayan.theme");
+
+/*
  * The evacuation centre this staff phone is standing at. Headcount and QR
  * check-in count into it, so a volunteer at the second centre does not have to
  * pick it again on every scan.

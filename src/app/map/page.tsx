@@ -18,6 +18,7 @@ import { CATEGORY_TONE, type Category } from "@/lib/hazards";
 import type { Streets } from "@/lib/walkRoute";
 import { resolveColour } from "@/lib/signal";
 import { startPositionWatch, type Fix } from "@/lib/sos";
+import { useTheme } from "@/components/useTheme";
 import {
   loadStreetStyle,
   onStyleReady,
@@ -64,6 +65,7 @@ export default function MapPage() {
 
   const { snapshot, purokId, language, online } = useSync();
   const t = useT();
+  const { theme } = useTheme();
 
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -319,13 +321,18 @@ export default function MapPage() {
    * tiles at the edges. The route, boundary, hazards and destination — every
    * layer that carries the instruction — are identical on either base.
    */
+  const painted = useRef<string | null>(null);
   useEffect(() => {
     if (!ready || !online || upgrading.current) return;
+    // A theme change re-runs this: the basemap is the largest area of colour
+    // on the screen and cannot stay light under a dark interface.
+    if (painted.current === theme) return;
     const m = map.current;
     if (!m) return;
     upgrading.current = true;
+    painted.current = theme;
 
-    void loadStreetStyle().then((style) => {
+    void loadStreetStyle(theme).then((style) => {
       /*
        * The map instance IS the lifetime here, which is why this checks
        * `map.current !== m` rather than a flag the effect's cleanup would clear.
@@ -341,8 +348,10 @@ export default function MapPage() {
         // Nothing on screen changed; the sketch is still there. Released so a
         // later attempt can run, because "no signal now" is not "no signal".
         upgrading.current = false;
+        painted.current = null;
         return;
       }
+      upgrading.current = false;
 
       /*
        * `diff: false`. Left to itself MapLibre tries to reshape the current
@@ -365,7 +374,26 @@ export default function MapPage() {
         setStyleEpoch((n) => n + 1);
       });
     });
-  }, [ready, online]);
+  }, [ready, online, theme]);
+
+  /*
+   * Offline, the drawn sketch is the basemap; redraw it in the other theme.
+   *
+   * Only on a CHANGE. Running on mount would call setStyle on a map whose
+   * first style has not finished loading, which leaves it with no style at
+   * all — a blank rectangle where the map should be.
+   */
+  const sketchTheme = useRef(theme);
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready || sketchTheme.current === theme) return;
+    sketchTheme.current = theme;
+    if (base !== "sketch") return;
+    m.setStyle(sketchStyle(), { diff: false });
+    return onStyleReady(m, () => setStyleEpoch((n) => n + 1));
+    // base and ready are read when the theme changes, not watched.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme, ready]);
 
   /* Paint every layer from data already on the device. */
   useEffect(() => {

@@ -82,6 +82,49 @@
   color-scheme: light;
 }
 
+/*
+ * DARK THEME
+ *
+ * The instrument panel this product started as, offered again as a choice —
+ * for the case the note above names: read outdoors at night, in a storm, on a
+ * phone whose battery may be the last one in the house.
+ *
+ * Only the tokens change. `ink-*` is still the ground and `paper-*` still the
+ * figure, so every screen, and the drawn map style built from these same
+ * values, follows without a single component knowing which theme is on. The
+ * accent and the ramp are re-chosen rather than flipped, for the same reason
+ * they were on white: the readable end of a hue moves with the ground.
+ */
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-ink-900: oklch(0.17 0.012 245);
+  --color-ink-800: oklch(0.215 0.013 245);
+  --color-ink-700: oklch(0.27 0.013 245);
+  --color-ink-600: oklch(0.34 0.013 245);
+
+  --color-line: oklch(0.45 0.015 245);
+  --color-line-soft: oklch(0.3 0.012 245);
+
+  --color-paper: oklch(0.97 0.004 245);
+  --color-paper-2: oklch(0.83 0.007 245);
+  --color-paper-3: oklch(0.68 0.009 245);
+
+  --color-hv: oklch(0.82 0.13 205);
+  --color-hv-ink: oklch(0.19 0.02 240);
+
+  --color-signal-1: oklch(0.78 0.17 148);
+  --color-signal-2: oklch(0.85 0.15 92);
+  --color-signal-3: oklch(0.76 0.16 55);
+  --color-signal-4: oklch(0.67 0.2 28);
+  --color-signal-5: oklch(0.6 0.2 14);
+
+  --color-alarm: oklch(0.68 0.2 28);
+  --color-caution: oklch(0.82 0.14 78);
+  --color-clear: oklch(0.78 0.16 148);
+  --color-you: oklch(0.72 0.16 258);
+}
+
 html,
 body {
   background: var(--color-ink-900);

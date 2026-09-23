@@ -6,6 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useSync, useT } from "./AppRuntime";
 import { useMyRole } from "./useMyRole";
 import { useShellWidth } from "./Shell";
+import { useTheme } from "./useTheme";
 import { HazardPhoto } from "./HazardPhoto";
 import { loadStreetStyle, onStyleReady, sketchStyle } from "@/lib/basemap";
 import { FALLBACK_CENTRE } from "@/lib/advisory";
@@ -66,6 +67,7 @@ export function HazardSheet() {
   const t = useT();
   const role = useMyRole();
   const width = useShellWidth();
+  const { theme } = useTheme();
 
   const [open, setOpen] = useState(false);
   const [hazards, setHazards] = useState<Hazard[]>([]);
@@ -191,7 +193,7 @@ export function HazardSheet() {
 
     // Same rule as the evacuation map: offline, the drawn grid is the better
     // map, because the style is cached far more readily than the tiles.
-    if (online) void loadStreetStyle().then((style) => {
+    if (online) void loadStreetStyle(theme).then((style) => {
       if (!style || map.current !== instance) return;
       instance.setStyle(style, { diff: false });
       onStyleReady(instance, () => {
@@ -218,9 +220,11 @@ export function HazardSheet() {
       pendingFocus.current = null;
     };
     // `online` is read once, at opening: a signal that drops mid-look must not
-    // pull the street map out from under the reader.
+    // pull the street map out from under the reader. The theme is not read
+    // once — switching it rebuilds the map, which is what puts the dark
+    // basemap under a dark sheet.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, theme]);
 
   /* The device's own position, only while the sheet is open. */
   useEffect(() => {
