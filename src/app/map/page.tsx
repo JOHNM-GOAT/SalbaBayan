@@ -78,6 +78,8 @@ export default function MapPage() {
   const [streets, setStreets] = useState<FeatureCollection | null>(null);
   /** The other centres under the nearest one: folded away until asked for. */
   const [showOthers, setShowOthers] = useState(false);
+  /** Phone only: the route name and the offline note above the turn. */
+  const [topOpen, setTopOpen] = useState(false);
   /** Ticks so "4 MIN" on a tapped pin keeps up without a reload. */
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -717,9 +719,20 @@ export default function MapPage() {
         className="[&_.maplibregl-ctrl-bottom-left]:bottom-14! [&_.maplibregl-ctrl-bottom-right]:bottom-14! sm:[&_.maplibregl-ctrl-bottom-left]:bottom-9! sm:[&_.maplibregl-ctrl-bottom-right]:bottom-9!"
       />
 
-      {/* Top: where this is, the next turn, and anything blocking the way. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 grid gap-2 p-2.5 sm:max-w-md">
-        <div className="pointer-events-auto flex items-center gap-2.5 rounded-instrument border-[1.5px] border-line-soft bg-ink-900/95 px-3 py-2 shadow-md">
+      {/*
+        Top: where this is, the next turn, and anything blocking the way.
+
+        Three stacked cards covered a third of the map on a phone — on the one
+        screen where the map is the content. There, the route name and the
+        offline note fold away behind the chevron on the turn row; the turn and
+        the distance, the two things being walked by, never fold.
+      */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 grid gap-1.5 p-2 sm:max-w-md sm:gap-2 sm:p-2.5">
+        <div
+          className={`pointer-events-auto items-center gap-2.5 rounded-instrument border-[1.5px] border-line-soft bg-ink-900/95 px-3 py-2 shadow-md sm:flex ${
+            topOpen ? "flex" : "hidden"
+          }`}
+        >
           <Link href="/" aria-label="Back" className="shrink-0">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-paper-2)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
           </Link>
@@ -736,7 +749,10 @@ export default function MapPage() {
         </div>
 
         {guidance && route.length > 0 && (
-          <div className="pointer-events-auto flex items-center gap-3 rounded-instrument border-[1.5px] border-line-soft bg-ink-900/95 px-3.5 py-2.5 shadow-md">
+          <div className="pointer-events-auto flex items-center gap-2.5 rounded-instrument border-[1.5px] border-line-soft bg-ink-900/95 px-3 py-1.5 shadow-md sm:gap-3 sm:px-3.5 sm:py-2.5">
+            <Link href="/" aria-label="Back" className="shrink-0 sm:hidden">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--color-paper-2)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+            </Link>
             <svg
               width="22"
               height="22"
@@ -760,11 +776,23 @@ export default function MapPage() {
               <path d="M12 20V5" />
               <path d="M5 12l7-7 7 7" />
             </svg>
-            <span className="flex-1 text-[15px] font-bold">{turnLabel}</span>
-            <span className="mono text-[17px] font-bold">
+            <span className="min-w-0 flex-1 truncate text-[13.5px] font-bold sm:text-[15px]">{turnLabel}</span>
+            <span className="mono shrink-0 text-[15px] font-bold sm:text-[17px]">
               {guidance.metres}
               <span className="text-[11px] text-paper-3"> m</span>
             </span>
+            {/* Phone only: opens the row this one stands in for. */}
+            <button
+              type="button"
+              onClick={() => setTopOpen((open) => !open)}
+              aria-expanded={topOpen}
+              aria-label={t("map.title")}
+              className="shrink-0 pl-0.5 sm:hidden"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-paper-3)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" className={topOpen ? "rotate-180" : ""} aria-hidden>
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
           </div>
         )}
 
@@ -774,12 +802,12 @@ export default function MapPage() {
             type="button"
             // Tapping the warning goes to the thing being warned about.
             onClick={() => setSelection({ hazard: blocking[0].id })}
-            className="pointer-events-auto flex w-full items-center gap-2.5 rounded-instrument border-[1.5px] border-alarm bg-ink-900/95 px-3 py-2.5 text-left shadow-md">
+            className="pointer-events-auto flex w-full items-center gap-2 rounded-instrument border-[1.5px] border-alarm bg-ink-900/95 px-3 py-1.5 text-left shadow-md sm:gap-2.5 sm:py-2.5">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--color-alarm)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
               <path d="M12 9v5" /><path d="M12 17h.01" />
               <path d="M10.3 3.9L2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
             </svg>
-            <span className="min-w-0 flex-1 truncate text-[12.5px] leading-snug font-semibold">{blockingLabel}</span>
+            <span className="min-w-0 flex-1 truncate text-[12px] leading-snug font-semibold sm:text-[12.5px]">{blockingLabel}</span>
             <span className="mono shrink-0 text-[10px] font-bold tracking-[0.8px] text-alarm">
               {t("map.avoid")}
             </span>
@@ -823,7 +851,7 @@ export default function MapPage() {
             <YouDetail fix={fix} onClose={() => setSelection(null)} />
           </div>
         ) : centre ? (
-          <section className="pointer-events-auto grid gap-1.5 rounded-instrument border-[1.5px] border-line-soft bg-ink-900/95 px-3.5 py-2.5 shadow-md">
+          <section className="pointer-events-auto grid gap-1.5 rounded-instrument border-[1.5px] border-line-soft bg-ink-900/95 px-3 py-2 shadow-md sm:px-3.5 sm:py-2.5">
             <button
               type="button"
               onClick={() => setShowOthers((open) => !open)}
@@ -837,24 +865,25 @@ export default function MapPage() {
                 <path d="M8 19h7a4 4 0 0 0 4-4v-1a4 4 0 0 0-4-4H9a4 4 0 0 1-4-4v-1" />
               </svg>
               <div className="min-w-0 flex-1">
-                <p className="lbl text-[9px]">
+                {/* On a phone the name and the distance are the card until it is opened. */}
+                <p className={`lbl text-[9px] sm:block ${showOthers ? "block" : "hidden"}`}>
                   {ranked.length > 1 ? t("evac.nearest") : t("ui.evac_center")}
                 </p>
-                <h2 className="truncate font-display text-[17px] leading-tight font-extrabold tracking-[0.3px]">
+                <h2 className="truncate font-display text-[15px] leading-tight font-extrabold tracking-[0.3px] sm:text-[17px]">
                   {centre.name.toUpperCase()}
                 </h2>
                 {nearest && (
-                  <p className="mono text-[8.5px] tracking-[0.6px] text-paper-3">
+                  <p className={`mono text-[8.5px] tracking-[0.6px] text-paper-3 sm:block ${showOthers ? "block" : "hidden"}`}>
                     {fromYou ? t("evac.from_you") : t("evac.from_street")}
                   </p>
                 )}
               </div>
               <div className="shrink-0 text-right">
-                <p className="mono text-[17px] leading-none font-bold">
+                <p className="mono text-[15px] leading-none font-bold sm:text-[17px]">
                   {Math.round(routeMetres)}
                   <span className="text-[11px] text-paper-3"> M</span>
                 </p>
-                <p className="mono mt-1 text-[9.5px] tracking-[0.6px] text-paper-3">
+                <p className={`mono mt-1 text-[9.5px] tracking-[0.6px] text-paper-3 sm:block ${showOthers ? "block" : "hidden"}`}>
                   {walkMinutes(routeMetres)} {t("map.walk")}
                 </p>
               </div>
