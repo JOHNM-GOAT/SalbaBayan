@@ -322,6 +322,8 @@ export default function MapPage() {
    * layer that carries the instruction — are identical on either base.
    */
   const painted = useRef<string | null>(null);
+  /** The map the OpenStreetMap credit has been added to. */
+  const credited = useRef<maplibregl.Map | null>(null);
   useEffect(() => {
     if (!ready || !online || upgrading.current) return;
     // A theme change re-runs this: the basemap is the largest area of colour
@@ -368,8 +370,16 @@ export default function MapPage() {
       // even if this effect is torn down while it is in flight.
       onStyleReady(m, () => {
         if (map.current !== m) return;
-        // A licence condition of the OpenStreetMap data, not decoration.
-        m.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+        /*
+         * A licence condition of the OpenStreetMap data, not decoration — and
+         * added once per map, not once per style. A theme change swaps the
+         * style again, and without this guard each swap stacked another credit
+         * box over the legend.
+         */
+        if (credited.current !== m) {
+          credited.current = m;
+          m.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+        }
         setBase("streets");
         setStyleEpoch((n) => n + 1);
       });

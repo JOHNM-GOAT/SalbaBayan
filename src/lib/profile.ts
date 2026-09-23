@@ -76,10 +76,16 @@ export async function loadMyProfile(): Promise<Profile | null> {
       .maybeSingle();
     if (error) return cached;
     if (!data) {
-      // No row on the server. Keep the phone's copy only while a save of it
-      // is still waiting to be sent; otherwise the server removed it (a
-      // full-access logout) and the copy is stale.
-      const waiting = (await queuedWrites()).some((row) => row.table === "profiles" && !row.blocked);
+      /*
+       * No row on the server. Keep the phone's copy while a save of it is in
+       * the queue at all — including one the queue has given up on. A refused
+       * save is when the name matters most: dropping it here would take the
+       * name off the ME tab and block reporting while the write sits in FAILED
+       * TO SEND waiting to be retried or discarded. The copy is stale only
+       * when there is no save at all, which is what a full-access logout
+       * leaves behind.
+       */
+      const waiting = (await queuedWrites()).some((row) => row.table === "profiles");
       if (waiting) return cached;
       if (cached) {
         try {

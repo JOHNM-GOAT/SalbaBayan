@@ -18,6 +18,7 @@
  * appending its opposite, never by editing history.
  */
 
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { enqueueWrite, newClientId, queuedWrites } from "./offlineQueue";
 import { getSupabase } from "./supabase";
 
@@ -219,22 +220,53 @@ export async function vulnerabilityBreakdown(): Promise<VulnerabilityBreakdown> 
   return counts;
 }
 
-/** Live ledger updates — another volunteer's tap must land on this screen. */
+let liveChannel: RealtimeChannel | null = null;
+const liveListeners = new Set<() => void>();
+/*
+ * A fresh channel name each time. Removing one is asynchronous, so when the
+ * last listener leaves and a new one arrives in the same tick — the dashboard
+ * re-reading its centres after one is added, or React's development
+ * double-mount — reusing "headcount-live" handed back the channel still being
+ * torn down, already subscribed, and supabase-js threw:
+ *
+ *   cannot add `postgres_changes` callbacks for realtime:headcount-live
+ *   after `subscribe()`
+ */
+let channelSeq = 0;
+
+/**
+ * Live ledger updates — another volunteer's tap must land on this screen.
+ *
+ * One channel, many listeners, the same shape as hazards and water: the
+ * headcount screen and the dashboard's centre counts both watch this table.
+ */
 export function subscribeHeadcounts(onChange: () => void): () => void {
   const supabase = getSupabase();
   if (!supabase) return () => {};
 
-  const channel = supabase
-    .channel("headcount-live")
-    .on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "headcounts" },
-      () => onChange(),
-    )
-    .subscribe();
+  liveListeners.add(onChange);
+
+  if (!liveChannel) {
+    liveChannel = supabase
+      .channel(`headcount-live-${++channelSeq}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "headcounts" },
+        () => {
+          // Copied before notifying: a listener may unsubscribe in response.
+          for (const listener of [...liveListeners]) listener();
+        },
+      )
+      .subscribe();
+  }
 
   return () => {
-    void supabase.removeChannel(channel);
+    liveListeners.delete(onChange);
+    if (liveListeners.size === 0 && liveChannel) {
+      const channel = liveChannel;
+      liveChannel = null;
+      void supabase.removeChannel(channel);
+    }
   };
 }
 

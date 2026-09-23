@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { themePref } from "@/lib/prefs";
 
 export type Theme = "light" | "dark";
@@ -25,6 +25,16 @@ export function useTheme(): { theme: Theme; setTheme: (theme: Theme) => void } {
     () => null,
   );
   const theme: Theme = stored === "dark" ? "dark" : "light";
+
+  /*
+   * Also applied here, not only in setTheme: the choice can arrive from
+   * another tab through the storage event, and without this that tab would
+   * show the other theme's button over unchanged colours.
+   */
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  }, [theme]);
 
   return {
     theme,

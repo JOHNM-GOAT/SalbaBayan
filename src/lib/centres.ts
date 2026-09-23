@@ -146,7 +146,13 @@ export function rankCentres(
  * All routes are computed before anything is queued, and only rows that
  * actually change are written.
  */
-async function reroute(snapshot: AdvisorySnapshot, centres: EvacCenter[], streets: Streets | null) {
+async function reroute(
+  snapshot: AdvisorySnapshot,
+  centres: EvacCenter[],
+  streets: Streets | null,
+  /** A queued write these routes only make sense after — a centre being added. */
+  dependsOn?: string,
+) {
   const graph = streets ? graphFor(streets) : null;
   const writes: { id: string; patch: Record<string, unknown> }[] = [];
 
@@ -171,7 +177,9 @@ async function reroute(snapshot: AdvisorySnapshot, centres: EvacCenter[], street
     }
   }
 
-  for (const write of writes) await enqueueUpdate("protocols", write.id, write.patch);
+  for (const write of writes) {
+    await enqueueUpdate("protocols", write.id, write.patch, dependsOn ? { dependsOn } : undefined);
+  }
 }
 
 export type CentreInput = { name: string; capacity: number | null };
@@ -190,7 +198,10 @@ export async function addCentre(
     lng: input.lng,
   };
   await enqueueWrite("evac_centers", { ...centre });
-  await reroute(snapshot, [...snapshot.centers, centre], streets);
+  // If the database refuses the centre — a third one added from two phones at
+  // once — these routes would point at a row that does not exist, so they are
+  // dropped with it rather than failing one by one on the foreign key.
+  await reroute(snapshot, [...snapshot.centers, centre], streets, centre.id);
 }
 
 export async function updateCentre(

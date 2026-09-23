@@ -112,6 +112,16 @@ export interface QueuedWrite {
    * (never deleted) so the failure stays visible and inspectable.
    */
   blocked?: boolean;
+  /**
+   * The queued write this one only makes sense after — the row it refers to.
+   *
+   * Blocked rows are stepped over, so without this a write that depends on a
+   * REFUSED one would still be sent and fail on its own: the evacuation
+   * centre's insert refused by the 3-centre rule, and then every route update
+   * pointing at a centre that does not exist, each failing on the foreign key
+   * and blocking in turn. A dependent of a blocked write is dropped instead.
+   */
+  dependsOn?: string;
 }
 
 class SalbaBayanDB extends Dexie {
@@ -222,6 +232,7 @@ export async function enqueueUpdate(
   table: QueueTable,
   id: string,
   patch: Record<string, unknown>,
+  options?: { dependsOn?: string },
 ): Promise<WriteOutcome> {
   const database = getDb();
   if (!database) {
@@ -244,6 +255,9 @@ export async function enqueueUpdate(
     payload: mergeUpdatePayload(waiting, patch, id),
     createdAt: merging ? waiting.createdAt : Date.now(),
     attempts: 0,
+    ...(options?.dependsOn ?? waiting?.dependsOn
+      ? { dependsOn: options?.dependsOn ?? waiting?.dependsOn }
+      : {}),
   });
 
   notifyQueueChanged();
@@ -320,6 +334,19 @@ export async function flushQueue(): Promise<{ sent: number; remaining: number }>
 
     for (const item of pending) {
       if (item.blocked) continue; // already stepped over; do not retry or stop
+
+      /*
+       * The write this one depends on was refused. Sending this would fail on
+       * the missing row and block in turn, so it is dropped: the refusal that
+       * matters is already visible on the write it depended on.
+       */
+      if (item.dependsOn) {
+        const needed = await database.queue.get(item.dependsOn);
+        if (needed?.blocked === true) {
+          await database.queue.delete(item.id);
+          continue;
+        }
+      }
 
       let error;
 
