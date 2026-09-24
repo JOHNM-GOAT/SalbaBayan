@@ -1,14 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 // Namespace import: maplibre-gl ships no default export, and importing one
 // type-checks under `esModuleInterop` but fails at bundle time.
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useSync, useT } from "@/components/AppRuntime";
-import { STREET_STYLE_URL } from "@/lib/basemap";
-import { FALLBACK_CENTRE } from "@/lib/advisory";
+import { useTheme } from "@/components/useTheme";
+import { MapLegend } from "@/components/MapLegend";
+import { loadStreetStyle, onStyleReady, sketchStyle } from "@/lib/basemap";
+import { barangayCentre } from "@/lib/advisory";
+import { sharedView, trackView } from "@/lib/mapView";
+import { CENTRE_ICON, SOS_ICON, pinElement, pinMarker } from "@/lib/mapMarks";
+import { resolveColour } from "@/lib/signal";
 import {
   acknowledge,
   activeQueue,
@@ -24,34 +29,49 @@ import { namesFor, type NamedPerson } from "@/lib/profile";
 /**
  * Live rescue map (PRD §7.4, FR-4.6).
  *
- * MapLibre with OpenFreeMap tiles — no API key, no billing account, no
- * proprietary dependency (Q3). Attribution is a licence condition of the
- * underlying OpenStreetMap data, so the control stays on and is not styled
- * away.
+ * The same map as every other screen in the product now: built on the drawn
+ * sketch that cannot fail, upgraded to real streets when there is a signal,
+ * following the theme, and sharing its camera with the evacuation and hazard
+ * maps (lib/mapView.ts) — so a volunteer who looked at a street on one screen
+ * finds the same view here. It fills the screen, with the queue over it: a
+ * column beside the map on a laptop at the hall, a sheet over it on a phone.
  *
- * This is the one view in the product that legitimately requires connectivity
- * (PRD §17): it runs at the barangay hall on mains power and a wired line.
- * Incoming requests still queue on residents' devices when they are offline —
- * that half is unaffected.
+ * The list still needs the network to stay current (PRD §17) and says so.
+ * Requests queue on residents' phones offline regardless; that half is
+ * unaffected.
  */
-
-/** #5 Callaguip, Batac City — the barangay's own point (lib/advisory.ts). */
-const CENTRE: [number, number] = FALLBACK_CENTRE;
+/** A laptop at the hall shows the queue beside the map; a phone does not. */
+const WIDE_QUERY = "(min-width: 1024px)";
+function subscribeWide(onChange: () => void) {
+  const query = window.matchMedia(WIDE_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+const isWide = () => window.matchMedia(WIDE_QUERY).matches;
 
 export default function ResponderPage() {
-
-  const { online } = useSync();
+  const { snapshot, online } = useSync();
   const t = useT();
+  const { theme } = useTheme();
 
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
+  const framed = useRef(false);
+  /** The theme whose basemap is on screen, and the map that has the credit. */
+  const painted = useRef<string | null>(null);
+  const credited = useRef<maplibregl.Map | null>(null);
 
   const [queue, setQueue] = useState<RescueRequest[]>([]);
   /* Who is asking, for the responder. Names are staff-only by RLS. */
   const [people, setPeople] = useState<Map<string, NamedPerson>>(new Map());
   const [now, setNow] = useState(() => Date.now());
-  const [mapReady, setMapReady] = useState(false);
+  const [epoch, setEpoch] = useState(0);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  /* Null until the volunteer opens or closes it: the screen decides until then. */
+  const [listChoice, setListChoice] = useState<boolean | null>(null);
+  const wide = useSyncExternalStore(subscribeWide, isWide, () => false);
+  const listOpen = listChoice ?? wide;
   /* First read finished — not "there is somebody waiting". An empty queue is a
      settled answer and should read as one. */
   const [settled, setSettled] = useState(false);
@@ -74,190 +94,356 @@ export default function ResponderPage() {
     };
   }, [refresh]);
 
+  const barangay = snapshot?.barangay ?? null;
+
+  /* Build once, on the style that cannot fail. */
   useEffect(() => {
-    if (!container.current || map.current) return;
+    const node = container.current;
+    if (!node || map.current) return;
 
-    map.current = new maplibregl.Map({
-      container: container.current,
-      /*
-       * The same basemap as every other map in the app, from one constant.
-       *
-       * This screen used to pin the dark style here by hand, with a note about
-       * a white rectangle wrecking a night reader's dark adaptation. The app is
-       * light now, so that reasoning inverted — and a URL written out in each
-       * map screen is how the two of them drift apart in the first place.
-       */
-      style: STREET_STYLE_URL,
-      center: CENTRE,
+    const instance = new maplibregl.Map({
+      container: node,
+      style: sketchStyle(),
+      center: barangayCentre(barangay),
       zoom: 14,
-      // Keep the attribution control; removing it would breach the OSM licence.
-      attributionControl: { compact: true },
+      attributionControl: false,
     });
+    map.current = instance;
 
-    // No compass: both map screens are read north-up, and a control that can
-    // only rotate the barangay away from that is one more thing to undo at
-    // three in the morning. Matches the resident map (`/map`).
-    map.current.addControl(
-      new maplibregl.NavigationControl({ showCompass: false }),
-      "top-right",
-    );
-    map.current.on("load", () => setMapReady(true));
+    // No compass: every map here is read north-up, and a control that can only
+    // rotate the barangay away from that is one more thing to undo at three in
+    // the morning.
+    instance.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+    instance.on("error", (event) => console.error("[rescue-map]", event.error?.message ?? event));
+    instance.on("load", () => setEpoch((n) => n + 1));
+
+    const observer = new ResizeObserver(() => instance.resize());
+    observer.observe(node);
+    const stopTracking = trackView(instance, () => framed.current);
 
     return () => {
-      map.current?.remove();
+      observer.disconnect();
+      stopTracking();
+      markers.current.forEach((m) => m.remove());
+      markers.current = [];
+      instance.remove();
       map.current = null;
+      framed.current = false;
+      painted.current = null;
     };
+    // Built once per visit, centred on the barangay known at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* Re-plot pins whenever the queue changes. */
+  /* Real streets when there is a signal, in the theme on screen. */
   useEffect(() => {
-    if (!map.current || !mapReady) return;
+    const m = map.current;
+    if (!m || !online || painted.current === theme) return;
+    painted.current = theme;
+    void loadStreetStyle(theme).then((style) => {
+      if (!style || map.current !== m) {
+        painted.current = null;
+        return;
+      }
+      m.setStyle(style, { diff: false });
+      onStyleReady(m, () => {
+        if (map.current !== m) return;
+        // A licence condition of the OpenStreetMap data, and added once per
+        // map rather than once per style swap.
+        if (credited.current !== m) {
+          credited.current = m;
+          m.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+        }
+        setEpoch((n) => n + 1);
+      });
+    });
+  }, [online, epoch, theme]);
 
-    markers.current.forEach((m) => m.remove());
+  /* The barangay outline, as on the other maps. Re-added after a style swap. */
+  const outline = barangay?.boundary_geojson ?? null;
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !outline) return;
+    return onStyleReady(m, () => {
+      const accent = resolveColour("var(--color-hv)");
+      const data = { type: "Feature", properties: {}, geometry: outline } as const;
+      const source = m.getSource("boundary") as maplibregl.GeoJSONSource | undefined;
+      if (source) source.setData(data);
+      else m.addSource("boundary", { type: "geojson", data });
+      if (!m.getLayer("boundary-line")) {
+        m.addLayer({
+          id: "boundary-fill",
+          type: "fill",
+          source: "boundary",
+          paint: { "fill-color": accent, "fill-opacity": 0.06 },
+        });
+        m.addLayer({
+          id: "boundary-line",
+          type: "line",
+          source: "boundary",
+          paint: { "line-color": accent, "line-width": 2, "line-dasharray": [3, 2] },
+        });
+      }
+    });
+  }, [outline, epoch]);
+
+  /* Pins: the centres, then every call. The same marks as the other maps. */
+  const centres = snapshot?.centers;
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    markers.current.forEach((marker) => marker.remove());
     markers.current = [];
 
-    for (const request of queue) {
-      // A request with no fix cannot be plotted. It is deliberately NOT
-      // dropped — it stays in the list with its Purok, because a person
-      // without GPS is not a person without an emergency.
-      if (request.lat == null || request.lng == null) continue;
-
-      const pin = document.createElement("div");
-      pin.style.cssText = [
-        "width:18px",
-        "height:18px",
-        "border-radius:50%",
-        `background:${request.status === "acknowledged" ? "var(--color-caution)" : "var(--color-alarm)"}`,
-        "border:2.5px solid var(--color-ink-900)",
-        "box-shadow:0 0 0 3px rgba(0,0,0,0.35)",
-      ].join(";");
-
-      markers.current.push(
-        new maplibregl.Marker({ element: pin })
-          .setLngLat([request.lng, request.lat])
-          .addTo(map.current),
-      );
+    for (const centre of centres ?? []) {
+      if (centre.lat == null || centre.lng == null) continue;
+      const el = pinElement({
+        colour: "var(--color-clear)",
+        icon: CENTRE_ICON,
+        label: centre.name,
+        height: 32,
+      });
+      markers.current.push(pinMarker(el, centre.lng, centre.lat).addTo(m));
     }
-  }, [queue, mapReady]);
+
+    for (const request of queue) {
+      /*
+       * A request with no fix cannot be plotted. It is deliberately NOT
+       * dropped — it stays in the list with its Purok, because a person
+       * without GPS is not a person without an emergency.
+       */
+      if (request.lat == null || request.lng == null) continue;
+      const selected = request.id === selectedId;
+      const el = pinElement({
+        colour: request.status === "acknowledged" ? "var(--color-caution)" : "var(--color-alarm)",
+        icon: SOS_ICON,
+        label: t("nav.sos"),
+        height: selected ? 46 : 38,
+        onClick: () => {
+          setSelectedId(request.id);
+          setListChoice(true);
+          m.easeTo({
+            center: [request.lng as number, request.lat as number],
+            zoom: Math.max(m.getZoom(), 16.5),
+            duration: 500,
+          });
+        },
+      });
+      const marker = pinMarker(el, request.lng, request.lat).addTo(m);
+      if (selected) marker.getElement().style.zIndex = "2";
+      markers.current.push(marker);
+    }
+  }, [queue, centres, selectedId, epoch, t]);
+
+  /*
+   * Framing: where the hazard and evacuation maps were left, if they have been
+   * looked at; otherwise the calls, or the barangay. Once per visit — after
+   * that the volunteer is in charge of the camera.
+   */
+  useEffect(() => {
+    const m = map.current;
+    if (!m || framed.current || epoch === 0) return;
+    return onStyleReady(m, () => {
+      if (framed.current) return;
+      framed.current = true;
+      const saved = sharedView();
+      if (saved) {
+        m.jumpTo(saved);
+        return;
+      }
+      const points = queue
+        .filter((r) => r.lat != null && r.lng != null)
+        .map((r) => [r.lng as number, r.lat as number]);
+      if (points.length === 0) return;
+      const lngs = points.map((p) => p[0]);
+      const lats = points.map((p) => p[1]);
+      m.fitBounds(
+        [
+          [Math.min(...lngs), Math.min(...lats)],
+          [Math.max(...lngs), Math.max(...lats)],
+        ],
+        { padding: 64, duration: 0, maxZoom: 16 },
+      );
+    });
+    // Once per visit, after the first style has loaded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [epoch]);
 
   const oldest = queue[0];
   const loadingQueue = useSkeletonGate(settled);
 
   return (
-    <>
-      <div className="flex items-center gap-3 px-3.5 py-3">
-        <Link href="/" aria-label="Back" className="shrink-0">
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--color-paper-2)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
-        </Link>
-        <h1 className="flex-1 font-display text-base font-extrabold tracking-[0.4px]">
-          {t("resp.title")}
-        </h1>
-        <span className="mono text-[11px] font-bold tracking-[0.8px] text-alarm">
-          {queue.length}
-        </span>
-      </div>
-
-      {/* This view genuinely needs the network. Saying so is better than
-          showing an empty queue that looks like "nobody needs help". */}
-      {!online && (
-        <p className="mono mx-3.5 rounded-instrument border-[1.5px] border-caution bg-ink-800 px-3 py-2 text-[10px] leading-snug tracking-[0.6px] text-caution">
-          OFFLINE — HINDI NA-UPDATE ANG LISTAHAN. HINDI ITO NANGANGAHULUGANG
-          WALANG HUMIHINGI NG SAKLOLO.
-        </p>
-      )}
-
-      {/*
-       * At the barangay hall this is a laptop screen (PRD §4), so the map and
-       * the queue sit side by side and the map stays put while the queue
-       * scrolls. On a phone they stack, map first — the same reading order,
-       * just folded.
-       */}
-      <main className="flex flex-1 flex-col gap-3 p-3.5 @4xl:grid @4xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] @4xl:items-start @4xl:gap-4">
+    <main className="relative flex min-h-[28rem] flex-1 overflow-hidden">
+      <div className="relative min-w-0 flex-1">
+        {/*
+          Absolute + inset against the sized wrapper: a percentage height inside
+          a flex item resolves against an indefinite containing block, and
+          maplibre-gl.css sets `position: relative` on the container after
+          mount, so the utility class would lose. Either mistake renders a blank
+          rectangle with every layer correctly loaded behind it.
+        */}
         <div
           ref={container}
-          className="h-[55dvh] min-h-72 w-full shrink-0 overflow-hidden rounded-instrument border-[1.5px] border-line-soft @4xl:sticky @4xl:top-3.5 @4xl:h-[calc(100dvh-11rem)]"
+          style={{ position: "absolute", inset: 0 }}
+          className="[&_.maplibregl-ctrl-bottom-left]:bottom-14! [&_.maplibregl-ctrl-bottom-right]:bottom-14! sm:[&_.maplibregl-ctrl-bottom-left]:bottom-9! sm:[&_.maplibregl-ctrl-bottom-right]:bottom-9!"
         />
 
-        <div className="flex flex-col gap-3">
-        {/* The oldest unanswered request is escalated out of the list, because
-            in a long queue the one most at risk is the one easiest to lose. */}
-        {oldest && oldest.status === "pending" && (
-          <section className="rounded-instrument border-[1.5px] border-alarm bg-alarm/10 p-3">
-            <p className="lbl text-alarm">{t("resp.oldest")}</p>
-            <div className="mt-1.5 flex items-baseline justify-between">
-              <span className="text-[14px] font-bold">
-                {oldest.lat != null ? "Purok" : t("resp.no_fix")}
+        {/* Top: where this is, how many are waiting, and the network warning. */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 grid gap-1.5 p-2 sm:max-w-md sm:gap-2 sm:p-2.5">
+          <div className="pointer-events-auto flex items-center gap-2.5 rounded-instrument border-[1.5px] border-line-soft bg-ink-900/95 px-3 py-2 shadow-md">
+            <Link href="/volunteer" aria-label="Back" className="shrink-0">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-paper-2)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+            </Link>
+            <h1 className="min-w-0 flex-1 truncate font-display text-[14.5px] font-extrabold tracking-[0.4px]">
+              {t("resp.title")}
+            </h1>
+            <span className="mono shrink-0 text-[13px] font-bold tracking-[0.8px] text-alarm">
+              {queue.length}
+            </span>
+          </div>
+
+          {/* This view genuinely needs the network. Saying so is better than
+              showing an empty queue that looks like "nobody needs help". */}
+          {!online && (
+            <p className="pointer-events-auto mono rounded-instrument border-[1.5px] border-caution bg-ink-900/95 px-3 py-2 text-[10px] leading-snug tracking-[0.6px] text-caution shadow-md">
+              OFFLINE — HINDI NA-UPDATE ANG LISTAHAN. HINDI ITO NANGANGAHULUGANG
+              WALANG HUMIHINGI NG SAKLOLO.
+            </p>
+          )}
+        </div>
+
+        {/* The oldest unanswered call, and the way into the list on a phone. */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-14 z-10 grid gap-2 p-2.5 pr-14 sm:bottom-9 sm:max-w-md sm:pr-2.5">
+          {oldest && oldest.status === "pending" && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedId(oldest.id);
+                setListChoice(true);
+              }}
+              className="pointer-events-auto flex items-center gap-3 rounded-instrument border-[1.5px] border-alarm bg-ink-900/95 px-3 py-2 text-left shadow-md"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="lbl block text-[9px] text-alarm">{t("resp.oldest")}</span>
+                <span className="block truncate text-[13.5px] font-bold">
+                  {oldest.lat != null ? t("dash.who") : t("resp.no_fix")}
+                </span>
               </span>
-              <span className="mono text-[17px] font-bold text-alarm">
+              <span className="mono shrink-0 text-[17px] font-bold text-alarm">
                 {waitMinutes(oldest.ts, now)}m
               </span>
-            </div>
-          </section>
-        )}
+            </button>
+          )}
 
-        {/*
-          "Nobody needs help" is the single most dangerous thing this screen can
-          say, and it used to say it on the first frame, before `activeQueue`
-          had answered. The offline banner above makes the same point for a
-          different reason; this makes it for the seconds before the first read
-          lands.
-        */}
-        {loadingQueue ? (
-          <SkeletonLines rows={3} />
-        ) : queue.length === 0 ? (
-          <p className="mono mt-4 text-center text-[11px] tracking-[0.6px] text-paper-3">
-            {t("resp.none")}
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {queue.map((request) => (
-              <li
-                key={request.id}
-                className={`rounded-instrument border-l-4 bg-ink-800 p-3 ${
-                  request.status === "acknowledged"
-                    ? "border-caution"
-                    : "border-alarm"
-                }`}
-              >
-                <div className="mb-1.5">
-                  <PersonLabel person={people.get(request.requested_by ?? "")} />
-                </div>
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="mono text-[11px] tracking-[0.5px] text-paper-2">
-                    {request.lat != null && request.lng != null
-                      ? `${request.lat.toFixed(4)} · ${request.lng.toFixed(4)}`
-                      : t("resp.no_fix")}
-                  </span>
-                  <span className="mono text-[14px] font-bold text-paper">
-                    {waitMinutes(request.ts, now)}m
-                  </span>
-                </div>
-
-                <div className="mt-2.5 flex gap-2">
-                  {request.status === "pending" ? (
-                    <button
-                      type="button"
-                      onClick={() => void acknowledge(request.id).then(refresh)}
-                      className="tap flex-1 rounded-[3px] bg-hv text-[12.5px] font-bold text-hv-ink"
-                    >
-                      {t("resp.ack")}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => void markRescued(request.id).then(refresh)}
-                      className="tap flex-1 rounded-[3px] border-[1.5px] border-clear text-[12.5px] font-bold text-clear"
-                    >
-                      {t("resp.rescued")}
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+          {!listOpen && (
+            <button
+              type="button"
+              onClick={() => setListChoice(true)}
+              className="pointer-events-auto mono justify-self-start rounded-instrument border-[1.5px] border-line bg-ink-900/95 px-3 py-2 text-[10.5px] font-bold tracking-[0.8px] shadow-md"
+            >
+              {t("dash.menu")} · {queue.length}
+            </button>
+          )}
         </div>
-      </main>
-    </>
+
+        {/* Phones: tapping the map beside the open list closes it. */}
+        {listOpen && (
+          <button
+            type="button"
+            aria-label={t("hz.close")}
+            onClick={() => setListChoice(false)}
+            className="absolute inset-0 z-10 bg-paper/20 md:hidden"
+          />
+        )}
+
+        <MapLegend rescue />
+      </div>
+
+      {/*
+        The queue. Over the map on a phone, beside it from lg up — the hall's
+        laptop (PRD §4), where the map stays put while the list scrolls.
+      */}
+      <aside
+        inert={!listOpen}
+        className={`absolute inset-y-0 right-0 z-20 w-[22rem] max-w-[92%] overflow-hidden border-l border-line-soft bg-ink-900 shadow-xl transition-[transform,width] duration-200 ease-out lg:relative lg:max-w-none lg:shadow-none ${
+          listOpen ? "translate-x-0" : "translate-x-full lg:w-0 lg:border-l-0"
+        } lg:translate-x-0`}
+      >
+        <div className="flex h-full w-[22rem] max-w-full flex-col">
+          <div className="flex shrink-0 items-center justify-between border-b border-line-soft px-3.5 py-2.5">
+            <span className="lbl">{t("resp.title")}</span>
+            <button
+              type="button"
+              onClick={() => setListChoice(false)}
+              aria-label={t("hz.close")}
+              className="px-1 text-[20px] leading-none text-paper-3 hover:text-paper"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            {/*
+              "Nobody needs help" is the single most dangerous thing this screen
+              can say, and it used to say it on the first frame, before
+              `activeQueue` had answered.
+            */}
+            {loadingQueue ? (
+              <SkeletonLines rows={3} />
+            ) : queue.length === 0 ? (
+              <p className="mono mt-4 text-center text-[11px] tracking-[0.6px] text-paper-3">
+                {t("resp.none")}
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {queue.map((request) => (
+                  <li
+                    key={request.id}
+                    aria-current={request.id === selectedId}
+                    className={`rounded-instrument border-l-4 bg-ink-800 p-3 ${
+                      request.status === "acknowledged" ? "border-caution" : "border-alarm"
+                    } ${request.id === selectedId ? "ring-[1.5px] ring-hv" : ""}`}
+                  >
+                    <div className="mb-1.5">
+                      <PersonLabel person={people.get(request.requested_by ?? "")} />
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="mono text-[11px] tracking-[0.5px] text-paper-2">
+                        {request.lat != null && request.lng != null
+                          ? `${request.lat.toFixed(4)} · ${request.lng.toFixed(4)}`
+                          : t("resp.no_fix")}
+                      </span>
+                      <span className="mono text-[14px] font-bold text-paper">
+                        {waitMinutes(request.ts, now)}m
+                      </span>
+                    </div>
+
+                    <div className="mt-2.5 flex gap-2">
+                      {request.status === "pending" ? (
+                        <button
+                          type="button"
+                          onClick={() => void acknowledge(request.id).then(refresh)}
+                          className="tap flex-1 rounded-[3px] bg-hv text-[12.5px] font-bold text-hv-ink"
+                        >
+                          {t("resp.ack")}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => void markRescued(request.id).then(refresh)}
+                          className="tap flex-1 rounded-[3px] border-[1.5px] border-clear text-[12.5px] font-bold text-clear"
+                        >
+                          {t("resp.rescued")}
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </aside>
+    </main>
   );
 }

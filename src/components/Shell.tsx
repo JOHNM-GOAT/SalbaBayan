@@ -53,14 +53,13 @@ export function useShellWidth(): string {
 
 /**
  * The page content's max-width. Map screens are a map first: the evacuation
- * map gets the whole screen, and the rescue map room for its map beside the
- * queue.
+ * map and the rescue map fill the screen, with their cards and the rescue
+ * queue over the map rather than beside a narrower one.
  */
 function useContentWidth(): string {
   const pathname = usePathname();
   const chrome = useShellWidth();
-  if (pathname === "/map") return "max-w-none";
-  if (pathname === "/responder") return "max-w-[76rem]";
+  if (pathname === "/map" || pathname === "/responder") return "max-w-none";
   return chrome;
 }
 
