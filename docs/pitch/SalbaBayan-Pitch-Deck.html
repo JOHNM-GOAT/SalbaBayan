@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SalbaBayan — MVP Pitch Deck</title>
+<style>
+  /*
+   * The deck is painted from the app's own tokens (src/app/globals.css), dark
+   * theme, so the slides and the product read as one thing. The two rules the
+   * app lives by hold here too: the signal ramp means severity and nothing
+   * else, and the teal accent means interactive and nothing else.
+   */
+  @page { size: 338mm 190mm; margin: 0; }
+
+  :root {
+    --ink-900: oklch(0.17 0.012 245);
+    --ink-800: oklch(0.215 0.013 245);
+    --ink-700: oklch(0.27 0.013 245);
+    --ink-600: oklch(0.34 0.013 245);
+    --line: oklch(0.45 0.015 245);
+    --line-soft: oklch(0.3 0.012 245);
+    --paper: oklch(0.97 0.004 245);
+    --paper-2: oklch(0.83 0.007 245);
+    --paper-3: oklch(0.68 0.009 245);
+    --hv: oklch(0.82 0.13 205);
+    --hv-ink: oklch(0.19 0.02 240);
+    --signal-1: oklch(0.78 0.17 148);
+    --signal-2: oklch(0.85 0.15 92);
+    --signal-3: oklch(0.76 0.16 55);
+    --signal-4: oklch(0.67 0.2 28);
+    --signal-5: oklch(0.6 0.2 14);
+    --alarm: oklch(0.68 0.2 28);
+    --caution: oklch(0.82 0.14 78);
+    --clear: oklch(0.78 0.16 148);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--ink-900);
+    color: var(--paper);
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .slide {
+    width: 338mm;
+    height: 190mm;
+    padding: 16mm 18mm 14mm;
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+    background: var(--ink-900);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .slide:last-child { page-break-after: auto; }
+
+  /* the hazard stripe the app uses above the SOS screen */
+  .slide::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 4mm;
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--alarm) 0 7px,
+      transparent 7px 14px
+    );
+    opacity: 0.85;
+  }
+
+  .num {
+    position: absolute;
+    right: 12mm;
+    bottom: 7mm;
+    font-family: Consolas, monospace;
+    font-size: 10px;
+    letter-spacing: 1.6px;
+    color: var(--paper-3);
+  }
+
+  .eyebrow {
+    font-family: Consolas, monospace;
+    font-size: 10.5px;
+    letter-spacing: 2.4px;
+    text-transform: uppercase;
+    color: var(--hv);
+    margin-bottom: 5mm;
+  }
+
+  h1 { font-size: 74px; font-weight: 800; letter-spacing: -2px; line-height: 0.95; }
+  h2 { font-size: 40px; font-weight: 800; letter-spacing: -0.8px; line-height: 1.05; margin-bottom: 6mm; }
+  h3 { font-size: 17px; font-weight: 800; margin-bottom: 1.5mm; }
+
+  .lede { font-size: 21px; line-height: 1.4; color: var(--paper-2); max-width: 190mm; }
+  .big { font-size: 27px; line-height: 1.35; font-weight: 600; max-width: 200mm; }
+
+  p + p { margin-top: 3mm; }
+  .body { font-size: 15.5px; color: var(--paper-2); max-width: 150mm; }
+  .body strong { color: var(--paper); font-weight: 700; }
+
+  .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8mm; margin-top: auto; }
+  .cols.two { grid-template-columns: repeat(2, 1fr); }
+  .cols.four { grid-template-columns: repeat(4, 1fr); gap: 6mm; }
+
+  .card {
+    border: 1.5px solid var(--line-soft);
+    border-left: 3px solid var(--hv);
+    background: var(--ink-800);
+    padding: 5mm 5mm 5.5mm;
+    border-radius: 4px;
+  }
+  .card.alarm { border-left-color: var(--alarm); }
+  .card.caution { border-left-color: var(--caution); }
+  .card.clear { border-left-color: var(--clear); }
+  .card p { font-size: 14px; color: var(--paper-2); }
+
+  /* Written as `.card p.stat` so it outranks `.card p` above — otherwise the
+     headline number renders at body size, which is the one thing it must not. */
+  .stat, .card p.stat {
+    font-family: Consolas, monospace;
+    font-size: 52px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .stat.teal { color: var(--hv); }
+  .stat.alarm { color: var(--alarm); }
+  .stat.clear { color: var(--clear); }
+  .stat.caution { color: var(--caution); }
+  .stat-label, .card p.stat-label {
+    font-family: Consolas, monospace;
+    font-size: 10px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--paper-3);
+    margin-top: 2.5mm;
+  }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; align-items: center; flex: 1; }
+  .split.wide-left { grid-template-columns: 1.25fr 1fr; }
+  .split.wide-right { grid-template-columns: 1fr 1.35fr; }
+
+  .shot-phone {
+    width: 100%;
+    max-height: 132mm;
+    object-fit: contain;
+    border: 1.5px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+  }
+
+  .shots { display: flex; gap: 6mm; justify-content: center; align-items: flex-start; }
+  .shots img { height: 118mm; border: 1.5px solid var(--line); border-radius: 5px; background: #fff; }
+  .shots figure { text-align: center; }
+  .shots figcaption {
+    font-family: Consolas, monospace;
+    font-size: 10px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--paper-3);
+    margin-top: 3mm;
+  }
+
+  .shot-wide {
+    width: 100%;
+    /* Bounded so the slide's own footer is never pushed off the page — a
+       screenshot that eats the caption explaining it is worth less, not more. */
+    max-height: 116mm;
+    object-fit: contain;
+    object-position: top;
+    border: 1.5px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+  }
+
+  ul { list-style: none; }
+  ul li {
+    position: relative;
+    padding-left: 7mm;
+    margin-bottom: 3.5mm;
+    font-size: 15.5px;
+    color: var(--paper-2);
+    max-width: 150mm;
+  }
+  ul li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 8px;
+    width: 4mm;
+    height: 2px;
+    background: var(--hv);
+  }
+  ul li strong { color: var(--paper); font-weight: 700; }
+
+  .ramp { display: flex; gap: 2mm; margin: 6mm 0 2mm; }
+  .ramp div {
+    flex: 1;
+    height: 5mm;
+    border-radius: 2px;
+  }
+
+  .quote {
+    border-left: 3px solid var(--caution);
+    padding-left: 6mm;
+    font-size: 19px;
+    line-height: 1.45;
+    color: var(--paper);
+    max-width: 175mm;
+  }
+
+  .links { display: grid; gap: 5mm; margin-top: 8mm; }
+  .link-row {
+    display: grid;
+    grid-template-columns: 52mm 1fr;
+    align-items: baseline;
+    border-bottom: 1px solid var(--line-soft);
+    padding-bottom: 3.5mm;
+  }
+  .link-row dt {
+    font-family: Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: var(--paper-3);
+  }
+  .link-row dd {
+    font-family: Consolas, monospace;
+    font-size: 19px;
+    color: var(--hv);
+    word-break: break-all;
+  }
+
+  .foot {
+    margin-top: auto;
+    font-family: Consolas, monospace;
+    font-size: 10.5px;
+    letter-spacing: 1.4px;
+    color: var(--paper-3);
+    border-top: 1px solid var(--line-soft);
+    padding-top: 4mm;
+  }
+
+  .tag {
+    display: inline-block;
+    font-family: Consolas, monospace;
+    font-size: 10px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    border: 1.5px solid var(--clear);
+    color: var(--clear);
+    border-radius: 3px;
+    padding: 1mm 2.5mm;
+  }
+  .tag.open { border-color: var(--caution); color: var(--caution); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  th {
+    text-align: left;
+    font-family: Consolas, monospace;
+    font-size: 10px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--paper-3);
+    border-bottom: 1.5px solid var(--line);
+    padding-bottom: 2.5mm;
+  }
+  td { border-bottom: 1px solid var(--line-soft); padding: 3mm 4mm 3mm 0; color: var(--paper-2); vertical-align: top; }
+  td:first-child { color: var(--paper); font-weight: 700; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<!-- 1 ------------------------------------------------------------------- -->
+<section class="slide">
+  <p class="eyebrow">Barangay #5 Callaguip · Batac City · Ilocos Norte</p>
+  <h1>SalbaBayan</h1>
+  <div class="ramp">
+    <div style="background: var(--signal-1)"></div>
+    <div style="background: var(--signal-2)"></div>
+    <div style="background: var(--signal-3)"></div>
+    <div style="background: var(--signal-4)"></div>
+    <div style="background: var(--signal-5)"></div>
+  </div>
+  <p class="lede" style="margin-top: 6mm">
+    A flood and storm warning app for one barangay — built to keep working
+    when the mobile network does not.
+  </p>
+  <p class="foot">
+    MVP live at salba-bayan.vercel.app &nbsp;·&nbsp; September 2026
+  </p>
+  <span class="num">01</span>
+</section>
+
+<!-- 2 ------------------------------------------------------------------- -->
+<section class="slide">
+  <p class="eyebrow">The problem</p>
+  <h2>The warning arrives exactly when the network leaves.</h2>
+  <p class="big" style="color: var(--paper-2)">
+    A barangay's storm warning travels by megaphone, text message and group
+    chat. All three fail in the same hour: the towers saturate, the power goes,
+    and the people who most need to move are the ones who hear nothing.
+  </p>
+  <div class="cols">
+    <div class="card alarm">
+      <h3>Residents</h3>
+      <p>Do not know the current signal, which centre is nearest, or whether the
+      road there is passable.</p>
+    </div>
+    <div class="card caution">
+      <h3>Volunteers</h3>
+      <p>Take rescue calls by phone and radio, with no shared list and no way to
+      see who is already going.</p>
+    </div>
+    <div class="card">
+      <h3>Officials</h3>
+      <p>Have no live picture of their own barangay — which streets are flooded,
+      how deep, or how many are in the hall.</p>
+    </div>
+  </div>
+  <span class="num">02</span>
+</section>
+
+<!-- 3 ------------------------------------------------------------------- -->
+<section class="slide">
+  <p class="eyebrow">The approach</p>
+  <h2>Assume the network is gone. Design from there.</h2>
+  <p class="big">
+    Every other design decision in SalbaBayan follows from one: nothing a person
+    does in a storm may depend on a working connection, and nothing on the
+    screen may claim to be current when it is not.
+  </p>
+  <div class="cols" style="margin-top: 10mm">
+    <div class="card clear">
+      <h3>Written down first</h3>
+      <p>An SOS, a report, a headcount is saved on the phone in milliseconds and
+      sent when the network returns. The tap never waits on a tower.</p>
+    </div>
+    <div class="card clear">
+      <h3>The map is on the phone</h3>
+      <p>The barangay's streets, outline, routes and wording are cached. With no
+      signal the app draws its own map and routes on it.</p>
+    </div>
+    <div class="card caution">
+      <h3>Honest about age</h3>
+      <p>"Cached 2 hours ago" is on screen wherever it is true. A cache that
+      forges freshness is worse than no cache at all.</p>
+    </div>
+  </div>
+  <span class="num">03</span>
+</section>
+
+<!-- 4 ------------------------------------------------------------------- -->
+<section class="slide">
+  <div class="split wide-right">
+    <div>
+      <p class="eyebrow">What a resident gets</p>
+      <h2>The signal, the route, and a way to be found.</h2>
+      <ul>
+        <li><strong>The barangay's signal</strong> and what it means for their own
+        street, with the leave-before time counting down.</li>
+        <li><strong>A walking route</strong> to the nearest of three evacuation
+        centres, computed on the phone from the streets — not a straight line.</li>
+        <li><strong>Hazards and flooding</strong> reported by anyone, on one map,
+        with old readings faded rather than hidden.</li>
+        <li><strong>One-press SOS.</strong> No login, no form, no waiting for GPS.</li>
+      </ul>
+      <p class="body" style="margin-top: 6mm">
+        No account, no email address, no telephone number. The app opens as a
+        resident of this barangay the moment it loads.
+      </p>
+    </div>
+    <div style="text-align: center">
+      <img class="shot-phone" src="assets/map.png" alt="The evacuation map with the route to the barangay hall">
+    </div>
+  </div>
+  <span class="num">04</span>
+</section>
+
+<!-- 5 ------------------------------------------------------------------- -->
+<section class="slide">
+  <p class="eyebrow">The resident's app</p>
+  <h2>Four screens, and the one that matters is a button.</h2>
+  <div class="shots" style="margin-top: 4mm">
+    <figure>
+      <img src="assets/home.png" alt="The home screen showing the barangay's signal">
+      <figcaption>Home — the signal and what to do</figcaption>
+    </figure>
+    <figure>
+      <img src="assets/sos.png" alt="The SOS screen">
+      <figcaption>SOS — one press, works offline</figcaption>
+    </figure>
+    <figure>
+      <img src="assets/report.png" alt="The report screen">
+      <figcaption>Report — flood depth by body height</figcaption>
+    </figure>
+  </div>
+  <p class="foot">
+    Flood depth is reported against the body — knee, waist, chest, above head —
+    because nobody in a storm is estimating centimetres.
+  </p>
+  <span class="num">05</span>
+</section>
+
+<!-- 6 ------------------------------------------------------------------- -->
+<section class="slide">
+  <p class="eyebrow">Rescue</p>
+  <h2>A shared queue, and a private route to the call.</h2>
+  <div class="cols four" style="margin-top: 2mm; margin-bottom: auto">
+    <div class="card alarm">
+      <h3>1 · Raised</h3>
+      <p>The resident presses once. The call is timed from the press, even with
+      no signal, and sent the moment there is one.</p>
+    </div>
+    <div class="card caution">
+      <h3>2 · Seen</h3>
+      <p>Any volunteer acknowledges it. The resident's screen changes to SEEN BY
+      THE BARANGAY with the waiting time.</p>
+    </div>
+    <div class="card">
+      <h3>3 · Taken</h3>
+      <p>Each responder gets their own walking route from where they are. Several
+      may take the same call; none sees another's line.</p>
+    </div>
+    <div class="card clear">
+      <h3>4 · Rescued</h3>
+      <p>Marking it closes the call for everyone and clears the route from every
+      phone that was going.</p>
+    </div>
+  </div>
+  <div class="quote" style="margin-top: 8mm">
+    The rescue map carries the hazards and the flood readings too, so a
+    volunteer can see the blocked road before setting out — not on arriving at it.
+  </div>
+  <span class="num">06</span>
+</section>
+
+<!-- 7 ------------------------------------------------------------------- -->
+<section class="slide">
+  <p class="eyebrow">The official's dashboard</p>
+  <h2>The whole barangay, on one screen.</h2>
+  <img class="shot-wide" src="assets/official.png" alt="The official dashboard: the barangay map with the sidebar">
+  <p class="foot">
+    Tap a street to place a hazard, a flood depth or an evacuation centre · the
+    advisory and the PAGASA bulletin sit together in the sidebar · every open SOS,
+    hazard and reading is on the map.
+  </p>
+  <span class="num">07</span>
+</section>
+
+<!-- 8 ------------------------------------------------------------------- -->
+<section class="slide">
+  <p class="eyebrow">PAGASA</p>
+  <h2>The national bulletin, read for this barangay.</h2>
+  <div class="split">
+    <div>
+      <p class="body">
+        PAGASA publishes no API, so the dashboard reads the tropical cyclone
+        bulletin itself and works out <strong>which wind signal covers this
+        barangay</strong> — then fills the advisory form on request.
+      </p>
+      <ul style="margin-top: 5mm">
+        <li><strong>It fills the form. It never issues.</strong> An official reads
+        every field and holds the confirm control, as when they type it.</li>
+        <li><strong>It refuses to guess.</strong> "The northern portion of Ilocos
+        Norte" names the province without covering Batac, so the signal is shown
+        and the form left alone.</li>
+        <li><strong>It fails loudly.</strong> If the bulletin cannot be read, the
+        card says so and links to PAGASA.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="card caution">
+        <h3 style="color: var(--caution)">Why a human stays in the loop</h3>
+        <p style="margin-top: 2mm">
+          PAGASA's signal covers a province. The barangay's signal is a decision
+          about this barangay, made by someone who knows which streets flood
+          first and how long it takes to walk out of them.
+        </p>
+        <p>
+          A misread bulletin is then a wrong suggestion on one screen — never a
+          wrong signal on every phone in the barangay.
+        </p>
+      </div>
+    </div>
+  </div>
+  <span class="num">08</span>
+</section>
+
+<!-- 9 ------------------------------------------------------------------- -->
+<section class="slide">
+  <p class="eyebrow">Trust</p>
+  <h2>Who can do what, enforced by the database.</h2>
+  <table style="margin-top: 2mm">
+    <thead><tr><th>Rule</th><th>How it is actually enforced</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Roles are granted</td>
+        <td>A phone is a resident until an official grants it more, by device code. Nobody can promote themselves — the function that once allowed it is gone.</td>
+      </tr>
+      <tr>
+        <td>Official pages</td>
+        <td>A 4-digit PIN each session, on top of the role. A phone that is not an official in the database cannot open them whatever it types.</td>
+      </tr>
+      <tr>
+        <td>Names</td>
+        <td>Visible to volunteers and officials only, never to other residents. The SOS button never asks for one.</td>
+      </tr>
+      <tr>
+        <td>Every read and write</td>
+        <td>Row-level security in Postgres, checked by a suite that runs against the live database on every build — not by the app being polite.</td>
+      </tr>
+      <tr>
+        <td>Flood readings</td>
+        <td>Only officials may clear or overwrite one, so the map cannot be quietly emptied by a passer-by.</td>
+      </tr>
+    </tbody>
+  </table>
+  <span class="num">09</span>
+</section>
+
+<!-- 10 ------------------------------------------------------------------ -->
+<section class="slide">
+  <p class="eyebrow">Where it stands</p>
+  <h2>The MVP is live, and it is checked.</h2>
+  <div class="cols four" style="margin-top: 4mm; margin-bottom: auto">
+    <div class="card clear">
+      <p class="stat clear">432</p>
+      <p class="stat-label">Automated checks, every build</p>
+    </div>
+    <div class="card">
+      <p class="stat teal">41</p>
+      <p class="stat-label">Of those against live database security</p>
+    </div>
+    <div class="card">
+      <p class="stat teal">40</p>
+      <p class="stat-label">Languages offered · 3 written by people</p>
+    </div>
+    <div class="card caution">
+      <p class="stat caution">832</p>
+      <p class="stat-label">Residents in the barangay it is built for</p>
+    </div>
+  </div>
+  <div class="cols two" style="margin-top: 10mm">
+    <div>
+      <h3 style="margin-bottom: 3mm"><span class="tag">Working now</span></h3>
+      <ul>
+        <li>Advisory, protocols and the countdown, offline</li>
+        <li>Routing to the nearest of three centres, computed on the phone</li>
+        <li>SOS end to end, multi-responder, with per-responder routes</li>
+        <li>Hazard and flood reporting, two-way between residents and officials</li>
+        <li>QR check-in and an append-only headcount ledger</li>
+        <li>The PAGASA bulletin on the official dashboard</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="margin-bottom: 3mm"><span class="tag open">Next</span></h3>
+      <ul>
+        <li><strong>Ilocano written by a native speaker</strong> — Batac speaks it, and the app currently machine-translates it</li>
+        <li><strong>Waterways on the offline map</strong> — a flood app whose offline map has no rivers</li>
+        <li><strong>The parser against a real bulletin</strong> — no cyclone has entered the area since it was built</li>
+        <li><strong>A rehearsal with the barangay</strong> before the season</li>
+      </ul>
+    </div>
+  </div>
+  <span class="num">10</span>
+</section>
+
+<!-- 11 ------------------------------------------------------------------ -->
+<section class="slide">
+  <p class="eyebrow">Deliverables</p>
+  <h2>Links</h2>
+  <dl class="links">
+    <div class="link-row">
+      <dt>Final MVP</dt>
+      <dd>https://salba-bayan.vercel.app</dd>
+    </div>
+    <div class="link-row">
+      <dt>Source code</dt>
+      <dd>https://github.com/JOHNM-GOAT/SalbaBayan</dd>
+    </div>
+    <div class="link-row">
+      <dt>User manual</dt>
+      <dd>docs/manual/SalbaBayan-User-Manual.pdf</dd>
+    </div>
+    <div class="link-row">
+      <dt>This deck</dt>
+      <dd>docs/pitch/SalbaBayan-Pitch-Deck.pdf</dd>
+    </div>
+  </dl>
+  <p class="big" style="margin-top: auto; color: var(--paper)">
+    Open the MVP on a phone, turn airplane mode on, and reload it.<br>
+    That is the whole argument.
+  </p>
+  <p class="foot">
+    SalbaBayan · Barangay #5 Callaguip, Batac City, Ilocos Norte · base map ©
+    OpenStreetMap contributors, via OpenFreeMap · bulletin data from PAGASA
+  </p>
+  <span class="num">11</span>
+</section>
+
+</body>
+</html>
