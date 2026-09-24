@@ -4,11 +4,23 @@
 
 *Salba* (save) + *Bayan* (town, nation).
 
-> **Status: pre-implementation.** This repository holds the product requirements and the design. No application code yet.
+> **Status: live.** The MVP is deployed and running for Barangay #5 Callaguip, Batac City, Ilocos Norte.
+> **[Open the app →](https://salba-bayan.vercel.app)** &nbsp;·&nbsp; **[Deliverables →](stage-5/)**
 
-![Advisory Home](stage-2/design/screens/advisory-home.png)
+![The evacuation map](stage-5/source/assets/map.png)
 
-*The screen the app opens to — Signal 3, Purok-specific instruction, leave-by countdown, and cache state always visible. [All eight screens →](stage-2/design/)*
+*The resident's map: the barangay outline, the walking route to the nearest evacuation centre, the next turn, and the cache state in the strip at the top. Open it on a phone, turn airplane mode on, reload — it still draws.*
+
+---
+
+## Deliverables
+
+| | |
+|---|---|
+| **Final MVP** | https://salba-bayan.vercel.app |
+| **Pitch deck** | [`stage-5/SalbaBayan-Pitch-Deck.pdf`](stage-5/SalbaBayan-Pitch-Deck.pdf) — 11 slides |
+| **User manual** | [`stage-5/SalbaBayan-User-Manual.pdf`](stage-5/SalbaBayan-User-Manual.pdf) — 12 pages, for residents, volunteers and officials |
+| **Requirements & design** | [`stage-2/`](stage-2/) — the PRD and the wireframes this was built from |
 
 ---
 
@@ -17,71 +29,75 @@
 The Philippines takes roughly **20 tropical cyclones a year**. Two things break at exactly the wrong moment:
 
 1. **The network dies.** Infrastructure collapse severs internet and cellular service mid-storm, so cloud-based early warning systems go dark precisely when people need them.
-2. **National warnings aren't local instructions.** A PAGASA signal level tells a barangay *what category of storm* is coming. It never tells a resident on a specific street *what to actually do* — which route, which evacuation center, by when, in their own dialect.
+2. **National warnings aren't local instructions.** A PAGASA signal level tells a barangay *what category of storm* is coming. It never tells a resident on a specific street *what to actually do* — which route, which evacuation centre, by when, in their own language.
 
 On top of that, dedicated IoT water-level sensors cost too much to deploy at barangay scale, and a resident in immediate danger has no fast way to summon help and be found.
 
 ## The approach
 
-SalbaBayan is a Progressive Web App that replaces expensive infrastructure with **structure**:
+A Progressive Web App that replaces expensive infrastructure with **structure**:
 
-- **Officials pre-configure protocols once per season.** A Purok × Signal Level lookup table defines the route, evacuation center, and plain-language action for every combination — so the national-to-local translation happens in advance, not improvised mid-storm.
-- **The community is the sensor network.** Residents and volunteers already on the ground report water levels and hazards. Zero hardware cost.
-- **The offline cache is the resilience layer.** Reads come from a Service Worker cache; every write goes into a local IndexedDB queue first and syncs when a signal returns.
+- **Officials pre-configure protocols once per season.** A Purok × Signal Level table defines the route, the centre and the plain-language action for every combination — so the national-to-local translation happens in advance, not improvised mid-storm.
+- **The community is the sensor network.** Residents and volunteers already on the ground report water depth and hazards. Zero hardware cost.
+- **Local-first writes are the resilience layer.** Every action is written to IndexedDB in milliseconds and flushed when a signal returns. The tap never waits on a tower.
 
-Deliberately **no** machine learning, **no** peer-to-peer networking, **no** custom cryptography, **no** IoT hardware. Every piece is a mainstream library or managed service, so a two-person team can actually build and maintain it.
+Deliberately **no** machine learning, **no** peer-to-peer networking, **no** custom cryptography, **no** IoT hardware. Every piece is a mainstream library or a managed service, so a two-person team can build and maintain it.
 
 ### The honest boundary
 
-SalbaBayan is **not** built to survive a total, indefinite communications blackout — that would need a peer-to-peer mesh, which is explicitly out of scope. It is built for the realistic case: **intermittent connectivity**, where the client keeps working through gaps and reconciles when a connection returns.
+SalbaBayan is **not** built to survive a total, indefinite communications blackout — that would need a peer-to-peer mesh, which is out of scope. It is built for the realistic case: **intermittent connectivity**, where the client keeps working through the gaps and reconciles when a connection returns.
+
+And it never pretends. Wherever the screen is showing something it could not re-check, it says so: `CACHED 2 HOURS AGO`, `2 WAITING TO SEND`, `NOT SENT YET — residents have not been told`. A cache that forges freshness is worse than no cache.
 
 ---
 
 ## How it works
 
 ```
-ONLINE          Supabase (Postgres · Auth · Realtime · RLS)
-                          │ HTTPS reads/writes + Realtime subscription
-                  Next.js Client (Vercel-hosted PWA)
+ONLINE          Supabase (Postgres · Auth · Realtime · Row Level Security)
+                          │ HTTPS reads/writes + Realtime subscriptions
+                  Next.js client (Vercel-hosted PWA)
                    │                        │
-        Service Worker cache        IndexedDB write queue
-        (app shell + advisory,      (reports, headcounts,
-         protocols, translations,    check-ins, rescue requests)
-         map tile packs)                    │ auto-flush on reconnect
-                                    back to Supabase
+        Service Worker cache         Dexie / IndexedDB write queue
+        (app shell, routes,          (reports, SOS, headcounts,
+         the barangay snapshot,       check-ins, advisory changes)
+         street map, translations)           │ auto-flush on reconnect
+                                      back to Supabase
 
-OFFLINE (temporary): reads come from cache, writes queue locally,
-the UI stays fully usable. No feature depends on another device
-being nearby — every device talks only to Supabase.
+OFFLINE: reads come from the cached snapshot, writes queue locally, and the UI
+stays fully usable — including the map, which falls back to the barangay's own
+drawn street grid when the tile server cannot be reached. No feature depends on
+another device being nearby; every device talks only to Supabase.
 ```
 
-**Local-first for writes, cloud-first for truth.** The UI never blocks on the network, but there is exactly one source of truth. Because devices never sync directly with each other, no conflict-resolution logic is needed beyond "retry the queued write."
+**Local-first for writes, cloud-first for truth.** The UI never blocks on the network, but there is exactly one source of truth. Because devices never sync directly with each other, no conflict resolution is needed beyond retrying the queued write.
 
 ---
 
-## Features
+## What it does
 
-Tiered by build order. Tier 1 is the demo spine and must stay working as later tiers layer on.
+**Residents**
+- The barangay's signal, the instruction for their own street, and the leave-before countdown — offline
+- A walking route to the **nearest of up to three evacuation centres**, computed on the phone from the street graph
+- Every hazard and flood reading on one map, old readings faded and dated rather than hidden
+- **One-press SOS** — no login, no form, no waiting for GPS; timed from the press even with no signal
+- Hazard and flood reporting, depth measured against the body (knee / waist / chest / above head)
 
-**Tier 1 — Core**
-- Localized Signal → Purok Advisory — the right instruction for your street, in your dialect
-- Offline-First Client — one write-queue utility wrapping every action; Service Worker read cache
-- One-Tap SOS + Live Rescue Map — geolocated distress signal, no login required
-- Interactive Offline Evacuation Map — MapLibre with pre-cached tile packs, Purok boundaries, routing line
+**Volunteers**
+- A full-screen rescue map with every open call, pulsing, oldest first
+- Taking a call draws **that responder's own route** to it; several may answer the same call and none sees another's line
+- QR check-in at the evacuation centre, with vulnerability tags for triage
+- An **append-only headcount ledger** — concurrency-safe by construction, never erased
 
-**Tier 2 — Ground truth**
-- Community Water-Level Reporting — body-referenced depth scale (knee / waist / chest / above head)
-- Community Hazard Reports — fallen trees, blocked roads, downed lines, flooding; plotted on the route
-- Realtime Alert Aggregation — Supabase Realtime push, no polling
+**Officials**
+- A full-screen dashboard: tap a street to place a hazard, a flood depth or an evacuation centre
+- Issue the advisory behind a press-and-hold, with a preview drawn from the same components residents see
+- **The PAGASA tropical cyclone bulletin, read for this barangay** — it fills the advisory form and never issues anything
+- Clear flood readings, manage centres, grant roles by device code, check pre-storm readiness
 
-**Tier 3 — Evacuation center operations**
-- Headcount Tracking — append-only `+1`/`−1` ledger, concurrency-safe by construction
-- Resident Check-In via QR — camera scan, vulnerability tags surfaced for triage
-
-**Tier 4 — If stable**
-- Pre-Storm Readiness Checklist · Documentation Knowledge Base
-
-Full requirements, data model, and acceptance criteria: [`PRD-detailed.md`](stage-2/PRD-detailed.md).
+**Everywhere**
+- 40 languages offered — English, Filipino (Tagalog) and Cebuano written by people, the rest machine-translated and labelled as such
+- Light and dark, because this is read outdoors at night on a phone whose battery may be the last one in the house
 
 ---
 
@@ -89,25 +105,49 @@ Full requirements, data model, and acceptance criteria: [`PRD-detailed.md`](stag
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js (App Router) · React · Tailwind CSS |
-| Backend | Supabase — Postgres, Auth, Realtime, Row Level Security |
+| Frontend | Next.js 16 (App Router) · React 19 · Tailwind CSS v4 |
+| Backend | Supabase — Postgres, anonymous Auth, Realtime, Row Level Security |
 | Hosting | Vercel |
-| Offline | `next-pwa` (Service Worker) · Dexie.js (IndexedDB) |
-| Offline map | MapLibre GL JS + cached vector tile packs |
-| Responder map | Google Maps JavaScript API |
+| Offline | Serwist (Service Worker) · Dexie.js (IndexedDB write queue) |
+| Maps | MapLibre GL JS · OpenFreeMap (OpenStreetMap data) · an offline street grid generated from OSM |
+| Routing | Dijkstra over the barangay's own street graph, on the phone |
+| Bulletins | PAGASA's tropical cyclone bulletin, parsed server-side in a route handler |
 | QR | `qrcode` (generation) · `jsqr` (scanning) |
 
-Roles (`resident` / `volunteer` / `official`) are enforced by Postgres Row Level Security at the database layer, not just in the UI.
+Roles (`resident` / `volunteer` / `official`) are enforced by Postgres Row Level Security at the database layer, not just in the UI. A device cannot promote itself; an official grants roles by device code.
 
 ---
 
-## Documentation
+## Running it
 
-| Document | Contents |
+```bash
+npm install
+cp .env.example .env.local     # fill in from the Supabase dashboard
+npm run dev
+```
+
+Both Supabase values are publishable rather than secret — the security boundary is Row Level Security, not key secrecy.
+
+```bash
+npm run verify
+```
+
+`verify` is the gate: lint, the write-path and queue guards, the advisory, routing, language, geometry, headcount, check-in, readiness, rescue, hazard, translation and bulletin suites, a production build, and then **41 row-level-security checks fired against the live database** with real anonymous sessions. **432 checks in total**, and it is what every change has to pass.
+
+The database is rebuildable from this repository: `supabase/migrations/` holds the schema, the policies and every UI string, and a guard fails the build if the app asks for wording no migration seeds.
+
+---
+
+## Repository layout
+
+| Path | Contents |
 |---|---|
-| [`PRD.md`](stage-2/PRD.md) | The primary PRD — 17 sections: background, vision, governance, scope, target users, crisis UX, core features with FR/AC pairs, accessibility, privacy, data sources, architecture, data flow, NFRs, error handling, testing approach, success metrics, assumptions & dependencies |
-| [`PRD-detailed.md`](stage-2/PRD-detailed.md) | Deep-dive reference — 13 features with numbered requirement IDs, full data model, permission matrix, milestone-based release plan, risk register |
-| [`design/`](stage-2/design/) | Eight high-fidelity wireframes — screen index, design language, PNG exports, and editable artboard sources |
+| [`src/`](src/) | The application — App Router pages, components, and `lib/` where the rules live |
+| [`supabase/migrations/`](supabase/migrations/) | Schema, RLS policies, and every translated string |
+| [`scripts/`](scripts/) | The verification suites, the map generator, and the OSM extract |
+| [`stage-2/`](stage-2/) | The PRD and the eight wireframes this was built from |
+| [`stage-5/`](stage-5/) | The pitch deck and the user manual, with their sources |
+| [`docs/`](docs/) | Working notes — the task log, the runbook, and the barangay handoff |
 
 ---
 
@@ -115,13 +155,19 @@ Roles (`resident` / `volunteer` / `official`) are enforced by Postgres Row Level
 
 Stated up front — these are accepted trade-offs, not oversights.
 
-- **Total prolonged blackout is not solved.** If the backend is unreachable for an entire event, writes stay queued and cached advisories can drift between residents. No device-to-device fallback.
-- **Water-level accuracy depends on people.** Readings are episodic, not continuous, and require volunteers to be present, trained, and consistent.
-- **QR check-in is cooperative-trust, not adversarial-proof.** Appropriate for internal evacuation camp coordination; not designed to resist forged or replayed check-ins.
-- **The responder rescue map needs connectivity.** The resident-facing evacuation map does not — its tiles are pre-cached. Two different maps, deliberately.
-- **Offline maps require a pre-storm download.** A resident who never opened the app has no cached map.
+- **Total prolonged blackout is not solved.** If the backend is unreachable for an entire event, writes stay queued and cached advisories drift between residents. No device-to-device fallback.
+- **Water-level accuracy depends on people.** Readings are episodic, not continuous, and need volunteers present and consistent. Readings older than three hours are faded and dated rather than trusted.
+- **QR check-in is cooperative-trust, not adversarial-proof.** Right for coordinating an evacuation centre; not designed to resist forged or replayed check-ins.
+- **Offline maps need one pre-storm visit.** A phone that has never opened the app has nothing cached. The app is installable precisely so this happens in fair weather.
+- **The PAGASA reader has never met a live bulletin.** No cyclone entered the area of responsibility while it was built, so it is tested against fixtures. When it cannot parse a bulletin it says so and links to PAGASA, which is the failure it was designed to have.
+- **Ilocano is machine-translated.** Batac speaks Ilocano. The app labels machine translation honestly, but a native speaker should write it before the barangay depends on it.
+- **The offline street grid has no waterways.** A flood app whose offline map cannot show a river — the next thing worth building.
 
 ---
+
+## Credits
+
+Base map © OpenStreetMap contributors, served via OpenFreeMap. Bulletin data from PAGASA (DOST). Neither endorses this project.
 
 ## Team
 
