@@ -12,7 +12,16 @@ import { MapLegend } from "@/components/MapLegend";
 import { loadStreetStyle, onStyleReady, sketchStyle } from "@/lib/basemap";
 import { barangayCentre } from "@/lib/advisory";
 import { sharedView, trackView } from "@/lib/mapView";
-import { CENTRE_ICON, HAZARD_ICON, SOS_ICON, WATER_ICON, hazardColour, pinElement, pinMarker } from "@/lib/mapMarks";
+import {
+  CENTRE_ICON,
+  HAZARD_ICON,
+  SOS_ICON,
+  WATER_ICON,
+  hazardColour,
+  pinElement,
+  pinMarker,
+  youElement,
+} from "@/lib/mapMarks";
 import { CATEGORY_TONE, allOpenHazards, subscribeHazards, type Hazard } from "@/lib/hazards";
 import { allWaterReports, subscribeWaterReports, type WaterReport } from "@/lib/water";
 import { DEPTH_COLOUR, placeWater, waterOpacity } from "@/lib/waterMap";
@@ -72,6 +81,7 @@ export default function ResponderPage() {
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const markers = useRef<maplibregl.Marker[]>([]);
+  const meMarker = useRef<maplibregl.Marker | null>(null);
   const framed = useRef(false);
   /** The theme whose basemap is on screen, and the map that has the credit. */
   const painted = useRef<string | null>(null);
@@ -426,6 +436,34 @@ export default function ResponderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [following, fixKey, target?.[0], target?.[1]]);
 
+  /*
+   * The responder's own position, drawn as on the residents' maps. An HTML
+   * marker, so it does not wait for the style: gating it on isStyleLoaded
+   * dropped the first fix, and a phone standing still may never send a second.
+   */
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !fix) return;
+    meMarker.current ??= new maplibregl.Marker({ element: youElement(undefined, t("sos.location")) });
+    meMarker.current.setLngLat([fix.lng, fix.lat]).addTo(m);
+  }, [fix, epoch, t]);
+
+  useEffect(
+    () => () => {
+      meMarker.current?.remove();
+      meMarker.current = null;
+    },
+    [],
+  );
+
+  /** Back to where the responder is standing. */
+  const recentre = useCallback(() => {
+    const m = map.current;
+    if (!m || !fix) return;
+    framed.current = true;
+    m.easeTo({ center: [fix.lng, fix.lat], zoom: Math.max(m.getZoom(), 16.5), duration: 500 });
+  }, [fix]);
+
   /** Centre on a call — the pin button, and every "take this call". */
   const centreOn = useCallback((request: RescueRequest) => {
     const m = map.current;
@@ -565,6 +603,20 @@ export default function ResponderPage() {
             className="absolute inset-0 z-10 bg-paper/20 md:hidden"
           />
         )}
+
+        {/* Where the responder is, and where the call is: one button each. */}
+        <button
+          type="button"
+          onClick={recentre}
+          disabled={!fix}
+          aria-label={t("map.recentre")}
+          className="tap absolute right-2.5 bottom-[190px] z-10 flex size-11 items-center justify-center rounded-[3px] border-[1.5px] border-line bg-ink-800/95 shadow-md disabled:opacity-40 sm:bottom-[168px]"
+        >
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--color-hv)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <circle cx="12" cy="12" r="3.5" />
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+          </svg>
+        </button>
 
         {centreTarget && (
           <button
