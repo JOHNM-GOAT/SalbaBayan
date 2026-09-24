@@ -554,15 +554,6 @@ export default function ResponderPage() {
             </div>
           )}
 
-          {!listOpen && (
-            <button
-              type="button"
-              onClick={() => setListChoice(true)}
-              className="pointer-events-auto mono justify-self-start rounded-instrument border-[1.5px] border-line bg-ink-900/95 px-3 py-2 text-[10.5px] font-bold tracking-[0.8px] shadow-md"
-            >
-              {t("dash.menu")} · {queue.length}
-            </button>
-          )}
         </div>
 
         {/* Phones: tapping the map beside the open list closes it. */}
@@ -587,6 +578,31 @@ export default function ResponderPage() {
               <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z" />
               <circle cx="12" cy="10" r="2.5" />
             </svg>
+          </button>
+        )}
+
+        {/*
+          The queue, behind a hamburger at the top of the map rather than a
+          worded button at its foot: the foot is where the call being answered
+          and the walk to it are read, and they are what a rescuer is holding
+          the phone for.
+        */}
+        {!listOpen && (
+          <button
+            type="button"
+            onClick={() => setListChoice(true)}
+            aria-label={t("resp.title")}
+            aria-expanded={false}
+            className="tap absolute top-2.5 right-2.5 z-10 flex size-11 items-center justify-center rounded-instrument border-[1.5px] border-line bg-ink-900/95 shadow-md"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden>
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+            {queue.length > 0 && (
+              <span className="mono absolute -top-1.5 -right-1.5 min-w-[18px] rounded-full border-[1.5px] border-ink-900 bg-alarm px-1 text-center text-[9.5px] leading-[15px] font-bold text-[oklch(0.99_0.01_28)]">
+                {queue.length}
+              </span>
+            )}
           </button>
         )}
 
