@@ -28,8 +28,15 @@
  */
 export const LANGUAGES = [
   { code: "en", label: "English", english: "English" },
-  { code: "fil", label: "Filipino", english: "Filipino" },
-  { code: "tl", label: "Tagalog", english: "Tagalog" },
+  /*
+   * One entry, not two. Filipino is the national language and Tagalog is what
+   * it is built on, and the app never held two translations of them: the
+   * generator copies every Tagalog string into Filipino, so the two choices
+   * showed identical screens. The picker offers the pair under both names and
+   * stores "tl", the barangay's own default. The "fil" rows stay in the
+   * database so a phone that already chose Filipino still resolves.
+   */
+  { code: "tl", label: "Filipino (Tagalog)", english: "Filipino (Tagalog)" },
   { code: "ceb", label: "Bisaya", english: "Cebuano" },
   { code: "ilo", label: "Ilokano", english: "Ilocano" },
   { code: "hil", label: "Hiligaynon", english: "Hiligaynon (Ilonggo)" },

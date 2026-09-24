@@ -69,7 +69,7 @@ console.log("\nMachine-translated is never passed off as reviewed:");
     [...MACHINE_TRANSLATED].every((code) => isLanguage(code)),
   );
   check(
-    "English, Tagalog, Cebuano and Filipino are not marked machine-translated",
+    "English, Filipino (Tagalog) and Cebuano are not marked machine-translated",
     !["en", "tl", "ceb", "fil"].some((code) => MACHINE_TRANSLATED.has(code)),
   );
   check(
