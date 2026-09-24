@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SalbaBayan — User Manual</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 16mm; }
+
+  :root {
+    --ink: #10151b;
+    --ink-2: #3d4753;
+    --ink-3: #6b7683;
+    --line: #d5dae0;
+    --line-soft: #e8ebef;
+    --hv: #0d6e7a;
+    --alarm: #b3261e;
+    --caution: #9a6700;
+    --clear: #17683a;
+    --paper: #ffffff;
+    --wash: #f4f6f8;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 10.2pt;
+    line-height: 1.5;
+    color: var(--ink);
+    background: var(--paper);
+  }
+
+  h1, h2, h3, h4 { font-weight: 800; line-height: 1.2; margin: 0; }
+
+  h2 {
+    font-size: 16pt;
+    margin: 0 0 3mm;
+    padding-bottom: 2mm;
+    border-bottom: 2.5px solid var(--ink);
+  }
+
+  h3 {
+    font-size: 12pt;
+    margin: 7mm 0 2mm;
+    color: var(--ink);
+  }
+
+  h4 {
+    font-size: 10.4pt;
+    margin: 5mm 0 1.5mm;
+    color: var(--ink-2);
+  }
+
+  p { margin: 0 0 2.5mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5mm; }
+  li { margin-bottom: 1.2mm; }
+
+  .lead { color: var(--ink-2); font-size: 10.6pt; margin-bottom: 4mm; }
+
+  code, .ui {
+    font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+    font-size: 9pt;
+    background: var(--wash);
+    border: 1px solid var(--line-soft);
+    border-radius: 2px;
+    padding: 0.3mm 1.2mm;
+    white-space: nowrap;
+  }
+
+  /* ---- cover ---------------------------------------------------------- */
+
+  .cover {
+    height: 250mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    page-break-after: always;
+  }
+
+  .cover .mark {
+    font-size: 9pt;
+    letter-spacing: 2.4px;
+    font-weight: 700;
+    color: var(--hv);
+    text-transform: uppercase;
+    margin-bottom: 6mm;
+  }
+
+  .cover h1 { font-size: 40pt; letter-spacing: -1px; }
+
+  .cover .sub {
+    font-size: 15pt;
+    font-weight: 600;
+    color: var(--ink-2);
+    margin-top: 2mm;
+  }
+
+  .cover .rule {
+    height: 3px;
+    background: var(--ink);
+    margin: 8mm 0;
+    width: 40mm;
+  }
+
+  .cover dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: 34mm 1fr;
+    row-gap: 1.8mm;
+    font-size: 10pt;
+  }
+
+  .cover dt { color: var(--ink-3); font-size: 8.5pt; letter-spacing: 1px; text-transform: uppercase; padding-top: 0.6mm; }
+  .cover dd { margin: 0; font-weight: 600; }
+
+  .cover .foot {
+    margin-top: 12mm;
+    font-size: 9pt;
+    color: var(--ink-3);
+    border-top: 1px solid var(--line);
+    padding-top: 3mm;
+  }
+
+  /* ---- structure ------------------------------------------------------ */
+
+  section { page-break-before: always; }
+  section.run-on { page-break-before: auto; }
+
+  .toc ol { list-style: none; padding: 0; counter-reset: toc; }
+  .toc > ol > li {
+    counter-increment: toc;
+    border-bottom: 1px solid var(--line-soft);
+    padding: 1.8mm 0;
+    display: flex;
+    gap: 4mm;
+  }
+  .toc > ol > li::before {
+    content: counter(toc);
+    font-weight: 800;
+    color: var(--hv);
+    min-width: 6mm;
+  }
+  .toc .what { color: var(--ink-3); font-size: 9pt; display: block; }
+
+  /* ---- blocks --------------------------------------------------------- */
+
+  .note, .warn, .tip {
+    border-left: 3.5px solid var(--hv);
+    background: var(--wash);
+    padding: 2.5mm 3.5mm;
+    margin: 3mm 0;
+    page-break-inside: avoid;
+  }
+  .warn { border-left-color: var(--alarm); }
+  .tip { border-left-color: var(--clear); }
+
+  .note p:last-child, .warn p:last-child, .tip p:last-child { margin-bottom: 0; }
+
+  .label {
+    display: block;
+    font-size: 8pt;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    font-weight: 800;
+    color: var(--hv);
+    margin-bottom: 1mm;
+  }
+  .warn .label { color: var(--alarm); }
+  .tip .label { color: var(--clear); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 3mm 0 4mm;
+    font-size: 9.4pt;
+    page-break-inside: avoid;
+  }
+
+  th {
+    text-align: left;
+    font-size: 8pt;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    border-bottom: 1.5px solid var(--ink);
+    padding: 1.5mm 2mm 1.5mm 0;
+  }
+
+  td {
+    border-bottom: 1px solid var(--line-soft);
+    padding: 1.8mm 2mm 1.8mm 0;
+    vertical-align: top;
+  }
+
+  td:first-child { font-weight: 600; white-space: nowrap; padding-right: 4mm; }
+
+  .signal td:first-child {
+    font-weight: 800;
+    font-size: 11pt;
+    width: 10mm;
+    white-space: nowrap;
+  }
+
+  .s0 { color: var(--ink-3); }
+  .s1, .s2 { color: var(--caution); }
+  .s3, .s4, .s5 { color: var(--alarm); }
+
+  .steps { counter-reset: step; list-style: none; padding: 0; }
+  .steps li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 8mm;
+    margin-bottom: 2.5mm;
+  }
+  .steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0.2mm;
+    width: 5.2mm;
+    height: 5.2mm;
+    border-radius: 50%;
+    background: var(--ink);
+    color: #fff;
+    font-size: 8pt;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .role-bar {
+    display: flex;
+    gap: 2mm;
+    margin-bottom: 4mm;
+  }
+  .role-bar span {
+    font-size: 8pt;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 800;
+    padding: 1mm 2.5mm;
+    border: 1.5px solid var(--line);
+    border-radius: 2px;
+    color: var(--ink-3);
+  }
+  .role-bar span.on { border-color: var(--hv); color: var(--hv); background: #f0f7f8; }
+
+  .kv { display: grid; grid-template-columns: 38mm 1fr; row-gap: 1.5mm; font-size: 9.6pt; margin-bottom: 3mm; }
+  .kv dt { color: var(--ink-3); }
+  .kv dd { margin: 0; }
+
+  .small { font-size: 8.8pt; color: var(--ink-3); }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <p class="mark">Barangay #5 Callaguip · Batac City · Ilocos Norte</p>
+  <h1>SalbaBayan</h1>
+  <p class="sub">User manual for residents, volunteers and officials</p>
+  <div class="rule"></div>
+  <dl>
+    <dt>Application</dt><dd>salba-bayan.vercel.app</dd>
+    <dt>Version</dt><dd>1.0</dd>
+    <dt>Manual issued</dt><dd>24 September 2026</dd>
+    <dt>Works offline</dt><dd>Yes — see section 3</dd>
+  </dl>
+  <p class="foot">
+    SalbaBayan is a flood and storm warning application for one barangay. It carries the
+    barangay's storm signal, its evacuation routes, its hazard reports and its rescue
+    requests, and it is built to keep working when the mobile network does not.
+  </p>
+</div>
+
+<section class="run-on toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><div><strong>Getting started</strong><span class="what">Opening the app, installing it on a phone, choosing a language, day and night</span></div></li>
+    <li><div><strong>Who is who</strong><span class="what">Resident, volunteer, official — and how a phone is given a role</span></div></li>
+    <li><div><strong>Working without a signal</strong><span class="what">What still works, what is held, and how to read the strip at the top</span></div></li>
+    <li><div><strong>For residents</strong><span class="what">The signal, the map and the route, reporting, and calling for rescue</span></div></li>
+    <li><div><strong>For volunteers</strong><span class="what">The rescue queue, taking a call, check-in scanning and the headcount</span></div></li>
+    <li><div><strong>For officials</strong><span class="what">The dashboard, changing the advisory, the PAGASA bulletin, centres, users</span></div></li>
+    <li><div><strong>Before the storm season</strong><span class="what">The readiness checklist someone has to work through once</span></div></li>
+    <li><div><strong>When something is wrong</strong><span class="what">Common problems and what they mean</span></div></li>
+  </ol>
+</section>
+
+<!-- ===================================================================== -->
+
+<section>
+  <h2>1 · Getting started</h2>
+  <p class="lead">SalbaBayan is a website that behaves like an app. There is nothing to buy,
+  no account to create and no password to remember.</p>
+
+  <h3>Opening it</h3>
+  <p>Open <span class="ui">salba-bayan.vercel.app</span> in the phone's browser. The app opens
+  straight away as a resident of Barangay #5 Callaguip. It does not ask for a name, an email
+  address or a telephone number.</p>
+
+  <h3>Installing it on the phone</h3>
+  <p>Install it so that it opens from the home screen like any other app, and so that the
+  phone keeps a copy for when there is no signal.</p>
+  <ul>
+    <li><strong>Android (Chrome):</strong> menu <span class="ui">⋮</span> → <em>Add to Home screen</em> or <em>Install app</em>.</li>
+    <li><strong>iPhone (Safari):</strong> the share button → <em>Add to Home Screen</em>.</li>
+  </ul>
+
+  <div class="tip">
+    <span class="label">Do this before the storm</span>
+    <p>The app saves the barangay's map, routes and wording onto the phone the first time it
+    is opened with a connection. Installing it during a storm, on a network that is already
+    struggling, is the one time it may not work.</p>
+  </div>
+
+  <h3>Language</h3>
+  <p>The language button sits at the top of every screen, marked <span class="ui">EN</span>.
+  English, Filipino (Tagalog) and Cebuano are written by people. The rest are
+  machine-translated and labelled as such on the picker; a screen shown in one of those will
+  say so, and falls back to Tagalog where a phrase is missing.</p>
+  <p>Ilocano is currently machine-translated. A native speaker should review it before the
+  barangay relies on it.</p>
+
+  <h3>Day and night</h3>
+  <p>The button beside the language switch turns the dark screen on and off. Dark is for
+  reading outdoors at night, and uses less battery on most phones. The choice is remembered
+  on that phone.</p>
+
+  <h3>The device code</h3>
+  <p>Every phone is given a short code such as <span class="ui">SB-0142</span>, shown on the
+  <span class="ui">ME</span> screen. It identifies the phone without identifying the person.
+  It is what an official needs in order to make the phone a volunteer's or an official's, and
+  it is what a volunteer scans at an evacuation centre.</p>
+</section>
+
+<!-- ===================================================================== -->
+
+<section>
+  <h2>2 · Who is who</h2>
+  <p class="lead">Three roles. A phone has exactly one, and it is granted by an official —
+  never chosen by the person holding the phone.</p>
+
+  <table>
+    <thead><tr><th>Role</th><th>What that phone can do</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Resident</td>
+        <td>Read the signal and what to do. See the map, the hazards, the flooding and the
+        route to the nearest evacuation centre. Report a hazard or a flood depth. Press SOS.
+        This is what every phone is until it is given something else.</td>
+      </tr>
+      <tr>
+        <td>Volunteer</td>
+        <td>Everything a resident can do, plus: the rescue queue, taking a call and being
+        routed to it, scanning residents into an evacuation centre, and keeping the headcount.</td>
+      </tr>
+      <tr>
+        <td>Official</td>
+        <td>Everything a volunteer can do, plus: the dashboard, changing the barangay's
+        advisory, placing hazards and flood readings on the map, clearing flood readings,
+        managing evacuation centres and readiness.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Giving a phone a role</h3>
+  <ol class="steps">
+    <li>The person opens <span class="ui">ME</span> and reads out their device code.</li>
+    <li>An official with full access opens <span class="ui">USER MANAGEMENT</span>, searches
+    for that code, chooses the role and presses and holds to confirm.</li>
+    <li>The role arrives on that phone at its next sync — usually within seconds.</li>
+  </ol>
+
+  <h3>Opening the official pages</h3>
+  <p>Official screens are reached at <span class="ui">/lgu</span> and ask for the barangay's
+  4-digit PIN each time the app is opened fresh. The PIN alone is not enough: a phone that
+  has not been made an official in User Management cannot open those pages whatever it types.</p>
+  <p>There is also an access code, which grants full access on any phone. It exists so the
+  barangay is never locked out of its own system, and it should be treated like the key to
+  the hall.</p>
+
+  <div class="warn">
+    <span class="label">Before residents use this</span>
+    <p>Change the PIN and the access code from the ones the system was set up with, in
+    <span class="ui">USER MANAGEMENT → ACCESS SETTINGS</span>. Once the real officials hold
+    the role on their own phones, consider switching the access code off entirely; it can be
+    switched back on when it is needed.</p>
+  </div>
+
+  <h3>Names</h3>
+  <p>A resident may enter their name on <span class="ui">ME</span>. It is needed to file a
+  hazard or flood report, and it is shown only to volunteers and officials — never to other
+  residents. The SOS button never asks for it.</p>
+</section>
+
+<!-- ===================================================================== -->
+
+<section>
+  <h2>3 · Working without a signal</h2>
+  <p class="lead">A storm takes the mobile network with it. The app is built for that, and it
+  says plainly what it knows and what it has not yet been able to send.</p>
+
+  <h3>The strip at the top</h3>
+  <table>
+    <thead><tr><th>It says</th><th>It means</th></tr></thead>
+    <tbody>
+      <tr><td>SYNCED JUST NOW</td><td>The phone reached the barangay's records a moment ago. What is on screen is current.</td></tr>
+      <tr><td>CACHED 2 HOURS AGO</td><td>No connection. What is on screen is what was last received, and it is two hours old.</td></tr>
+      <tr><td>2 WAITING TO SEND</td><td>Two things done on this phone — a report, an SOS, a headcount — are saved on the phone and have not reached the barangay yet. They go automatically when the connection returns.</td></tr>
+      <tr><td>1 FAILED TO SEND</td><td>Something was refused by the barangay's records. Open it and read the reason; it is usually a permission that has changed.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>What works with no signal</h3>
+  <ul>
+    <li>The signal level, what to do, and the leave-before time.</li>
+    <li>The map, the barangay outline, the streets and the walking route to the evacuation centre.</li>
+    <li>The SOS button, the report screens, the headcount and the check-in scanner.</li>
+    <li>The documents saved on the readiness screen.</li>
+  </ul>
+
+  <h3>What does not</h3>
+  <ul>
+    <li>Anything new from other people — a hazard someone else has just reported, or a signal an official has just issued. The app shows what it last received and says how old it is.</li>
+    <li>The coloured street map, if the phone has never once loaded it. The barangay's own drawn map is used instead, and it holds every street and route.</li>
+    <li>The PAGASA bulletin on the official dashboard, which is read from PAGASA over the network.</li>
+  </ul>
+
+  <div class="note">
+    <span class="label">The rule the app follows</span>
+    <p>Nothing on the screen ever claims to be current when it is not. An SOS raised with no
+    signal is accepted, timed from the moment of the press, and sent when the network returns —
+    and until then it says it is waiting.</p>
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+
+<section>
+  <h2>4 · For residents</h2>
+  <div class="role-bar"><span class="on">Resident</span><span>Volunteer</span><span>Official</span></div>
+  <p class="lead">Five buttons along the bottom: HOME, MAP, SOS, REPORT, ME.</p>
+
+  <h3>HOME — the signal and what to do</h3>
+  <p>The number the barangay has issued, what it means for your street, and — from Signal 3
+  upwards — the time you must leave before, counting down.</p>
+
+  <table class="signal">
+    <thead><tr><th>No.</th><th>What the app tells residents to do</th></tr></thead>
+    <tbody>
+      <tr><td class="s0">0</td><td>No active signal. Nothing has been issued.</td></tr>
+      <tr><td class="s1">1</td><td>Prepare your go-bag. Watch for the next bulletin.</td></tr>
+      <tr><td class="s2">2</td><td>Secure your home. Prepare your family to evacuate.</td></tr>
+      <tr><td class="s3">3</td><td>Go to your evacuation centre now. Do not wait for dark.</td></tr>
+      <tr><td class="s4">4</td><td>Conditions outside are dangerous. Leave now.</td></tr>
+      <tr><td class="s5">5</td><td>Do not go outside. You should already be at the centre.</td></tr>
+    </tbody>
+  </table>
+
+  <p class="small">The wording shown is the barangay's instruction for your purok at that
+  signal, so two streets may be told different things at the same signal.</p>
+
+  <h3>MAP — where to go, and what is in the way</h3>
+  <p>The map opens on the barangay with a green line drawn from your street to the nearest
+  evacuation centre, along streets a person can actually walk. Below it: the distance, the
+  walking time, and the next turn.</p>
+  <ul>
+    <li><strong>Pins.</strong> Red and amber are hazards, blue is flooding, green is an
+    evacuation centre. Tap any pin to read what it is, when it was reported and where.</li>
+    <li><strong>A faded pin</strong> means the report has no exact location, only a street.
+    A faded flood reading also means it is more than three hours old — water moves.</li>
+    <li><strong>AVOID</strong> above the map means a hazard sits on your route. The route is
+    drawn around it where the streets allow.</li>
+    <li><strong>The crosshair button</strong> returns the map to where you are.</li>
+  </ul>
+
+  <h3>REPORT — a hazard or a flood</h3>
+  <ol class="steps">
+    <li>Choose what you saw: flood, tree, road, power, or other.</li>
+    <li>For a flood, choose the depth against your own body — knee, waist, chest, above head —
+    and name the street.</li>
+    <li>For anything else, describe it and add a photo if you can.</li>
+    <li>Tick <em>use my current location</em> only if you are standing at the place. Leave it
+    off if you are reporting from somewhere else, and the street you name will be used.</li>
+    <li>Send. It is saved on the phone first, so it is never lost if the network is down.</li>
+  </ol>
+  <p>Your report appears on everyone's map — residents, volunteers and officials alike. Tap
+  any row in the list below the form, including a flood reading, to see it on the map.</p>
+
+  <h3>SOS — calling for rescue</h3>
+  <p>One press. No login, no form, no waiting for GPS.</p>
+  <ul>
+    <li>The screen then shows <span class="ui">SENT</span>, and changes to
+    <span class="ui">SEEN BY THE BARANGAY</span> when a volunteer or official has acknowledged
+    it — with the time you have been waiting, counting up.</li>
+    <li>With no signal it is accepted anyway, timed from the press, and sent automatically
+    when the connection returns.</li>
+    <li>With no GPS fix your purok is sent instead, so responders still know which street to
+    search.</li>
+    <li>To cancel, press and hold. A single tap cannot cancel a rescue request.</li>
+  </ul>
+
+  <div class="warn">
+    <span class="label">If nobody comes</span>
+    <p>SalbaBayan alerts the barangay's own volunteers and officials. It does not call the
+    fire service, the police or the Coast Guard. In a life-threatening emergency, use the
+    telephone as well.</p>
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+
+<section>
+  <h2>5 · For volunteers</h2>
+  <div class="role-bar"><span>Resident</span><span class="on">Volunteer</span><span>Official</span></div>
+  <p class="lead">The bottom bar changes: HOME, SCAN, RESCUE, COUNT, ME. Everything a
+  resident can do is still there.</p>
+
+  <h3>RESCUE — the queue and the map</h3>
+  <p>A full-screen map of the barangay with every open rescue request on it. Waiting calls
+  pulse; that is the only thing on the map that moves.</p>
+  <ul>
+    <li><strong>The hamburger button</strong> at the top right opens the queue, oldest call
+    first, with how long each has been waiting. The number beside it is how many are open.</li>
+    <li><strong>Answering a call</strong> marks it seen for everyone, and draws your own
+    walking route to it from where you are. The map then keeps both you and the call in view.</li>
+    <li><strong>More than one of you may take the same call.</strong> Each phone draws its own
+    route from its own position, and nobody sees anyone else's.</li>
+    <li><strong>Marking it rescued</strong> closes it for everyone and clears the route from
+    every phone that was going.</li>
+    <li>Hazards and flood readings are on this map too, so a route around a blocked road can
+    be seen before setting out.</li>
+  </ul>
+
+  <h3>SCAN — checking residents into a centre</h3>
+  <p>Point the camera at a resident's QR card, or type the code from it such as
+  <span class="ui">SB-0142</span>. Then log what is true of them:</p>
+  <ul>
+    <li><span class="ui">HERE</span> — they are at this centre.</li>
+    <li><span class="ui">MOVED ON</span> — they have left for somewhere else.</li>
+    <li><span class="ui">NEEDS HELP</span> — flag them as a priority.</li>
+    <li>Priorities — medical, elderly, infant — may be added so the hall knows who needs
+    attention first.</li>
+  </ul>
+  <p class="small">If the camera cannot be used, manual entry does the same job. Scanning
+  works with no signal; the scans are held and sent when the connection returns.</p>
+
+  <h3>COUNT — how many are inside</h3>
+  <p>Choose the centre, then add people as they come in — one at a time, or a family together
+  with the bulk count. The screen shows how many are inside, the capacity, and how many spaces
+  are left, turning to <span class="ui">FILLING UP</span> and then
+  <span class="ui">FULL — DIRECT PEOPLE ELSEWHERE</span>.</p>
+
+  <div class="note">
+    <span class="label">The ledger is append-only</span>
+    <p>Entries are never erased. A mistake is corrected by adding a correction, so the record
+    of what was counted, when and by whom always survives. Two volunteers counting at the same
+    door at the same time cannot overwrite each other.</p>
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+
+<section>
+  <h2>6 · For officials</h2>
+  <div class="role-bar"><span>Resident</span><span>Volunteer</span><span class="on">Official</span></div>
+  <p class="lead">The dashboard is a full-screen map of the barangay with everything on it, and
+  a sidebar opened from the menu button.</p>
+
+  <h3>The map</h3>
+  <ul>
+    <li><strong>Tap any street</strong> to drop a pin and choose what it is: a hazard, a flood
+    depth, or a new evacuation centre. The pin is saved only after a press and hold.</li>
+    <li><strong>Tap any existing pin</strong> to read it in the sidebar and act on it.</li>
+    <li>The counts at the top left — SOS, hazards, flood readings — stay visible while the
+    sidebar is shut.</li>
+  </ul>
+
+  <h3>Changing the advisory</h3>
+  <ol class="steps">
+    <li>Open <span class="ui">CHANGE ADVISORY</span> in the sidebar.</li>
+    <li>Choose the level, and fill in the storm name, bulletin number and wind speed.</li>
+    <li>At Signal 3 and above a leave-before time is required, and must be in the future.</li>
+    <li>Check the preview — it is drawn with the same components residents will see.</li>
+    <li>Press and hold to issue it.</li>
+  </ol>
+  <p>Until the change reaches the barangay's records, the screen says
+  <span class="ui">NOT SENT YET</span> and tells you to use the megaphone or the radio in the
+  meantime. It says <span class="ui">SENT</span> when residents have actually been told, and
+  <span class="ui">REFUSED</span> if it was rejected.</p>
+
+  <h3>The PAGASA bulletin</h3>
+  <p>The dashboard reads PAGASA's tropical cyclone bulletin and shows the storm, the bulletin
+  number, the issue time, the winds, and the wind signal that covers this barangay. It always
+  states when it was read and links to the bulletin itself.</p>
+  <ul>
+    <li><span class="ui">USE THIS BULLETIN</span> fills the advisory form with those values.
+    It does not issue anything: you still read every field and press and hold, exactly as if
+    you had typed them.</li>
+    <li>If PAGASA lists only part of the province — "the northern portion of Ilocos Norte" —
+    the card shows the number but leaves the level alone and asks you to read the bulletin.
+    Batac is not in every part of Ilocos Norte.</li>
+    <li>If the card says the bulletin could not be read, read it at PAGASA and set the
+    advisory by hand. It is a reading aid; it is never the authority.</li>
+  </ul>
+
+  <div class="warn">
+    <span class="label">The bulletin is not an instruction</span>
+    <p>PAGASA's wind signal covers a province. The barangay's signal is a decision about this
+    barangay, made by an official who knows which streets flood first. Nothing reaches
+    residents that an official has not confirmed.</p>
+  </div>
+
+  <h3>Evacuation centres</h3>
+  <p>Up to three. Each has a name and a capacity, and each must sit inside the barangay.
+  Residents are routed to whichever is nearest to their street, so adding or moving one
+  re-routes the map for everyone. The barangay must keep at least one.</p>
+
+  <h3>Flood readings</h3>
+  <p>Only officials may clear a reading. Placing a new reading on the same spot clears the
+  older ones there, so the map shows what the water is doing now rather than a pile of
+  readings from this morning.</p>
+
+  <h3>User management</h3>
+  <p>Open from the dashboard. Search by name or device code, choose a role, press and hold.
+  The same screen holds the 4-digit PIN and the access code, and the switch that turns the
+  access code off.</p>
+
+  <h3>Readiness and coverage</h3>
+  <p><span class="ui">READY</span> checks the things that must be true before a storm: a
+  protocol for every purok and signal, the translations, the volunteers, the residents
+  registered against the household count, and that every centre has a location. Each gap has
+  a <em>Fix</em> that goes straight to the screen that closes it.</p>
+  <p>Documents saved on that screen are readable with no signal, once the screen has been
+  opened once with a connection.</p>
+</section>
+
+<!-- ===================================================================== -->
+
+<section>
+  <h2>7 · Before the storm season</h2>
+  <p class="lead">Work through this once, in fair weather. Every item is something only a
+  person who knows the barangay can do.</p>
+
+  <table>
+    <thead><tr><th>Do this</th><th>Why it matters</th></tr></thead>
+    <tbody>
+      <tr><td>Change the PIN and the access code</td><td>The ones the system was set up with are known to everyone who saw it being built.</td></tr>
+      <tr><td>Grant the real roles</td><td>Each official's and volunteer's own phone, by device code. Remove any left over from testing.</td></tr>
+      <tr><td>Enter names</td><td>A phone with no name on ME cannot file a hazard or flood report. Officials especially.</td></tr>
+      <tr><td>Confirm the evacuation centres</td><td>Names, locations, and true capacities — the capacity is what triggers the FULL warning.</td></tr>
+      <tr><td>Enter the household count</td><td>Until it is entered, readiness cannot say whether enough residents are registered.</td></tr>
+      <tr><td>Check the boundary and the routes</td><td>Walk one route on the map against the real street. The map is built from OpenStreetMap, which can be wrong or out of date.</td></tr>
+      <tr><td>Check the purok protocols</td><td>Every purok, every signal, in the language residents read.</td></tr>
+      <tr><td>Have everyone install the app</td><td>Once, with a connection, so the map and wording are on the phone before they are needed.</td></tr>
+      <tr><td>Rehearse one advisory</td><td>Issue Signal 1 and lift it, so the officials have used the control before the night they must.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ===================================================================== -->
+
+<section>
+  <h2>8 · When something is wrong</h2>
+
+  <table>
+    <thead><tr><th>What you see</th><th>What it means and what to do</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>The map is a plain drawing with no colours</td>
+        <td>The phone could not fetch the street map, so it is showing the barangay's own
+        drawn map. Every street, route and pin is still correct. It will come back with the
+        connection.</td>
+      </tr>
+      <tr>
+        <td>CACHED 6 HOURS AGO</td>
+        <td>No connection since then. What is shown is six hours old — treat it as such, and
+        do not assume no news is good news.</td>
+      </tr>
+      <tr>
+        <td>Something stuck in WAITING TO SEND</td>
+        <td>Normal with no signal. If it persists with a good connection, open the item and
+        read the reason.</td>
+      </tr>
+      <tr>
+        <td>A report is refused</td>
+        <td>Most often there is no name on that phone's ME screen. Enter one and send again.</td>
+      </tr>
+      <tr>
+        <td>The official pages will not open</td>
+        <td>Either the phone has not been made an official in User Management, or the PIN is
+        wrong. The PIN alone never grants access.</td>
+      </tr>
+      <tr>
+        <td>Too many wrong codes</td>
+        <td>Entry is locked for ten minutes on that phone. This is deliberate.</td>
+      </tr>
+      <tr>
+        <td>The camera will not scan</td>
+        <td>Either permission was refused or the page is not on a secure connection. Use
+        manual entry — it records exactly the same thing.</td>
+      </tr>
+      <tr>
+        <td>The SOS button does nothing visible</td>
+        <td>It has still been recorded. Look for SENT and the waiting time. If the phone is
+        offline it is held and will go automatically.</td>
+      </tr>
+      <tr>
+        <td>A screen shows raw words like <span class="ui">ui.signal_no</span></td>
+        <td>The wording has not reached this phone yet. Open it once with a connection.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Reporting a fault</h3>
+  <p>Note which screen, what the strip at the top said, and whether the phone had a signal.
+  Those three things are usually enough to find it.</p>
+
+  <div class="note">
+    <span class="label">What this app is not</span>
+    <p>SalbaBayan does not replace PAGASA, the municipal disaster office, or the emergency
+    telephone numbers. It carries one barangay's own warning, its own map and its own rescue
+    calls, and it is built so that those keep working when the network does not.</p>
+  </div>
+</section>
+
+</body>
+</html>
