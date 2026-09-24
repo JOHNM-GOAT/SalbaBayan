@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 // Namespace import: maplibre-gl ships no default export, and importing one
 // type-checks under `esModuleInterop` but fails at bundle time.
 import * as maplibregl from "maplibre-gl";
@@ -12,7 +12,13 @@ import { MapLegend } from "@/components/MapLegend";
 import { loadStreetStyle, onStyleReady, sketchStyle } from "@/lib/basemap";
 import { barangayCentre } from "@/lib/advisory";
 import { sharedView, trackView } from "@/lib/mapView";
-import { CENTRE_ICON, SOS_ICON, pinElement, pinMarker } from "@/lib/mapMarks";
+import { CENTRE_ICON, HAZARD_ICON, SOS_ICON, WATER_ICON, hazardColour, pinElement, pinMarker } from "@/lib/mapMarks";
+import { CATEGORY_TONE, allOpenHazards, subscribeHazards, type Hazard } from "@/lib/hazards";
+import { allWaterReports, subscribeWaterReports, type WaterReport } from "@/lib/water";
+import { DEPTH_COLOUR, placeWater } from "@/lib/waterMap";
+import { HazardBrief, WaterBrief } from "@/components/MapDetail";
+import { focusHazard } from "@/lib/hazardFocus";
+import { onQueueChanged } from "@/lib/offlineQueue";
 import { resolveColour } from "@/lib/signal";
 import {
   acknowledge,
@@ -68,6 +74,11 @@ export default function ResponderPage() {
   const [now, setNow] = useState(() => Date.now());
   const [epoch, setEpoch] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /* The same two overlays the residents' maps carry: open hazards, and water
+     readings from the last day. A rescuer needs to know what is in the way. */
+  const [hazards, setHazards] = useState<Hazard[]>([]);
+  const [water, setWater] = useState<WaterReport[]>([]);
+  const [mark, setMark] = useState<{ hazard: string } | { water: string } | null>(null);
   /* Null until the volunteer opens or closes it: the screen decides until then. */
   const [listChoice, setListChoice] = useState<boolean | null>(null);
   const wide = useSyncExternalStore(subscribeWide, isWide, () => false);
@@ -93,6 +104,18 @@ export default function ResponderPage() {
       window.clearInterval(tick);
     };
   }, [refresh]);
+
+  /* Live, like the queue: a road blocked while a boat is out matters here. */
+  useEffect(() => {
+    const load = () =>
+      void Promise.all([allOpenHazards(100), allWaterReports(40)]).then(([open, recent]) => {
+        setHazards(open);
+        setWater(recent);
+      });
+    queueMicrotask(load);
+    const stops = [subscribeHazards(load), subscribeWaterReports(load), onQueueChanged(load)];
+    return () => stops.forEach((stop) => stop());
+  }, []);
 
   const barangay = snapshot?.barangay ?? null;
 
@@ -187,7 +210,21 @@ export default function ResponderPage() {
     });
   }, [outline, epoch]);
 
-  /* Pins: the centres, then every call. The same marks as the other maps. */
+  /* A hazard with no point of its own sits on its street's point, faded. */
+  const placedHazards = useMemo(
+    () =>
+      hazards.flatMap((h) => {
+        if (h.lat != null && h.lng != null) return [{ ...h, approx: false }];
+        const area = snapshot?.puroks.find((a) => a.id === h.purok_id);
+        return area?.lat != null && area.lng != null
+          ? [{ ...h, lat: area.lat, lng: area.lng, approx: true }]
+          : [];
+      }),
+    [hazards, snapshot],
+  );
+  const placedWater = useMemo(() => placeWater(snapshot, water, now), [snapshot, water, now]);
+
+  /* Pins: the centres, the other reports, then every call. The same marks as the other maps. */
   const centres = snapshot?.centers;
   useEffect(() => {
     const m = map.current;
@@ -206,6 +243,31 @@ export default function ResponderPage() {
       markers.current.push(pinMarker(el, centre.lng, centre.lat).addTo(m));
     }
 
+    for (const h of placedHazards) {
+      const el = pinElement({
+        colour: hazardColour(CATEGORY_TONE[h.category] ?? "alarm"),
+        icon: HAZARD_ICON[h.category] ?? HAZARD_ICON.other,
+        label: t(`cat.${h.category}`),
+        height: 30,
+        onClick: () => setMark({ hazard: h.id }),
+      });
+      // A street's point, not the reporter's: "somewhere here", drawn faded.
+      if (h.approx) el.style.opacity = "0.7";
+      markers.current.push(pinMarker(el, h.lng as number, h.lat as number).addTo(m));
+    }
+
+    for (const w of placedWater) {
+      const el = pinElement({
+        colour: DEPTH_COLOUR[w.report.level_category],
+        icon: WATER_ICON,
+        label: t(`water.${w.report.level_category}`),
+        height: 28,
+        onClick: () => setMark({ water: w.report.id }),
+      });
+      if (w.approx) el.style.opacity = "0.7";
+      markers.current.push(pinMarker(el, w.lng, w.lat).addTo(m));
+    }
+
     for (const request of queue) {
       /*
        * A request with no fix cannot be plotted. It is deliberately NOT
@@ -220,6 +282,7 @@ export default function ResponderPage() {
         label: t("nav.sos"),
         height: selected ? 46 : 38,
         onClick: () => {
+          setMark(null);
           setSelectedId(request.id);
           setListChoice(true);
           m.easeTo({
@@ -233,7 +296,7 @@ export default function ResponderPage() {
       if (selected) marker.getElement().style.zIndex = "2";
       markers.current.push(marker);
     }
-  }, [queue, centres, selectedId, epoch, t]);
+  }, [queue, centres, placedHazards, placedWater, selectedId, epoch, t]);
 
   /*
    * Framing: where the hazard and evacuation maps were left, if they have been
@@ -270,6 +333,11 @@ export default function ResponderPage() {
   }, [epoch]);
 
   const oldest = queue[0];
+  const markedHazard =
+    mark && "hazard" in mark ? (hazards.find((h) => h.id === mark.hazard) ?? null) : null;
+  const markedWater =
+    mark && "water" in mark ? (placedWater.find((w) => w.report.id === mark.water) ?? null) : null;
+  const areaName = (id: string) => snapshot?.puroks.find((a) => a.id === id)?.name ?? "";
   const loadingQueue = useSkeletonGate(settled);
 
   return (
@@ -314,6 +382,29 @@ export default function ResponderPage() {
 
         {/* The oldest unanswered call, and the way into the list on a phone. */}
         <div className="pointer-events-none absolute inset-x-0 bottom-14 z-10 grid gap-2 p-2.5 pr-14 sm:bottom-9 sm:max-w-md sm:pr-2.5">
+          {markedHazard && (
+            <div className="pointer-events-auto shadow-md">
+              <HazardBrief
+                hazard={markedHazard}
+                area={areaName(markedHazard.purok_id)}
+                now={now}
+                onOpen={() => focusHazard(markedHazard.id)}
+                onClose={() => setMark(null)}
+              />
+            </div>
+          )}
+          {markedWater && (
+            <div className="pointer-events-auto shadow-md">
+              <WaterBrief
+                report={markedWater.report}
+                area={areaName(markedWater.report.purok_id)}
+                approx={markedWater.approx}
+                now={now}
+                onClose={() => setMark(null)}
+              />
+            </div>
+          )}
+
           {oldest && oldest.status === "pending" && (
             <button
               type="button"
