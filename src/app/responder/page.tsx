@@ -26,7 +26,7 @@ import { CATEGORY_TONE, allOpenHazards, subscribeHazards, type Hazard } from "@/
 import { allWaterReports, subscribeWaterReports, type WaterReport } from "@/lib/water";
 import { DEPTH_COLOUR, placeWater, waterOpacity } from "@/lib/waterMap";
 import { HazardBrief, WaterBrief } from "@/components/MapDetail";
-import { focusHazard } from "@/lib/hazardFocus";
+import { focusHazard, focusWater } from "@/lib/hazardFocus";
 import { onQueueChanged } from "@/lib/offlineQueue";
 import { resolveColour } from "@/lib/signal";
 import {
@@ -545,6 +545,7 @@ export default function ResponderPage() {
                 approx={markedWater.approx}
                 stale={markedWater.stale}
                 now={now}
+                onOpen={() => focusWater(markedWater.report.id)}
                 onClose={() => setMark(null)}
               />
             </div>

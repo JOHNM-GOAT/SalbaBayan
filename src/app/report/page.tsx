@@ -29,7 +29,7 @@ import {
 import { useMyRole } from "@/components/useMyRole";
 import { useMyProfile } from "@/components/useMyProfile";
 import { ProfileForm } from "@/components/ProfileForm";
-import { focusHazard } from "@/lib/hazardFocus";
+import { focusHazard, focusWater } from "@/lib/hazardFocus";
 import { pendingPhotoCount } from "@/lib/photoQueue";
 import { startPositionWatch, type Fix } from "@/lib/sos";
 import { SkeletonFeed, useSkeletonGate } from "@/components/Skeleton";
@@ -103,6 +103,21 @@ export default function ReportPage() {
 
   const purokName = (id: string) =>
     snapshot?.puroks.find((p) => p.id === id)?.name ?? "";
+
+  /*
+   * Whether a flood reading can be put on the map at all.
+   *
+   * It is pinned at its own point when the reporter attached one, and on its
+   * street's otherwise — the same rule the maps themselves follow
+   * (lib/waterMap.ts). A reading with neither has nowhere to go, and a pin
+   * button on it would open the sheet onto the general overview, which is not
+   * what it promises.
+   */
+  const waterOnMap = (report: WaterReport) => {
+    if (report.lat != null && report.lng != null) return true;
+    const area = snapshot?.puroks.find((p) => p.id === report.purok_id);
+    return area?.lat != null && area.lng != null;
+  };
 
   /*
    * "The first read has finished", which is NOT "there is something to show".
@@ -429,22 +444,13 @@ export default function ReportPage() {
             <ul className="flex flex-col gap-2">
               {feed.map((entry) =>
                 entry.kind === "water" ? (
-                  <li
+                  <WaterRow
                     key={entry.water.id}
-                    className="flex items-center gap-3 rounded-instrument border-[1.5px] border-line-soft bg-ink-800 px-3 py-2.5"
-                  >
-                    <span
-                      className={`mono shrink-0 text-[11px] font-bold tracking-[0.7px] ${DEPTH_TONE[entry.water.level_category]}`}
-                    >
-                      {t(`water.${entry.water.level_category}`)}
-                    </span>
-                    <span className="flex-1 truncate text-[12.5px]">
-                      {entry.water.location_label ?? purokName(entry.water.purok_id)}
-                    </span>
-                    <span className="mono shrink-0 text-[10px] text-paper-3">
-                      {agoLabel(entry.water.ts, now)}
-                    </span>
-                  </li>
+                    report={entry.water}
+                    now={now}
+                    area={purokName(entry.water.purok_id)}
+                    showOnMap={waterOnMap(entry.water)}
+                  />
                 ) : (
                   <HazardRow
                     key={entry.hazard.id}
@@ -464,6 +470,62 @@ export default function ReportPage() {
         </section>
       </main>
     </>
+  );
+}
+
+/**
+ * One flood reading in the feed. Tapping it shows the water on the hazard map,
+ * exactly as tapping a hazard row shows the hazard — a depth with a street name
+ * beside it answers "how deep", and people then want "where".
+ */
+function WaterRow({
+  report,
+  now,
+  area,
+  showOnMap,
+}: {
+  report: WaterReport;
+  now: number;
+  area: string;
+  showOnMap: boolean;
+}) {
+  const t = useT();
+
+  const summary = (
+    <div className="flex items-center gap-3">
+      <span
+        className={`mono shrink-0 text-[11px] font-bold tracking-[0.7px] ${DEPTH_TONE[report.level_category]}`}
+      >
+        {t(`water.${report.level_category}`)}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-left text-[12.5px]">
+        {report.location_label ?? area}
+      </span>
+      <span className="mono shrink-0 text-[10px] text-paper-3">{agoLabel(report.ts, now)}</span>
+      {/* The affordance, as on a hazard row: without it the row reads as a
+          label and nobody finds out it goes anywhere. */}
+      {showOnMap && (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--color-hv)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
+          <path d="M12 22s7-7.58 7-13a7 7 0 0 0-14 0c0 5.42 7 13 7 13z" />
+          <circle cx="12" cy="9" r="2.5" />
+        </svg>
+      )}
+    </div>
+  );
+
+  return (
+    <li className="rounded-instrument border-[1.5px] border-line-soft bg-ink-800 px-3 py-2.5">
+      {/* No `aria-label` here, for the reason spelled out on the hazard row:
+          it would replace the depth, place and age with one identical name. */}
+      {showOnMap ? (
+        <button type="button" onClick={() => focusWater(report.id)} className="w-full">
+          {summary}
+          <span className="sr-only">{t("hz.title")}</span>
+        </button>
+      ) : (
+        summary
+      )}
+    </li>
   );
 }
 

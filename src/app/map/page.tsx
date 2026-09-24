@@ -11,7 +11,7 @@ import { allWaterReports, subscribeWaterReports, type WaterReport } from "@/lib/
 import { DEPTH_COLOUR, placeWater, waterOpacity } from "@/lib/waterMap";
 import { MapLegend } from "@/components/MapLegend";
 import { CentreDetail, HazardBrief, WaterBrief, YouDetail, type MapSelection } from "@/components/MapDetail";
-import { focusHazard } from "@/lib/hazardFocus";
+import { focusHazard, focusWater } from "@/lib/hazardFocus";
 import { CENTRE_ICON, HAZARD_ICON, WATER_ICON, hazardColour, pinElement, pinMarker, youElement } from "@/lib/mapMarks";
 import { sharedView, trackView } from "@/lib/mapView";
 import { CATEGORY_TONE, type Category } from "@/lib/hazards";
@@ -874,6 +874,7 @@ export default function MapPage() {
               approx={selectedWater.approx}
               stale={selectedWater.stale}
               now={now}
+              onOpen={() => focusWater(selectedWater.report.id)}
               onClose={() => setSelection(null)}
             />
           </div>

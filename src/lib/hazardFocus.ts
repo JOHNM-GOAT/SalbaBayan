@@ -14,17 +14,33 @@
  * points at.
  */
 
-type Listener = (hazardId: string) => void;
+/**
+ * Which report to show. Hazards and flood readings are separate tables with
+ * separate pins, so the kind travels with the id rather than being guessed at
+ * the far end.
+ */
+export type FocusRequest = { kind: "hazard" | "water"; id: string };
+
+type Listener = (request: FocusRequest) => void;
 
 const listeners = new Set<Listener>();
 
-/** Open the hazard map on this report. */
+/** Open the hazard map on this hazard report. */
 export function focusHazard(hazardId: string): void {
-  // Copied before notifying: a listener may unsubscribe in response.
-  for (const listener of [...listeners]) listener(hazardId);
+  emit({ kind: "hazard", id: hazardId });
 }
 
-export function onHazardFocus(listener: Listener): () => void {
+/** Open the hazard map on this flood reading. */
+export function focusWater(reportId: string): void {
+  emit({ kind: "water", id: reportId });
+}
+
+function emit(request: FocusRequest): void {
+  // Copied before notifying: a listener may unsubscribe in response.
+  for (const listener of [...listeners]) listener(request);
+}
+
+export function onReportFocus(listener: Listener): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);

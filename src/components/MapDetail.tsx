@@ -148,6 +148,7 @@ export function WaterBrief({
   approx,
   stale,
   now,
+  onOpen,
   onClose,
 }: {
   report: WaterReport;
@@ -157,6 +158,8 @@ export function WaterBrief({
   /** Old enough that the water has probably moved (lib/waterMap.ts). */
   stale?: boolean;
   now: number;
+  /** Opens this reading on the hazard map, as the hazard card does. */
+  onOpen?: () => void;
   onClose: () => void;
 }) {
   const t = useT();
@@ -181,6 +184,15 @@ export function WaterBrief({
         )}
         {approx && <span className="text-caution"> · {t("dash.area_only")}</span>}
       </p>
+      {onOpen && (
+        <button
+          type="button"
+          onClick={onOpen}
+          className="tap mono mt-1.5 flex w-full items-center justify-center rounded-instrument border-[1.5px] border-hv text-[10px] font-bold tracking-[1px] text-hv"
+        >
+          {t("hz.title")}
+        </button>
+      )}
     </Card>
   );
 }

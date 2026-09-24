@@ -11,7 +11,7 @@ import { HazardPhoto } from "./HazardPhoto";
 import { loadStreetStyle, onStyleReady, sketchStyle } from "@/lib/basemap";
 import { FALLBACK_CENTRE } from "@/lib/advisory";
 import { onQueueChanged } from "@/lib/offlineQueue";
-import { onHazardFocus } from "@/lib/hazardFocus";
+import { onReportFocus, type FocusRequest } from "@/lib/hazardFocus";
 import { agoLabel, allWaterReports, subscribeWaterReports, type WaterReport } from "@/lib/water";
 import { DEPTH_COLOUR, placeWater, waterOpacity, type PlacedWater } from "@/lib/waterMap";
 import { resolveColour } from "@/lib/signal";
@@ -123,12 +123,13 @@ export function HazardSheet() {
    * has to mount, and MapLibre has to load a style before anything can be
    * centred. The pin effect picks this up once there is a map to move.
    */
-  const pendingFocus = useRef<string | null>(null);
+  const pendingFocus = useRef<FocusRequest | null>(null);
   useEffect(
     () =>
-      onHazardFocus((id) => {
-        pendingFocus.current = id;
-        setSelectedId(id);
+      onReportFocus((request) => {
+        pendingFocus.current = request;
+        setSelectedId(request.kind === "hazard" ? request.id : null);
+        setWaterId(request.kind === "water" ? request.id : null);
         setOpen(true);
       }),
     [],
@@ -343,9 +344,13 @@ export function HazardSheet() {
        * they tapped a row to see where it is, so the map goes there rather than
        * fitting everything and leaving them to find it.
        */
-      const wanted = pendingFocus.current
-        ? placed.find((h) => h.id === pendingFocus.current)
-        : null;
+      const request = pendingFocus.current;
+      const wanted =
+        request?.kind === "hazard"
+          ? (placed.find((h) => h.id === request.id) ?? null)
+          : request?.kind === "water"
+            ? (placedWater.find((w) => w.report.id === request.id) ?? null)
+            : null;
 
       if (wanted) {
         pendingFocus.current = null;
