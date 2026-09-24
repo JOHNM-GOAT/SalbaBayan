@@ -269,3 +269,82 @@ export function fromLocalInputValue(value: string): Date | null {
 
   return date;
 }
+
+/* ---------------------------------------------------------------------------
+ * Filling the form from a PAGASA bulletin
+ *
+ * The bulletin is read elsewhere (lib/pagasa.ts); what arrives here is the
+ * handful of values it yielded, described structurally so this file keeps its
+ * no-imports rule and its test keeps loading in plain Node.
+ * ------------------------------------------------------------------------ */
+
+/** What a bulletin gives the form. A null is a field that could not be read. */
+export type BulletinValues = {
+  stormName: string | null;
+  bulletinNo: number | null;
+  windKph: number | null;
+};
+
+/**
+ * The wind signal for this barangay, and whether the bulletin plainly says so.
+ *
+ * `certain` is false when the bulletin names only a part of the province — "the
+ * northern portion of Ilocos Norte" — without naming this municipality inside
+ * it. See `matchArea` in lib/pagasa.ts, which is where that judgement is made.
+ */
+export type BulletinSignal = { level: number; certain: boolean } | null;
+
+/**
+ * The advisory form, filled in from a bulletin. Filled, not saved: the official
+ * reads every field and holds the confirm button exactly as when they type them
+ * — the prefill only stops them transcribing four numbers off a second screen
+ * during a storm.
+ *
+ * Two rules decide what is filled:
+ *
+ *   1. A value that could not be read leaves the form's own alone. A bulletin
+ *      this parser failed on must not wipe a wind speed an official typed.
+ *   2. The LEVEL is filled only from a certain signal. Raising a barangay to
+ *      level 3 starts an evacuation, and that is not something to infer from an
+ *      ambiguous sentence about part of a province.
+ */
+export function bulletinToAdvisory(
+  bulletin: BulletinValues,
+  signal: BulletinSignal,
+  current: AdvisoryValues,
+  now: number,
+): AdvisoryValues {
+  const level = levelFromBulletin(signal, current.level);
+
+  return {
+    level,
+    stormName: bulletin.stormName ?? current.stormName,
+    bulletinNo: bulletin.bulletinNo == null ? current.bulletinNo : String(bulletin.bulletinNo),
+    windKph: bulletin.windKph == null ? current.windKph : String(bulletin.windKph),
+    // The same deadline rule as any other level change, above.
+    evacuateBy: defaultLeaveBy(current.level, level, current.evacuateBy, now),
+  };
+}
+
+/** The level a bulletin may fill in, or the form's own when it may not. */
+export function levelFromBulletin(signal: BulletinSignal, fallback: number): number {
+  return signal && signal.certain ? signal.level : fallback;
+}
+
+/**
+ * Whether applying this bulletin would change anything residents can see.
+ *
+ * Keeps the card quiet: an official who has already applied bulletin 14 should
+ * see that it is applied, not a standing invitation to apply it again.
+ */
+export function differsFromAdvisory(
+  bulletin: BulletinValues,
+  signal: BulletinSignal,
+  current: AdvisoryValues,
+): boolean {
+  if (levelFromBulletin(signal, current.level) !== current.level) return true;
+  if (bulletin.bulletinNo != null && String(bulletin.bulletinNo) !== current.bulletinNo) return true;
+  if (bulletin.windKph != null && String(bulletin.windKph) !== current.windKph) return true;
+  if (bulletin.stormName != null && bulletin.stormName !== current.stormName) return true;
+  return false;
+}

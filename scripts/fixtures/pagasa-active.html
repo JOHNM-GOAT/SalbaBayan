@@ -1,0 +1,67 @@
+<!--
+  SYNTHETIC. Not a real bulletin, and not saved from PAGASA.
+
+  No tropical cyclone was inside the Philippine area of responsibility when this
+  parser was written (24 September 2026), so there was no live bulletin to save
+  the way scripts/fixtures/pagasa-none.html was saved. This file reproduces the
+  WORDING PAGASA has used for years — "TROPICAL CYCLONE BULLETIN NO.", "Issued
+  at", "TROPICAL CYCLONE WIND SIGNAL NO. n", "Maximum sustained winds of … km/h
+  near the center, gustiness of up to … km/h" — around invented numbers, so the
+  parse can be tested at all.
+
+  What it does NOT prove is that the parse works on the next real bulletin. The
+  first storm of the season is the real test; if this file turns out to have the
+  markup wrong, the official page says it could not read the bulletin and links
+  to it, which is the failure this was designed to have.
+
+  The storm, its track and every place listed here are made up. "AGHON" and
+  "MAN-YI" are used only because they are shaped like the names PAGASA pairs.
+-->
+<div class="row tropical-cyclone-weather-bulletin-page">
+  <div class="col-md-12">
+    <div class="col-md-12 article-header">Tropical Cyclone Bulletin</div>
+    <div class="col-md-12 article-content">
+      <div class="panel">
+        <div class="panel-body">
+          <h3>TROPICAL CYCLONE BULLETIN NO. 12</h3>
+          <h4>Typhoon &laquo;AGHON&raquo; (MAN-YI)</h4>
+          <p>Issued at 5:00 PM, 25 September 2026</p>
+          <p>Valid for broadcast until the next bulletin at 11:00 PM today.</p>
+
+          <p><strong>TROPICAL CYCLONE WIND SIGNAL NO. 3</strong></p>
+          <p>
+            Luzon: the northern portion of Ilocos Norte (Pagudpud, Burgos, Bangui,
+            Adams, Dumalneg, Vintar) and the northwestern portion of Cagayan
+          </p>
+
+          <p><strong>TROPICAL CYCLONE WIND SIGNAL NO. 2</strong></p>
+          <p>
+            Luzon: the rest of Ilocos Norte, Ilocos Sur, Abra, Apayao, and the
+            northern portion of La Union (Bangar, Sudipen, Balaoan)
+          </p>
+
+          <p><strong>TROPICAL CYCLONE WIND SIGNAL NO. 1</strong></p>
+          <p>
+            Luzon: the rest of La Union, Pangasinan, Benguet, Ifugao, Mountain
+            Province, Kalinga, Nueva Vizcaya, and the rest of Cagayan
+          </p>
+
+          <h4>LOCATION OF CENTER</h4>
+          <p>
+            The center of the eye of Typhoon &laquo;AGHON&raquo; was estimated at
+            160 km West of Laoag City, Ilocos Norte.
+          </p>
+
+          <h4>INTENSITY</h4>
+          <p>
+            Maximum sustained winds of 150 km/h near the center, gustiness of up
+            to 185 km/h, and central pressure of 960 hPa.
+          </p>
+
+          <h4>MOVEMENT</h4>
+          <p>West Northwestward at 20 km/h.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

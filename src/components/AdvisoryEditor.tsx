@@ -44,7 +44,17 @@ const INPUT =
  * the dashboard map stays underneath. A sheet from the bottom on a phone, a
  * centred panel on a wider screen. Escape or tapping outside closes it.
  */
-export function AdvisoryModal({ onClose }: { onClose: () => void }) {
+export function AdvisoryModal({
+  onClose,
+  prefill,
+  note,
+}: {
+  onClose: () => void;
+  /** Values to open with — the PAGASA bulletin, filled in but not saved. */
+  prefill?: AdvisoryValues;
+  /** Where those values came from, said on the form itself. */
+  note?: string;
+}) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -68,7 +78,7 @@ export function AdvisoryModal({ onClose }: { onClose: () => void }) {
         aria-labelledby="advisory-title"
         className="max-h-[92dvh] w-full overflow-y-auto rounded-t-instrument border-t-[1.5px] border-line bg-ink-900 shadow-2xl sm:max-w-lg sm:rounded-instrument sm:border-[1.5px]"
       >
-        <AdvisoryEditor onClose={onClose} />
+        <AdvisoryEditor onClose={onClose} prefill={prefill} note={note} />
       </section>
     </div>,
     document.body,
@@ -84,13 +94,28 @@ export function AdvisoryModal({ onClose }: { onClose: () => void }) {
  * future. Saving goes through the offline queue, and the banner at the top says
  * plainly when a change has not reached anyone yet.
  */
-export function AdvisoryEditor({ onClose }: { onClose: () => void }) {
+export function AdvisoryEditor({
+  onClose,
+  prefill,
+  note,
+}: {
+  onClose: () => void;
+  prefill?: AdvisoryValues;
+  note?: string;
+}) {
   const { snapshot, loading } = useSync();
   const t = useT();
   const role = useMyRole();
 
-  /** Null until the official edits something; the form then shows `current`. */
-  const [draft, setDraft] = useState<AdvisoryValues | null>(null);
+  /*
+   * Null until the official edits something; the form then shows `current`.
+   *
+   * A prefill starts the draft off instead — the form opens holding the
+   * bulletin's values, unsaved, with every control still doing what it did.
+   * Nothing about confirming changes: the hold, the deadline rule and the
+   * history below are the same whether the numbers were typed or filled in.
+   */
+  const [draft, setDraft] = useState<AdvisoryValues | null>(prefill ?? null);
 
   /*
    * A clock, so a deadline that passes while the screen is open is caught
@@ -235,6 +260,14 @@ export function AdvisoryEditor({ onClose }: { onClose: () => void }) {
 
       <div className="flex flex-col gap-4 p-4">
         <AdvisoryBanner barangayId={barangay.id} />
+
+        {/* Said once, at the top: these numbers were read off a bulletin by a
+            parser, and the official is the one accountable for them. */}
+        {note && draft && (
+          <p className="rounded-instrument border-[1.5px] border-caution bg-ink-800 px-3 py-2 text-[11.5px] leading-snug text-caution">
+            {note}
+          </p>
+        )}
 
         {/* What residents are reading right now — the server's truth. */}
         <p className="mono text-[11px] tracking-[0.6px] text-paper-2">

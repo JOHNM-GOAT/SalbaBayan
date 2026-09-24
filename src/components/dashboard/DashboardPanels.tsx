@@ -16,6 +16,8 @@ import { signalStyle } from "@/lib/signal";
 import { acknowledge, markRescued } from "@/lib/sos";
 import { agoLabel, clearWaterReport } from "@/lib/water";
 import { acceptedSosPref } from "@/lib/responderRoute";
+import { BulletinCard } from "./BulletinCard";
+import type { AdvisoryValues } from "@/lib/advisoryForm";
 
 export type Tab = "sos" | "hazards" | "water" | "centres";
 
@@ -33,6 +35,9 @@ export function SignalHeader() {
   const { snapshot } = useSync();
   const t = useT();
   const [advisoryOpen, setAdvisoryOpen] = useState(false);
+  /* Set when the advisory form is opened from the PAGASA card, so it opens
+     holding that bulletin's values. Cleared when the form closes. */
+  const [fromBulletin, setFromBulletin] = useState<{ values: AdvisoryValues; note: string } | null>(null);
   if (!snapshot) return null;
   const level = snapshot.barangay.current_signal_level;
   const style = signalStyle(level);
@@ -61,7 +66,22 @@ export function SignalHeader() {
       >
         {t("off.change_advisory")}
       </button>
-      {advisoryOpen && <AdvisoryModal onClose={() => setAdvisoryOpen(false)} />}
+      <BulletinCard
+        onUse={(values, note) => {
+          setFromBulletin({ values, note });
+          setAdvisoryOpen(true);
+        }}
+      />
+      {advisoryOpen && (
+        <AdvisoryModal
+          prefill={fromBulletin?.values}
+          note={fromBulletin?.note}
+          onClose={() => {
+            setAdvisoryOpen(false);
+            setFromBulletin(null);
+          }}
+        />
+      )}
       <AdvisoryBanner barangayId={snapshot.barangay.id} />
     </div>
   );
