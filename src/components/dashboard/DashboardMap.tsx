@@ -245,10 +245,10 @@ export function DashboardMap({
         icon,
         label: labelFor(item),
         height: selected ? size + 12 : size,
+        // An area-only point is drawn faded: it says "somewhere here", not "here".
+        opacity: item.approx && !selected ? "0.7" : undefined,
         onClick: () => onSelect(item.id, "item"),
       });
-      // An area-only point is drawn faded: it says "somewhere here", not "here".
-      if (item.approx && !selected) el.style.opacity = "0.7";
       const marker = pinMarker(el, item.lng, item.lat).addTo(m);
       if (selected) marker.getElement().style.zIndex = "2";
       pins.push(marker);

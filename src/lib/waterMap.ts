@@ -9,10 +9,13 @@ import type { Depth, WaterReport } from "./water";
  * location; otherwise it sits on its street's point and is drawn faded, the
  * same rule the official dashboard uses.
  *
- * Only the last 24 hours: water moves, and a day-old "chest deep" on a map
- * someone is deciding a route from is worse than nothing.
+ * Every reading is shown, the old ones included — an official watching the
+ * dashboard and a resident reading the map should not be looking at different
+ * floods. What age changes is how it is drawn: water moves, so a reading past
+ * FRESH_WATER_MS is faded and carries its age, rather than standing on the map
+ * as though it were current.
  */
-export const WATER_ON_MAP_MS = 24 * 60 * 60 * 1000;
+export const FRESH_WATER_MS = 3 * 60 * 60 * 1000;
 
 export const DEPTH_COLOUR: Record<Depth, string> = {
   knee: "var(--color-clear)",
@@ -21,7 +24,21 @@ export const DEPTH_COLOUR: Record<Depth, string> = {
   above_head: "var(--color-alarm)",
 };
 
-export type PlacedWater = { report: WaterReport; lat: number; lng: number; approx: boolean };
+export type PlacedWater = {
+  report: WaterReport;
+  lat: number;
+  lng: number;
+  /** The point is its street's, not the reporter's. */
+  approx: boolean;
+  /** Older than FRESH_WATER_MS: still shown, drawn faded, age stated. */
+  stale: boolean;
+};
+
+/** How a reading is drawn for its age and how exact its point is. */
+export function waterOpacity(placed: PlacedWater): string {
+  if (placed.stale) return "0.45";
+  return placed.approx ? "0.7" : "1";
+}
 
 export function placeWater(
   snapshot: AdvisorySnapshot | null,
@@ -30,14 +47,14 @@ export function placeWater(
 ): PlacedWater[] {
   const placed: PlacedWater[] = [];
   for (const report of reports) {
-    if (now - Date.parse(report.ts) > WATER_ON_MAP_MS) continue;
+    const stale = now - Date.parse(report.ts) > FRESH_WATER_MS;
     if (report.lat != null && report.lng != null) {
-      placed.push({ report, lat: report.lat, lng: report.lng, approx: false });
+      placed.push({ report, lat: report.lat, lng: report.lng, approx: false, stale });
       continue;
     }
     const area = snapshot?.puroks.find((p) => p.id === report.purok_id);
     if (area?.lat != null && area.lng != null) {
-      placed.push({ report, lat: area.lat, lng: area.lng, approx: true });
+      placed.push({ report, lat: area.lat, lng: area.lng, approx: true, stale });
     }
   }
   return placed;

@@ -146,6 +146,7 @@ export function WaterBrief({
   report,
   area,
   approx,
+  stale,
   now,
   onClose,
 }: {
@@ -153,6 +154,8 @@ export function WaterBrief({
   area: string;
   /** The point is its street's, not the reporter's. */
   approx: boolean;
+  /** Old enough that the water has probably moved (lib/waterMap.ts). */
+  stale?: boolean;
   now: number;
   onClose: () => void;
 }) {
@@ -161,8 +164,13 @@ export function WaterBrief({
     <Card tone="border-l-hv" label={t("dash.tab_water")} onClose={onClose}>
       <p className="mt-1 flex items-baseline gap-2">
         <span className="font-display text-[16px] leading-tight font-extrabold">{t(`water.${report.level_category}`)}</span>
-        <span className="mono text-[10px] text-paper-3">{agoLabel(report.ts, now)}</span>
+        <span className={`mono text-[10px] ${stale ? "font-bold text-caution" : "text-paper-3"}`}>
+          {agoLabel(report.ts, now)}
+        </span>
       </p>
+      {stale && (
+        <p className="mt-1 text-[11.5px] leading-snug text-caution">{t("loc.water_old")}</p>
+      )}
       <p className="mono mt-1 text-[11px] text-paper-2">
         {report.location_label || area}
         {report.lat != null && report.lng != null && (

@@ -8,7 +8,7 @@ import { useSync, useT } from "@/components/AppRuntime";
 import { barangayCentre, deriveAdvisory, FALLBACK_CENTRE } from "@/lib/advisory";
 import { graphFor, rankCentres } from "@/lib/centres";
 import { allWaterReports, subscribeWaterReports, type WaterReport } from "@/lib/water";
-import { DEPTH_COLOUR, placeWater } from "@/lib/waterMap";
+import { DEPTH_COLOUR, placeWater, waterOpacity } from "@/lib/waterMap";
 import { MapLegend } from "@/components/MapLegend";
 import { CentreDetail, HazardBrief, WaterBrief, YouDetail, type MapSelection } from "@/components/MapDetail";
 import { focusHazard } from "@/lib/hazardFocus";
@@ -592,11 +592,12 @@ export default function MapPage() {
         icon: HAZARD_ICON[category] ?? HAZARD_ICON.other,
         label: t(`cat.${category}`),
         height: onRoute ? 40 : 30,
+        // No point of its own: "somewhere on this street", drawn faded.
+        opacity: h.lat == null ? "0.7" : undefined,
         // Tapping says what it is and where, here on the map. The hazard map,
         // one button away in that card, holds the photo and RESOLVE.
         onClick: () => setSelection({ hazard: h.id }),
       });
-      if (h.lat == null) el.style.opacity = "0.7";
       pins.push(pinMarker(el, lng, lat).addTo(m));
     }
     for (const w of placedWater) {
@@ -605,10 +606,10 @@ export default function MapPage() {
         icon: WATER_ICON,
         label: `${t(`water.${w.report.level_category}`)} — ${w.report.location_label ?? ""}`,
         height: 28,
+        // Faded for a street-only point, and more so for an old reading.
+        opacity: waterOpacity(w),
         onClick: () => setSelection({ water: w.report.id }),
       });
-      // A street's point rather than the reporter's: drawn faded.
-      if (w.approx) el.style.opacity = "0.7";
       pins.push(pinMarker(el, w.lng, w.lat).addTo(m));
     }
     /* Every centre; the nearest one, where the route goes, drawn larger. */
@@ -871,6 +872,7 @@ export default function MapPage() {
               report={selectedWater.report}
               area={areaName(selectedWater.report.purok_id)}
               approx={selectedWater.approx}
+              stale={selectedWater.stale}
               now={now}
               onClose={() => setSelection(null)}
             />

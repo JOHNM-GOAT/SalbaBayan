@@ -58,12 +58,22 @@ export function pinElement({
   icon,
   label,
   height = 36,
+  opacity,
   onClick,
 }: {
   colour: string;
   icon: string;
   label: string;
   height?: number;
+  /**
+   * Drawn faded — an approximate point, or an old reading.
+   *
+   * Applied to the drawing inside the marker, never to the marker element:
+   * MapLibre writes that element's own opacity on every frame (it fades
+   * markers hidden behind terrain), so anything set there is wiped within a
+   * frame and the pin quietly comes back at full strength.
+   */
+  opacity?: string;
   onClick?: () => void;
 }): HTMLElement {
   const el = document.createElement(onClick ? "button" : "div");
@@ -78,6 +88,9 @@ export function pinElement({
     onClick ? "cursor:pointer" : "pointer-events:none",
   ].join(";");
   el.innerHTML = teardropSvg(colour, icon, height);
+  if (opacity && el.firstElementChild instanceof SVGElement) {
+    el.firstElementChild.style.opacity = opacity;
+  }
   if (onClick) el.addEventListener("click", onClick);
   return el;
 }

@@ -15,7 +15,7 @@ import { sharedView, trackView } from "@/lib/mapView";
 import { CENTRE_ICON, HAZARD_ICON, SOS_ICON, WATER_ICON, hazardColour, pinElement, pinMarker } from "@/lib/mapMarks";
 import { CATEGORY_TONE, allOpenHazards, subscribeHazards, type Hazard } from "@/lib/hazards";
 import { allWaterReports, subscribeWaterReports, type WaterReport } from "@/lib/water";
-import { DEPTH_COLOUR, placeWater } from "@/lib/waterMap";
+import { DEPTH_COLOUR, placeWater, waterOpacity } from "@/lib/waterMap";
 import { HazardBrief, WaterBrief } from "@/components/MapDetail";
 import { focusHazard } from "@/lib/hazardFocus";
 import { onQueueChanged } from "@/lib/offlineQueue";
@@ -249,10 +249,10 @@ export default function ResponderPage() {
         icon: HAZARD_ICON[h.category] ?? HAZARD_ICON.other,
         label: t(`cat.${h.category}`),
         height: 30,
+        // A street's point, not the reporter's: "somewhere here", drawn faded.
+        opacity: h.approx ? "0.7" : undefined,
         onClick: () => setMark({ hazard: h.id }),
       });
-      // A street's point, not the reporter's: "somewhere here", drawn faded.
-      if (h.approx) el.style.opacity = "0.7";
       markers.current.push(pinMarker(el, h.lng as number, h.lat as number).addTo(m));
     }
 
@@ -262,9 +262,10 @@ export default function ResponderPage() {
         icon: WATER_ICON,
         label: t(`water.${w.report.level_category}`),
         height: 28,
+        // Faded for a street-only point, and more so for an old reading.
+        opacity: waterOpacity(w),
         onClick: () => setMark({ water: w.report.id }),
       });
-      if (w.approx) el.style.opacity = "0.7";
       markers.current.push(pinMarker(el, w.lng, w.lat).addTo(m));
     }
 
@@ -399,6 +400,7 @@ export default function ResponderPage() {
                 report={markedWater.report}
                 area={areaName(markedWater.report.purok_id)}
                 approx={markedWater.approx}
+                stale={markedWater.stale}
                 now={now}
                 onClose={() => setMark(null)}
               />

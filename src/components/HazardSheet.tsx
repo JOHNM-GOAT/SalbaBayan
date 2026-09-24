@@ -13,7 +13,7 @@ import { FALLBACK_CENTRE } from "@/lib/advisory";
 import { onQueueChanged } from "@/lib/offlineQueue";
 import { onHazardFocus } from "@/lib/hazardFocus";
 import { agoLabel, allWaterReports, subscribeWaterReports, type WaterReport } from "@/lib/water";
-import { DEPTH_COLOUR, placeWater, type PlacedWater } from "@/lib/waterMap";
+import { DEPTH_COLOUR, placeWater, waterOpacity, type PlacedWater } from "@/lib/waterMap";
 import { resolveColour } from "@/lib/signal";
 import { startPositionWatch, type Fix } from "@/lib/sos";
 import {
@@ -306,6 +306,9 @@ export function HazardSheet() {
           icon: HAZARD_ICON[hazard.category],
           label: `${t(`cat.${hazard.category}`)} — ${purokName(hazard.purok_id)}`,
           height: hazard.id === selectedId ? 42 : 34,
+          // A street's point, not the reporter's: drawn faded, unless it is
+          // the one being read.
+          opacity: hazard.approx && hazard.id !== selectedId ? "0.7" : undefined,
           onClick: () => {
             setMark(null);
             setWaterId(null);
@@ -313,7 +316,6 @@ export function HazardSheet() {
             m.easeTo({ center: [lng, lat], zoom: Math.max(m.getZoom(), 16.5) });
           },
         });
-        if (hazard.approx && hazard.id !== selectedId) el.style.opacity = "0.7";
         markers.current.push(pinMarker(el, lng, lat).addTo(m));
       }
 
@@ -323,6 +325,9 @@ export function HazardSheet() {
           icon: WATER_ICON,
           label: `${t(`water.${w.report.level_category}`)} — ${purokName(w.report.purok_id)}`,
           height: w.report.id === waterId ? 40 : 30,
+          // Faded for a street-only point, and more so for an old reading —
+          // except the one being read, which is shown in full.
+          opacity: w.report.id === waterId ? undefined : waterOpacity(w),
           onClick: () => {
             setMark(null);
             setSelectedId(null);
@@ -330,8 +335,6 @@ export function HazardSheet() {
             m.easeTo({ center: [w.lng, w.lat], zoom: Math.max(m.getZoom(), 16.5) });
           },
         });
-        // A street's point, not the reporter's: "somewhere here", drawn faded.
-        if (w.approx && w.report.id !== waterId) el.style.opacity = "0.7";
         markers.current.push(pinMarker(el, w.lng, w.lat).addTo(m));
       }
 
@@ -682,7 +685,9 @@ function WaterDetail({
           {t("dash.tab_water")}
         </span>
         <span className="font-display text-[15px] font-extrabold">{t(`water.${report.level_category}`)}</span>
-        <span className="mono ml-auto shrink-0 text-[10px] text-paper-3">{agoLabel(report.ts, now)}</span>
+        <span className={`mono ml-auto shrink-0 text-[10px] ${water.stale ? "font-bold text-caution" : "text-paper-3"}`}>
+          {agoLabel(report.ts, now)}
+        </span>
         <button
           type="button"
           onClick={onDismiss}
@@ -696,6 +701,8 @@ function WaterDetail({
         {where}
         {water.approx && <span className="mono text-[10px] text-caution"> · {t("dash.area_only")}</span>}
       </p>
+      {/* Old enough that the water has probably moved (lib/waterMap.ts). */}
+      {water.stale && <p className="mt-1 text-[11.5px] leading-snug text-caution">{t("loc.water_old")}</p>}
     </div>
   );
 }
