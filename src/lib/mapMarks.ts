@@ -59,6 +59,7 @@ export function pinElement({
   label,
   height = 36,
   opacity,
+  pulse,
   onClick,
 }: {
   colour: string;
@@ -74,6 +75,8 @@ export function pinElement({
    * frame and the pin quietly comes back at full strength.
    */
   opacity?: string;
+  /** Pulses, for a call for help. The only animated mark on the map. */
+  pulse?: boolean;
   onClick?: () => void;
 }): HTMLElement {
   const el = document.createElement(onClick ? "button" : "div");
@@ -88,8 +91,9 @@ export function pinElement({
     onClick ? "cursor:pointer" : "pointer-events:none",
   ].join(";");
   el.innerHTML = teardropSvg(colour, icon, height);
-  if (opacity && el.firstElementChild instanceof SVGElement) {
-    el.firstElementChild.style.opacity = opacity;
+  if (el.firstElementChild instanceof SVGElement) {
+    if (opacity) el.firstElementChild.style.opacity = opacity;
+    if (pulse) el.firstElementChild.classList.add("sos-pulse");
   }
   if (onClick) el.addEventListener("click", onClick);
   return el;

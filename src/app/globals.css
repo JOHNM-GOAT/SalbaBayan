@@ -153,6 +153,29 @@ body {
   color: var(--color-paper-3);
 }
 
+/*
+ * A call for help, pulsing.
+ *
+ * Only the SOS pins carry this, and it is the one animated thing on the map:
+ * an animation that means "urgent" stops meaning anything the moment a second
+ * thing uses it. Stilled for anyone who asks their system for less motion.
+ */
+.sos-pulse {
+  animation: sos-pulse 1.6s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+@keyframes sos-pulse {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(220, 38, 38, 0.55)); }
+  50% { transform: scale(1.12); filter: drop-shadow(0 0 7px rgba(220, 38, 38, 0.75)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sos-pulse {
+    animation: none;
+  }
+}
+
 /* Hazard-stripe banding — safety signage vocabulary, severity states only. */
 .hazard-stripes {
   background-image: repeating-linear-gradient(

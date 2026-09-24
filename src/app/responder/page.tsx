@@ -24,10 +24,19 @@ import {
   acknowledge,
   activeQueue,
   markRescued,
+  startPositionWatch,
   subscribeRescue,
   waitMinutes,
+  type Fix,
   type RescueRequest,
 } from "@/lib/sos";
+import {
+  acceptedSosPref,
+  clearResponderRoute,
+  drawResponderRoute,
+  routeToCall,
+} from "@/lib/responderRoute";
+import type { Point } from "@/lib/geo";
 import { SkeletonLines, useSkeletonGate } from "@/components/Skeleton";
 import { PersonLabel } from "@/components/PersonLabel";
 import { namesFor, type NamedPerson } from "@/lib/profile";
@@ -79,6 +88,21 @@ export default function ResponderPage() {
   const [hazards, setHazards] = useState<Hazard[]>([]);
   const [water, setWater] = useState<WaterReport[]>([]);
   const [mark, setMark] = useState<{ hazard: string } | { water: string } | null>(null);
+  /* This phone's own position, for the route to the call it has taken. */
+  const [fix, setFix] = useState<Fix | null>(null);
+  /*
+   * The call this phone is answering, and whether the map is following it.
+   * Both are this device's own: the call is shared, the route to it is not.
+   */
+  const accepted = useSyncExternalStore(
+    acceptedSosPref.subscribe,
+    () => acceptedSosPref.get(),
+    () => null,
+  );
+  const [following, setFollowing] = useState(true);
+  /* Kept with the call it belongs to, so a stale distance cannot be shown
+     against a different one. */
+  const [routeInfo, setRouteInfo] = useState<{ id: string; metres: number } | null>(null);
   /* Null until the volunteer opens or closes it: the screen decides until then. */
   const [listChoice, setListChoice] = useState<boolean | null>(null);
   const wide = useSyncExternalStore(subscribeWide, isWide, () => false);
@@ -105,6 +129,8 @@ export default function ResponderPage() {
     };
   }, [refresh]);
 
+  useEffect(() => startPositionWatch((next) => setFix(next)), []);
+
   /* Live, like the queue: a road blocked while a boat is out matters here. */
   useEffect(() => {
     const load = () =>
@@ -115,6 +141,21 @@ export default function ResponderPage() {
     queueMicrotask(load);
     const stops = [subscribeHazards(load), subscribeWaterReports(load), onQueueChanged(load)];
     return () => stops.forEach((stop) => stop());
+  }, []);
+
+  /*
+   * The call being answered, if it is still open. A call that has been marked
+   * rescued simply leaves the queue, and with it the route and the lock — for
+   * every responder who took it, without anyone clearing anything by hand.
+   */
+  const answering = accepted ? (queue.find((r) => r.id === accepted) ?? null) : null;
+  const target: Point | null =
+    answering?.lat != null && answering.lng != null ? [answering.lng, answering.lat] : null;
+
+  const take = useCallback((id: string) => {
+    acceptedSosPref.set(id);
+    setFollowing(true);
+    setSelectedId(id);
   }, []);
 
   const barangay = snapshot?.barangay ?? null;
@@ -282,6 +323,8 @@ export default function ResponderPage() {
         icon: SOS_ICON,
         label: t("nav.sos"),
         height: selected ? 46 : 38,
+        // Every open call pulses. It is the only animated mark on the map.
+        pulse: true,
         onClick: () => {
           setMark(null);
           setSelectedId(request.id);
@@ -333,7 +376,69 @@ export default function ResponderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [epoch]);
 
+  /*
+   * The route to the call, redrawn as the responder moves. The fix is rounded
+   * to about 10 m first: a GPS that jitters by a metre would otherwise
+   * recompute the walk several times a second.
+   */
+  const fixKey = fix ? `${fix.lng.toFixed(4)},${fix.lat.toFixed(4)}` : null;
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    if (!target || !fixKey || !answering) {
+      if (m.isStyleLoaded()) clearResponderRoute(m);
+      return;
+    }
+    let live = true;
+    const from = fixKey.split(",").map(Number) as Point;
+    void routeToCall(from, target).then((route) => {
+      if (!live || map.current !== m || !route) return;
+      onStyleReady(m, () => {
+        if (map.current !== m) return;
+        drawResponderRoute(m, route.line);
+        setRouteInfo({ id: answering.id, metres: route.metres });
+      });
+    });
+    return () => {
+      live = false;
+    };
+    // The target's identity is its coordinates, already in the deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixKey, answering, target?.[0], target?.[1], epoch]);
+
+  /* Locked on the call: the map keeps it, and the walk to it, in view. */
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !following || !target) return;
+    framed.current = true;
+    if (!fixKey) {
+      m.easeTo({ center: target, zoom: Math.max(m.getZoom(), 16), duration: 500 });
+      return;
+    }
+    const from = fixKey.split(",").map(Number) as Point;
+    m.fitBounds(
+      [
+        [Math.min(from[0], target[0]), Math.min(from[1], target[1])],
+        [Math.max(from[0], target[0]), Math.max(from[1], target[1])],
+      ],
+      { padding: 80, maxZoom: 17, duration: 500 },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [following, fixKey, target?.[0], target?.[1]]);
+
+  /** Centre on a call — the pin button, and every "take this call". */
+  const centreOn = useCallback((request: RescueRequest) => {
+    const m = map.current;
+    if (!m || request.lat == null || request.lng == null) return;
+    framed.current = true;
+    m.easeTo({ center: [request.lng, request.lat], zoom: Math.max(m.getZoom(), 16.5), duration: 500 });
+  }, []);
+
   const oldest = queue[0];
+  /* What the recentre button goes to: the call being answered, else the one
+     that has waited longest with a point on the map. */
+  const centreTarget =
+    answering ?? queue.find((r) => r.lat != null && r.lng != null) ?? null;
   const markedHazard =
     mark && "hazard" in mark ? (hazards.find((h) => h.id === mark.hazard) ?? null) : null;
   const markedWater =
@@ -428,6 +533,27 @@ export default function ResponderPage() {
             </button>
           )}
 
+          {answering && (
+            <div className="pointer-events-auto flex items-center gap-2 rounded-instrument border-[1.5px] border-alarm bg-ink-900/95 px-3 py-2 shadow-md">
+              <span className="min-w-0 flex-1">
+                <span className="lbl block text-[9px] text-alarm">{t("loc.route_to")}</span>
+                <span className="mono block text-[12px] font-bold">
+                  {routeInfo?.id === answering.id ? `${routeInfo.metres} M` : t("resp.no_fix")}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setFollowing((on) => !on)}
+                aria-pressed={following}
+                className={`tap mono rounded-[3px] border-[1.5px] px-2 text-[9.5px] font-bold tracking-[0.7px] ${
+                  following ? "border-alarm bg-alarm/10 text-alarm" : "border-line-soft text-paper-3"
+                }`}
+              >
+                {t("loc.following")}
+              </button>
+            </div>
+          )}
+
           {!listOpen && (
             <button
               type="button"
@@ -447,6 +573,21 @@ export default function ResponderPage() {
             onClick={() => setListChoice(false)}
             className="absolute inset-0 z-10 bg-paper/20 md:hidden"
           />
+        )}
+
+        {centreTarget && (
+          <button
+            type="button"
+            onClick={() => centreOn(centreTarget)}
+            aria-label={t("loc.centre_call")}
+            title={t("loc.centre_call")}
+            className="tap absolute right-2.5 bottom-[140px] z-10 flex size-11 items-center justify-center rounded-[3px] border-[1.5px] border-alarm bg-ink-900/95 shadow-md sm:bottom-[118px]"
+          >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--color-alarm)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z" />
+              <circle cx="12" cy="10" r="2.5" />
+            </svg>
+          </button>
         )}
 
         <MapLegend rescue />
@@ -511,22 +652,55 @@ export default function ResponderPage() {
                       </span>
                     </div>
 
-                    <div className="mt-2.5 flex gap-2">
-                      {request.status === "pending" ? (
+                    <div className="mt-2.5 grid gap-2">
+                      <div className="flex gap-2">
+                        {request.status === "pending" ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // Answering it is taking it: the route starts here.
+                              take(request.id);
+                              centreOn(request);
+                              void acknowledge(request.id).then(refresh);
+                            }}
+                            className="tap flex-1 rounded-[3px] bg-hv text-[12.5px] font-bold text-hv-ink"
+                          >
+                            {t("resp.ack")}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => void markRescued(request.id).then(refresh)}
+                            className="tap flex-1 rounded-[3px] border-[1.5px] border-clear text-[12.5px] font-bold text-clear"
+                          >
+                            {t("resp.rescued")}
+                          </button>
+                        )}
+                      </div>
+
+                      {/*
+                        Anyone else may take the same call and get their own
+                        route to it; nothing here tells the others what this
+                        phone is doing.
+                      */}
+                      {accepted === request.id ? (
                         <button
                           type="button"
-                          onClick={() => void acknowledge(request.id).then(refresh)}
-                          className="tap flex-1 rounded-[3px] bg-hv text-[12.5px] font-bold text-hv-ink"
+                          onClick={() => acceptedSosPref.set("")}
+                          className="tap mono rounded-[3px] border-[1.5px] border-line-soft text-[10.5px] font-bold tracking-[0.8px] text-paper-3"
                         >
-                          {t("resp.ack")}
+                          {t("loc.stop_route")}
                         </button>
                       ) : (
                         <button
                           type="button"
-                          onClick={() => void markRescued(request.id).then(refresh)}
-                          className="tap flex-1 rounded-[3px] border-[1.5px] border-clear text-[12.5px] font-bold text-clear"
+                          onClick={() => {
+                            take(request.id);
+                            centreOn(request);
+                          }}
+                          className="tap mono rounded-[3px] border-[1.5px] border-alarm text-[10.5px] font-bold tracking-[0.8px] text-alarm"
                         >
-                          {t("resp.rescued")}
+                          {t("loc.take_call")}
                         </button>
                       )}
                     </div>

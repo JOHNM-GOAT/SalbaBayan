@@ -19,6 +19,13 @@ import type { Point } from "@/lib/geo";
 import type { Streets } from "@/lib/walkRoute";
 import { pointInRing } from "@/lib/walkRoute";
 import {
+  acceptedSosPref,
+  clearResponderRoute,
+  drawResponderRoute,
+  routeToCall,
+} from "@/lib/responderRoute";
+import { startPositionWatch, type Fix } from "@/lib/sos";
+import {
   CENTRE_ICON,
   HAZARD_ICON,
   SOS_ICON,
@@ -130,6 +137,18 @@ export function DashboardMap({
   const sheet = useSyncExternalStore(subscribeSheet, isSheet, () => false);
   /* The draft marker's element; the pop-up menu is portalled into it. */
   const [draftEl] = useState(() => (typeof document === "undefined" ? null : draftElement()));
+  /*
+   * The call this official is answering, and the walk to it from where they
+   * are. Both are this device's own — the call is shared, the route is not, so
+   * two people heading to the same call never see each other's line.
+   */
+  const accepted = useSyncExternalStore(
+    acceptedSosPref.subscribe,
+    () => acceptedSosPref.get(),
+    () => null,
+  );
+  const [fix, setFix] = useState<Fix | null>(null);
+  useEffect(() => (accepted ? startPositionWatch((next) => setFix(next)) : undefined), [accepted]);
 
   const barangay = snapshot?.barangay ?? null;
   const outline = barangay?.boundary_geojson ?? null;
@@ -245,6 +264,8 @@ export function DashboardMap({
         icon,
         label: labelFor(item),
         height: selected ? size + 12 : size,
+        // Every open call pulses. It is the only animated mark on the map.
+        pulse: item.kind === "sos",
         // An area-only point is drawn faded: it says "somewhere here", not "here".
         opacity: item.approx && !selected ? "0.7" : undefined,
         onClick: () => onSelect(item.id, "item"),
@@ -319,6 +340,73 @@ export function DashboardMap({
     setModal(false);
   };
 
+  /*
+   * The route to the call being answered, redrawn as the official moves, and
+   * taken off the map the moment that call leaves the list — which is what
+   * being marked rescued does, for every responder at once.
+   */
+  const answering = accepted ? items.find((i) => i.kind === "sos" && i.id === accepted) : undefined;
+  const callAt =
+    answering?.lat != null && answering.lng != null
+      ? ([answering.lng, answering.lat] as Point)
+      : null;
+  const fixKey = fix ? `${fix.lng.toFixed(4)},${fix.lat.toFixed(4)}` : null;
+
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    if (!callAt || !fixKey) {
+      if (m.isStyleLoaded()) clearResponderRoute(m);
+      return;
+    }
+    let live = true;
+    const from = fixKey.split(",").map(Number) as Point;
+    void routeToCall(from, callAt).then((route) => {
+      if (!live || map.current !== m || !route) return;
+      onStyleReady(m, () => {
+        if (map.current === m) drawResponderRoute(m, route.line);
+      });
+    });
+    return () => {
+      live = false;
+    };
+    // The call's identity is its coordinates, already listed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixKey, callAt?.[0], callAt?.[1], epoch]);
+
+  /** Centre on a point — the call being answered, or a tapped one. */
+  const centreOn = (point: Point) => {
+    const m = map.current;
+    if (!m) return;
+    framed.current = true;
+    m.easeTo({ center: point, zoom: Math.max(m.getZoom(), 16.5), duration: 500 });
+  };
+
+  /* Locked on the call: the map keeps it and the walk to it in view. */
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !callAt) return;
+    framed.current = true;
+    if (!fixKey) {
+      m.easeTo({ center: callAt, zoom: Math.max(m.getZoom(), 16), duration: 500 });
+      return;
+    }
+    const from = fixKey.split(",").map(Number) as Point;
+    m.fitBounds(
+      [
+        [Math.min(from[0], callAt[0]), Math.min(from[1], callAt[1])],
+        [Math.max(from[0], callAt[0]), Math.max(from[1], callAt[1])],
+      ],
+      { padding: 80, maxZoom: 17, duration: 500 },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixKey, callAt?.[0], callAt?.[1]]);
+
+  /* The call the recentre button goes to: the one being answered, else the
+     one that has waited longest with a point on the map. */
+  const centreTarget =
+    (answering ?? items.find((i) => i.kind === "sos" && i.lat != null && i.lng != null)) ?? null;
+
   /* Frame everything once; after that the official is in charge of the camera. */
   const showAll = () => {
     const m = map.current;
@@ -384,6 +472,21 @@ export function DashboardMap({
      */
     <div className="absolute inset-0 [&_.maplibregl-ctrl-bottom-left]:bottom-11! [&_.maplibregl-ctrl-bottom-right]:bottom-11! sm:[&_.maplibregl-ctrl-bottom-left]:bottom-7! sm:[&_.maplibregl-ctrl-bottom-right]:bottom-7!">
       <div ref={container} style={{ position: "absolute", inset: 0 }} />
+      {centreTarget?.lat != null && centreTarget.lng != null && (
+        <button
+          type="button"
+          onClick={() => centreOn([centreTarget.lng as number, centreTarget.lat as number])}
+          aria-label={t("loc.centre_call")}
+          title={t("loc.centre_call")}
+          className="tap absolute right-2.5 bottom-[118px] z-10 flex size-11 items-center justify-center rounded-[3px] border-[1.5px] border-alarm bg-ink-900/95 shadow-md"
+        >
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--color-alarm)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z" />
+            <circle cx="12" cy="10" r="2.5" />
+          </svg>
+        </button>
+      )}
+
       <button
         type="button"
         onClick={showAll}

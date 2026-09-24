@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useSync, useT } from "../AppRuntime";
 import { AdvisoryBanner } from "../AdvisoryBanner";
 import { AdvisoryModal } from "../AdvisoryEditor";
@@ -15,6 +15,7 @@ import { resolveHazard } from "@/lib/hazards";
 import { signalStyle } from "@/lib/signal";
 import { acknowledge, markRescued } from "@/lib/sos";
 import { agoLabel, clearWaterReport } from "@/lib/water";
+import { acceptedSosPref } from "@/lib/responderRoute";
 
 export type Tab = "sos" | "hazards" | "water" | "centres";
 
@@ -319,6 +320,12 @@ export function ItemDetail({
           onConfirm={() => void markRescued(item.id).then(onChanged)}
         />
       )}
+
+      {/*
+        Taking a call draws this device's own route to it. Anyone else may take
+        the same call and get their own; nothing here says who else is coming.
+      */}
+      {item.kind === "sos" && item.lat != null && <TakeCall id={item.id} />}
       {item.kind === "hazard" && (
         <HoldToConfirm
           label={t("hazard.resolve")}
@@ -351,6 +358,28 @@ export function ItemDetail({
         </div>
       )}
     </div>
+  );
+}
+
+function TakeCall({ id }: { id: string }) {
+  const t = useT();
+  const accepted = useSyncExternalStore(
+    acceptedSosPref.subscribe,
+    () => acceptedSosPref.get(),
+    () => null,
+  );
+  const mine = accepted === id;
+
+  return (
+    <button
+      type="button"
+      onClick={() => acceptedSosPref.set(mine ? "" : id)}
+      className={`tap mono rounded-instrument border-[1.5px] text-[10.5px] font-bold tracking-[1px] ${
+        mine ? "border-line-soft text-paper-3" : "border-alarm text-alarm"
+      }`}
+    >
+      {mine ? t("loc.stop_route") : t("loc.take_call")}
+    </button>
   );
 }
 
