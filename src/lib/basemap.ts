@@ -30,21 +30,111 @@ export type Basemap = "sketch" | "streets";
 /**
  * Same basemap as the rescue map. No API key, no billing account (Q3).
  *
- * Positron, not the dark style both maps used to carry. The basemap is the
- * largest single area of colour on these screens, and a dark rectangle in an
- * otherwise white interface stops reading as a map and starts reading as a
- * hole. Positron is also the quietest of OpenFreeMap's light styles, which
- * matters more here than it would elsewhere: everything drawn ON the map — the
- * route, the boundary, the hazard pins — has to stay louder than the map.
+ * Liberty, not the grey Positron this used to carry. Positron drew the whole
+ * barangay in four shades of grey: quiet, and unreadable as ground truth — a
+ * river and a road looked alike on a flood map. Liberty is the OpenStreetMap
+ * palette people already know from every other map they open: water and
+ * waterways blue, woods and fields green, the highway yellow, the side streets
+ * white.
+ *
+ * The reason for the old choice still stands — everything drawn ON the map has
+ * to stay louder than the map — and is met by `calmStyle` below rather than by
+ * draining the colour out of the world.
  */
-export const STREET_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
+export const STREET_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 
 /**
  * The dark theme gets OpenFreeMap's dark style. A white rectangle in a dark
  * interface is the same mistake as the reverse, and worse at night: it is the
  * largest lit area on the screen, on the one screen read in the dark.
+ *
+ * That style ships in pure greyscale, so `calmStyle` tints it: the same blue,
+ * green and amber as the day map, at night levels. Without that the dark map
+ * cannot tell a river from a field, which is the distinction this app exists
+ * to draw.
  */
 export const STREET_STYLE_URL_DARK = "https://tiles.openfreemap.org/styles/dark";
+
+/* ---------------------------------------------------------------------------
+ * Making someone else's style fit this one
+ * ------------------------------------------------------------------------ */
+
+/** Night colours for the greyscale dark style — readable, not lit up. */
+const NIGHT = {
+  water: "#14293f",
+  waterway: "#1d3c58",
+  green: "#17301c",
+  roadCasing: "#4a3a1c",
+  road: "#6b5222",
+};
+
+const isWater = (id: string) => /water|river|stream|canal|dock|bay|ocean/i.test(id);
+const isGreen = (id: string) =>
+  /wood|forest|grass|park|scrub|garden|pitch|golf|cemetery|farmland/i.test(id);
+/* "major" as well as the named classes: the dark style groups trunk, primary
+   and secondary into `highway_major_*` rather than naming them. */
+const isMajorRoad = (id: string) => /motorway|trunk|primary|major/i.test(id);
+
+/**
+ * Someone else's style, made to sit under this app's own drawing.
+ *
+ * Two changes, and deliberately no more. A basemap this app rewrites layer by
+ * layer is a basemap that breaks quietly the next time OpenFreeMap ships a new
+ * one, and the whole point of using theirs is not maintaining one.
+ *
+ *   1. The points of interest come off. Restaurant, shop and ATM markers are
+ *      the one part of a street map that competes directly with the pins this
+ *      app draws — same size, same shape, same place on the screen — and a
+ *      hazard that reads as a cafe is a failure of the entire map.
+ *
+ *   2. The dark style gets colour, because it ships with none.
+ *
+ * Everything else — the road hierarchy, the street names, the buildings, the
+ * coastline — is left exactly as it arrived.
+ */
+export function calmStyle(
+  style: StyleSpecification,
+  theme: "light" | "dark",
+): StyleSpecification {
+  const layers = style.layers
+    .filter((layer) => {
+      // By source layer rather than by name: layer ids differ between styles,
+      // the vector tile schema underneath them does not.
+      const source = "source-layer" in layer ? layer["source-layer"] : undefined;
+      return source !== "poi" && !/^poi[_-]/i.test(layer.id);
+    })
+    .map((layer) => (theme === "dark" ? tint(layer) : layer));
+
+  return { ...style, layers };
+}
+
+type Layer = StyleSpecification["layers"][number];
+
+/** One layer, recoloured for night — and only recoloured. */
+function tint(layer: Layer): Layer {
+  if (layer.type !== "fill" && layer.type !== "line") return layer;
+
+  const id = layer.id;
+  const colour = isWater(id)
+    ? layer.type === "line"
+      ? NIGHT.waterway
+      : NIGHT.water
+    : isGreen(id)
+      ? NIGHT.green
+      : isMajorRoad(id)
+        ? /casing|outline/i.test(id)
+          ? NIGHT.roadCasing
+          : NIGHT.road
+        : null;
+
+  if (!colour) return layer;
+
+  /* The paint is replaced one key deep, so widths, dashes and the zoom curves
+     that drive them survive untouched: the colour is this app's business and
+     nothing else here is. */
+  const key = layer.type === "fill" ? "fill-color" : "line-color";
+  return { ...layer, paint: { ...layer.paint, [key]: colour } } as Layer;
+}
 
 /**
  * Bounded so a tower that accepts the connection and then stalls cannot leave
@@ -99,7 +189,9 @@ export async function loadStreetStyle(theme: "light" | "dark" = "light"): Promis
 
   let pending = inflight.get(url);
   if (!pending) {
-    pending = fetchStreetStyle(url).finally(() => inflight.delete(url));
+    pending = fetchStreetStyle(url)
+      .then((style) => (style ? calmStyle(style, theme) : null))
+      .finally(() => inflight.delete(url));
     inflight.set(url, pending);
   }
   const style = await pending;
