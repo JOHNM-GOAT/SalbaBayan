@@ -36,6 +36,21 @@ export type WalkGraph = {
   nodes: string[];
 };
 
+/**
+ * Something on the ground a route should go round: a fallen tree, a blocked
+ * road, a downed line, water deep enough to stop a person walking.
+ *
+ * A radius rather than a point, because none of this is precise. The report's
+ * own position carries tens of metres of error, and a tree across a road blocks
+ * more than the square metre it fell on.
+ */
+export type Blocker = { at: Point; radiusM: number };
+
+export type RouteOptions = {
+  /** Streets passing within a blocker's radius are not walked. */
+  avoid?: Blocker[];
+};
+
 export type Route = {
   /** From the node nearest the start to the node nearest the destination. */
   line: Point[];
@@ -181,13 +196,48 @@ const SHORT: Record<string, string> = {
 };
 
 /**
- * The shortest walk between two points, each snapped to the nearest street.
- * `null` when the graph is empty or the two are not connected.
+ * How far a point lies from a line segment, in metres. Local to this module
+ * for the same reason `metres` is: nothing here may import a value.
  */
-export function walkRoute(graph: WalkGraph, from: Point, to: Point): Route | null {
+function metresToSegment(point: Point, a: Point, b: Point): number {
+  const ab = metres(a, b);
+  if (ab === 0) return metres(point, a);
+
+  /* Project onto the segment in degrees, clamped to its ends, then measure
+     that in metres — the segment is short enough for the flat-earth formula. */
+  const t =
+    ((point[0] - a[0]) * (b[0] - a[0]) + (point[1] - a[1]) * (b[1] - a[1])) /
+    ((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2);
+  const clamped = Math.max(0, Math.min(1, t));
+  const on: Point = [a[0] + clamped * (b[0] - a[0]), a[1] + clamped * (b[1] - a[1])];
+  return metres(point, on);
+}
+
+/**
+ * The shortest walk between two points, each snapped to the nearest street.
+ * `null` when the graph is empty, the two are not connected, or every path
+ * between them passes something in `avoid`.
+ *
+ * That last case is a real answer, not a failure: "there is no way round this"
+ * is what the caller needs in order to say so. A caller must then decide what
+ * to show — lib/centres.ts falls back to the blocked route and marks it, so
+ * that a resident is never left with no route at all.
+ */
+export function walkRoute(
+  graph: WalkGraph,
+  from: Point,
+  to: Point,
+  options: RouteOptions = {},
+): Route | null {
   const start = nearestNode(graph, from);
   const goal = nearestNode(graph, to);
   if (start === null || goal === null) return null;
+
+  const avoid = options.avoid ?? [];
+
+  /** Whether the street between two nodes runs past something to be avoided. */
+  const blocked = (a: Point, b: Point) =>
+    avoid.some((blocker) => metresToSegment(blocker.at, a, b) <= blocker.radiusM);
 
   const dist = new Map<string, number>([[start, 0]]);
   const prev = new Map<string, { from: string; name: string | null }>();
@@ -199,6 +249,9 @@ export function walkRoute(graph: WalkGraph, from: Point, to: Point): Route | nul
     if (node === goal) break;
     if (d > (dist.get(node) ?? Infinity)) continue; // a stale heap entry
     for (const edge of graph.adj.get(node) ?? []) {
+      if (avoid.length > 0 && blocked(graph.coords.get(node)!, graph.coords.get(edge.to)!)) {
+        continue;
+      }
       const through = d + edge.metres;
       if (through < (dist.get(edge.to) ?? Infinity)) {
         dist.set(edge.to, through);

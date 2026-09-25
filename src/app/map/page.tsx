@@ -9,6 +9,7 @@ import { barangayCentre, deriveAdvisory, FALLBACK_CENTRE } from "@/lib/advisory"
 import { graphFor, rankCentres } from "@/lib/centres";
 import { allWaterReports, subscribeWaterReports, type WaterReport } from "@/lib/water";
 import { DEPTH_COLOUR, placeWater, waterOpacity } from "@/lib/waterMap";
+import { routeBlockers } from "@/lib/blockage";
 import { MapLegend } from "@/components/MapLegend";
 import { CentreDetail, HazardBrief, WaterBrief, YouDetail, type MapSelection } from "@/components/MapDetail";
 import { focusHazard, focusWater } from "@/lib/hazardFocus";
@@ -117,6 +118,20 @@ export default function MapPage() {
    * otherwise from the start of the resident's street. The fix is rounded to
    * about 10 m so a drifting GPS does not re-route on every reading.
    */
+  const [water, setWater] = useState<WaterReport[]>([]);
+  const [waterNow, setWaterNow] = useState(() => Date.now());
+  const placedWater = useMemo(() => placeWater(snapshot, water, waterNow), [snapshot, water, waterNow]);
+
+  /*
+   * What the route must keep clear of: every open hazard with a position, and
+   * every fresh reading of water deep enough to stop a person (lib/blockage.ts
+   * decides which, and why).
+   */
+  const blockers = useMemo(
+    () => routeBlockers(snapshot?.hazards ?? [], placedWater),
+    [snapshot, placedWater],
+  );
+
   const graph = useMemo(() => (streets ? graphFor(streets as unknown as Streets) : null), [streets]);
   const home = barangayCentre(snapshot?.barangay);
   const fixKey =
@@ -127,8 +142,13 @@ export default function MapPage() {
   const startKey = fixKey ?? areaStart ?? (plannedRoute[0] ? plannedRoute[0].join(",") : null);
   const ranked = useMemo(() => {
     if (!startKey || !snapshot) return [];
-    return rankCentres(graph, startKey.split(",").map(Number) as Point, snapshot.centers);
-  }, [graph, startKey, snapshot]);
+    return rankCentres(
+      graph,
+      startKey.split(",").map(Number) as Point,
+      snapshot.centers,
+      blockers,
+    );
+  }, [graph, startKey, snapshot, blockers]);
   const nearest = ranked[0] ?? null;
   const fromYou = fixKey !== null;
 
@@ -210,8 +230,7 @@ export default function MapPage() {
   }, []);
 
   /* Water readings from everyone, officials included — the last day only (lib/waterMap.ts). */
-  const [water, setWater] = useState<WaterReport[]>([]);
-  const [waterNow, setWaterNow] = useState(() => Date.now());
+  /* Declared above the routing that reads them — see `blockers`. */
   useEffect(() => {
     const load = () =>
       void allWaterReports(40).then((rows) => {
@@ -226,8 +245,6 @@ export default function MapPage() {
       window.clearInterval(tick);
     };
   }, []);
-  const placedWater = useMemo(() => placeWater(snapshot, water, waterNow), [snapshot, water, waterNow]);
-
   /* Build the map once, always on the style that cannot fail. */
   useEffect(() => {
     if (!container.current || map.current || !streets) return;
@@ -723,6 +740,13 @@ export default function MapPage() {
     ? (blocking[0].description ?? t(`cat.${blocking[0].category}`))
     : "";
 
+  /*
+   * The route was redrawn to keep clear of something. Worth saying out loud:
+   * the walk is longer than the one this resident may have taken all their
+   * life, and a detour nobody explains is a detour people cut back across.
+   */
+  const detoured = nearest?.detour === true && blockers.length > 0;
+
   return (
     /*
      * The map is the screen: it fills everything between the header and the
@@ -835,6 +859,23 @@ export default function MapPage() {
           </div>
         )}
 
+        {/*
+          The route already goes round what it could. Shown instead of nothing,
+          and never at the same time as the warning below: either this walk
+          keeps clear, or it does not.
+        */}
+        {detoured && blocking.length === 0 && (
+          <div className="pointer-events-auto flex w-full items-center gap-2 rounded-instrument border-[1.5px] border-clear bg-ink-900/95 px-3 py-1.5 shadow-md sm:gap-2.5 sm:py-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-clear)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
+              <path d="M4 20h6a4 4 0 0 0 4-4V8a4 4 0 0 1 4-4h2" />
+              <path d="M17 1l3 3-3 3" />
+            </svg>
+            <span className="min-w-0 flex-1 truncate text-[12px] leading-snug font-semibold sm:text-[12.5px]">
+              {t("map.rerouted")}
+            </span>
+          </div>
+        )}
+
         {/* The blocked-path warning: it changes whether the destination is reachable at all. */}
         {blocking.length > 0 && (
           <button
@@ -848,7 +889,7 @@ export default function MapPage() {
             </svg>
             <span className="min-w-0 flex-1 truncate text-[12px] leading-snug font-semibold sm:text-[12.5px]">{blockingLabel}</span>
             <span className="mono shrink-0 text-[10px] font-bold tracking-[0.8px] text-alarm">
-              {t("map.avoid")}
+              {nearest?.unavoidable ? t("map.no_way_round") : t("map.avoid")}
             </span>
           </button>
         )}

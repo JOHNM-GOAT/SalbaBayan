@@ -16,6 +16,8 @@ import {
   pointInRing,
   walkRoute,
 } from "../src/lib/walkRoute.ts";
+import { BLOCK_RADIUS_M, routeBlockers } from "../src/lib/blockage.ts";
+import { BLOCKED_RADIUS_M } from "../src/lib/geo.ts";
 
 let pass = 0;
 let fail = 0;
@@ -96,6 +98,106 @@ console.log("\nShortest path:");
     "street names are shortened and not repeated",
     offStreet?.via.join() === "South St.",
     JSON.stringify(offStreet?.via),
+  );
+}
+
+console.log("\nGoing round what is in the way:");
+{
+  /*
+   * The same square, so the right answer is checkable by eye: Cut Road is the
+   * short way, and a tree on it has to push the walk onto the streets round
+   * the edge.
+   */
+  const p = (x, y) => [120.56 + x * 0.001, 18.06 + y * 0.001];
+  const graph = buildWalkGraph({
+    features: [
+      street("South Street", p(0, 0), p(1, 0), p(2, 0)),
+      street("East Street", p(2, 0), p(2, 1), p(2, 2)),
+      street("West Street", p(0, 0), p(0, 1), p(0, 2)),
+      street("North Street", p(0, 2), p(1, 2), p(2, 2)),
+      street("Cut Road", p(0, 0), p(1, 1), p(2, 2)),
+    ],
+  });
+
+  const onTheCut = { at: p(1, 1), radiusM: BLOCK_RADIUS_M };
+  const round = walkRoute(graph, p(0, 0), p(2, 2), { avoid: [onTheCut] });
+
+  check("a way round is found", round !== null);
+  check(
+    "it leaves the blocked short cut",
+    round !== null && !round.via.includes("Cut Rd."),
+    JSON.stringify(round?.via),
+  );
+  check(
+    "it is longer than the short cut, about 430 m",
+    round !== null && round.metres > 400 && round.metres < 460,
+    `got ${round?.metres}`,
+  );
+
+  /* 0.001° is about 106 m here, so this one is well clear of the diagonal. */
+  const unaffected = walkRoute(graph, p(0, 0), p(2, 2), {
+    avoid: [{ at: p(1, 0), radiusM: BLOCK_RADIUS_M }],
+  });
+  check(
+    "a hazard off the route changes nothing",
+    unaffected?.via.join() === "Cut Rd.",
+    JSON.stringify(unaffected?.via),
+  );
+
+  /*
+   * Sealed in. `null` is the right answer rather than a failure: it is what
+   * lets lib/centres.ts say "no way round" and still draw the direct route,
+   * because a resident in a storm must never be handed a blank map.
+   */
+  const sealed = walkRoute(graph, p(0, 0), p(2, 2), {
+    avoid: [
+      onTheCut,
+      { at: p(1, 0), radiusM: BLOCK_RADIUS_M },
+      { at: p(0, 1), radiusM: BLOCK_RADIUS_M },
+    ],
+  });
+  check("no way round is reported as no route", sealed === null);
+}
+
+console.log("\nWhat counts as blocking (src/lib/blockage.ts):");
+{
+  check(
+    "the radius agrees with the one the warning uses",
+    BLOCK_RADIUS_M === BLOCKED_RADIUS_M,
+    `${BLOCK_RADIUS_M} vs ${BLOCKED_RADIUS_M}`,
+  );
+
+  const water = (level, stale) => ({
+    report: { id: `${level}-${stale}`, level_category: level },
+    lat: 18.06,
+    lng: 120.56,
+    approx: false,
+    stale,
+  });
+
+  check(
+    "an open hazard with a position blocks",
+    routeBlockers([{ lat: 18.06, lng: 120.56 }], []).length === 1,
+  );
+  check(
+    "a hazard with no position cannot block anything",
+    routeBlockers([{ lat: null, lng: null }], []).length === 0,
+  );
+  check(
+    "waist-deep water and above block",
+    routeBlockers([], [
+      water("waist", false),
+      water("chest", false),
+      water("above_head", false),
+    ]).length === 3,
+  );
+  check(
+    "knee-deep water does not — people walk through it",
+    routeBlockers([], [water("knee", false)]).length === 0,
+  );
+  check(
+    "an old reading does not block; water moves",
+    routeBlockers([], [water("chest", true)]).length === 0,
   );
 }
 

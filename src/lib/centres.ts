@@ -5,6 +5,7 @@ import {
   buildWalkGraph,
   routeDescription,
   walkRoute,
+  type Blocker,
   type Streets,
   type WalkGraph,
 } from "./walkRoute";
@@ -107,21 +108,63 @@ export type RankedCentre = {
   /** The walk, from the starting point to the centre. Null without a graph. */
   line: Point[] | null;
   via: string[];
+  /**
+   * This walk goes the long way round a hazard or deep water. The shorter way
+   * exists and is blocked; the resident is being sent round it on purpose, so
+   * the screen says so rather than quietly adding four minutes.
+   */
+  detour: boolean;
+  /**
+   * Every way there passes something impassable. The route shown is the direct
+   * one, because a resident in a storm must never be handed a blank map — but
+   * it is marked, and the warning above it names what is in the way.
+   */
+  unavoidable: boolean;
 };
 
-/** Every placed centre, nearest first. */
+/**
+ * Every placed centre, nearest first — and "nearest" means the one this person
+ * can actually walk to.
+ *
+ * With `avoid` given, each centre is routed twice: once round the hazards and
+ * once ignoring them. The route round is the one shown. Which is shorter on
+ * paper stops being the question the moment a street is under chest-deep water:
+ * a clear 600 m beats a blocked 300 m, so an unavoidable centre ranks below
+ * every reachable one however close it is.
+ */
 export function rankCentres(
   graph: WalkGraph | null,
   from: Point,
   centres: EvacCenter[],
+  avoid: Blocker[] = [],
 ): RankedCentre[] {
   const ranked: RankedCentre[] = [];
   for (const centre of centres) {
     if (centre.lat == null || centre.lng == null) continue;
     const to: Point = [centre.lng, centre.lat];
-    const route = graph ? walkRoute(graph, from, to) : null;
+
+    /*
+     * The direct walk, and the walk that keeps clear. Both are needed to say
+     * anything true: the direct one alone cannot tell a detour from a route
+     * that was always this long, and the clear one alone cannot tell "there was
+     * nothing in the way" from "there was no way round".
+     */
+    const direct = graph ? walkRoute(graph, from, to) : null;
+    const clear = graph && avoid.length > 0 ? walkRoute(graph, from, to, { avoid }) : direct;
+
+    const route = clear ?? direct;
+    const unavoidable = avoid.length > 0 && clear === null && direct !== null;
+    const detour = clear !== null && direct !== null && clear.metres > direct.metres;
+
     if (!route) {
-      ranked.push({ centre, metres: Math.round(metresBetween(from, to)), line: null, via: [] });
+      ranked.push({
+        centre,
+        metres: Math.round(metresBetween(from, to)),
+        line: null,
+        via: [],
+        detour: false,
+        unavoidable: false,
+      });
       continue;
     }
     /* The router walks from the street node nearest each end; the steps to
@@ -132,9 +175,12 @@ export function rankCentres(
     const metres =
       route.metres +
       (route.line.length ? metresBetween(from, route.line[0]) + metresBetween(route.line[route.line.length - 1], to) : 0);
-    ranked.push({ centre, metres: Math.round(metres), line, via: route.via });
+    ranked.push({ centre, metres: Math.round(metres), line, via: route.via, detour, unavoidable });
   }
-  return ranked.sort((a, b) => a.metres - b.metres);
+  /* Reachable before blocked, and within each the nearest first. */
+  return ranked.sort(
+    (a, b) => Number(a.unavoidable) - Number(b.unavoidable) || a.metres - b.metres,
+  );
 }
 
 /* ---------------------------------------------------------------------------
