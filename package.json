@@ -21,7 +21,7 @@
     "check:checkin": "node scripts/checkin-test.mjs",
     "check:readiness": "node scripts/readiness-test.mjs",
     "check:actors": "node scripts/actors-test.mjs",
-    "check:rescue": "node scripts/rescue-merge-test.mjs",
+    "check:rescue": "node scripts/rescue-merge-test.mjs && node scripts/rescue-arrivals-test.mjs",
     "check:i18n": "node scripts/check-translations.mjs",
     "db:dump-translations": "node scripts/dump-translations.mjs",
     "ingest:docs": "node scripts/ingest-docs.mjs",

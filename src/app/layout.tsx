@@ -7,6 +7,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { Shell } from "@/components/Shell";
 import { ActorRouting } from "@/components/ActorSwitch";
 import { RouteGuard } from "@/components/RouteGuard";
+import { IncomingSOSAlert } from "@/components/IncomingSOSAlert";
 import { ProfilePrompt } from "@/components/ProfilePrompt";
 import { BottomNav } from "@/components/BottomNav";
 import { HazardSheet } from "@/components/HazardSheet";
@@ -108,6 +109,9 @@ export default function RootLayout({
             <AppHeader />
             <ActorRouting />
             <RouteGuard />
+            {/* The rescue alarm. Here rather than on the responder screen so a
+                volunteer hears a call for help from wherever they are. */}
+            <IncomingSOSAlert />
             <ProfilePrompt />
             <Shell>{children}</Shell>
             {/*

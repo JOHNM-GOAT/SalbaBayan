@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useSync, useT } from "@/components/AppRuntime";
 import { HoldToCancel } from "@/components/HoldToCancel";
+import { playSOSSent } from "@/lib/alertSound";
 import {
   cancelSOS,
   elapsedSince,
@@ -64,6 +65,17 @@ export default function SOSPage() {
   }, [refresh]);
 
   async function onPress() {
+    /*
+     * The sound comes first, synchronously, inside the tap.
+     *
+     * Not for speed — the write below is durable in milliseconds — but because
+     * autoplay rules only grant a page the right to make a noise from within a
+     * gesture, and an `await` spends that gesture. It is also the honest order:
+     * this is the phone saying "I have your press", which is true before the
+     * record exists and is the one thing the person needs in the second they
+     * are still looking at the button.
+     */
+    playSOSSent();
     // Optimistic by design. The write is durable in IndexedDB before this
     // resolves, so showing "sent" immediately is the truth, not a guess.
     setPendingLocal(true);

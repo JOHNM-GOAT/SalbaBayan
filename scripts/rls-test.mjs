@@ -256,11 +256,12 @@ for (const table of ["hazard_reports", "water_reports"]) {
 
 // And the legitimate path still works, so the rule above is a fence and not a
 // wall: a report that names its author is accepted exactly as before.
+const hazardId = crypto.randomUUID();
 const ownedHazard = await rest("hazard_reports", {
   jwt,
   method: "POST",
   body: {
-    id: crypto.randomUUID(),
+    id: hazardId,
     purok_id: purok,
     category: "other",
     status: "open",
@@ -272,6 +273,71 @@ check(
   "can still file an attributed hazard report",
   ownedHazard.status === 201,
   `status ${ownedHazard.status}`,
+);
+
+/*
+ * Clearing somebody else's hazard marker.
+ *
+ * `resolve_hazards` is `reported_by = auth.uid() or private.is_staff()`, and
+ * lib/hazardPermission.ts mirrors it so the app only offers the button to
+ * people it will work for. Neither of those was ever proven against the live
+ * REST surface: every hazard check here was about FILING one. So the question
+ * "can a resident take down a marker an official or a volunteer put up?" had
+ * an answer in two files and no test, which is the state a rule is in just
+ * before it quietly stops being true.
+ *
+ * Asked in the direction that is actually dangerous. A second resident — no
+ * role, no profile, nothing but an account — tries to mark the first
+ * resident's report fixed. PostgREST answers an UPDATE whose row is filtered
+ * out by `using` with 200 and an empty array rather than an error, so the
+ * empty body is the pass and a returned row is the leak.
+ */
+const strangerResolve = await rest(`hazard_reports?id=eq.${hazardId}`, {
+  jwt: otherJwt,
+  method: "PATCH",
+  body: { status: "resolved" },
+});
+check(
+  "CANNOT resolve a hazard reported by someone else",
+  strangerResolve.status >= 400 || rows(strangerResolve) === 0,
+  `LEAK: status ${strangerResolve.status} changed ${rows(strangerResolve)} row(s)`,
+);
+
+/* Read back rather than trust the write's own answer: the row is what the
+   barangay sees, and it is the only thing that settles whether the marker is
+   still up. */
+const stillOpen = await rest(`hazard_reports?id=eq.${hazardId}&select=status`, { jwt });
+check(
+  "the marker is still open afterwards",
+  stillOpen.body?.[0]?.status === "open",
+  `LEAK: status is now ${stillOpen.body?.[0]?.status}`,
+);
+
+/* And the fence is not a wall: its own author may still clear it (rule 1 in
+   lib/hazardPermission.ts — "both volunteers and residents can fix it"). */
+const ownerResolve = await rest(`hazard_reports?id=eq.${hazardId}`, {
+  jwt,
+  method: "PATCH",
+  body: { status: "resolved" },
+});
+check(
+  "the reporter can still resolve their own",
+  ownerResolve.status === 200 && ownerResolve.body?.[0]?.status === "resolved",
+  `status ${ownerResolve.status}`,
+);
+
+/* Nothing may be DELETED by anyone: hazard_reports has no delete policy at
+   all, which is what keeps a report from being made to have never existed. */
+const strangerDelete = await rest(`hazard_reports?id=eq.${hazardId}`, {
+  jwt: otherJwt,
+  method: "DELETE",
+});
+const ownerDelete = await rest(`hazard_reports?id=eq.${hazardId}`, { jwt, method: "DELETE" });
+const survived = await rest(`hazard_reports?id=eq.${hazardId}&select=id`, { jwt });
+check(
+  "CANNOT delete a hazard report, their own or anyone's",
+  rows(survived) === 1,
+  `LEAK: stranger ${strangerDelete.status}, owner ${ownerDelete.status} — the row is gone`,
 );
 
 /* ---------------------------------------------------------------------------
