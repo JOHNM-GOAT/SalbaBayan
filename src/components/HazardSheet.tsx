@@ -419,9 +419,21 @@ export function HazardSheet() {
     };
   }, [staff, reporterId]);
 
-  const canFix = selected
-    ? canResolveHazard(selected, userId ?? null, role)
-    : false;
+  /*
+   * A resolve this device tried and was refused.
+   *
+   * `resolveHazard` decides for itself whether it may queue the write, and it
+   * can say no after the button has been drawn — the role it checks is read at
+   * the tap, not at the render. Closing the panel on a refusal would tell
+   * somebody their report was marked fixed when nothing happened at all, so
+   * the refusal turns the button back into the note that explains the rule.
+   */
+  const [refusedId, setRefusedId] = useState<string | null>(null);
+
+  const canFix =
+    selected && selected.id !== refusedId
+      ? canResolveHazard(selected, userId ?? null, role)
+      : false;
 
   /*
    * The handle's count is on every screen in the app, so it is the single most
@@ -549,7 +561,10 @@ export function HazardSheet() {
                     staff ? (reporter?.id === reporterId ? reporter.person : undefined) : null
                   }
                   onFix={async () => {
-                    await resolveHazard(selected);
+                    if (!(await resolveHazard(selected))) {
+                      setRefusedId(selected.id);
+                      return;
+                    }
                     setSelectedId(null);
                     void refresh();
                   }}

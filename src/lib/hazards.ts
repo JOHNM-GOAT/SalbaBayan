@@ -12,7 +12,7 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { enqueueUpdate, enqueueWrite, newClientId, queuedWrites } from "./offlineQueue";
 import { queuePhoto } from "./photoQueue";
-import { getCurrentUserId, getMyRole, getSupabase, type UserRole } from "./supabase";
+import { getCurrentUserId, getSupabase, knownRole } from "./supabase";
 import { canResolveHazard as decide, type Resolvable } from "./hazardPermission";
 import { mergeHazards, queuedInserts, queuedPatches } from "./hazardMerge";
 import { currentFix } from "./sos";
@@ -130,8 +130,18 @@ export async function submitHazard(input: {
  * database is still the boundary; this is the client agreeing with it in every
  * path rather than in three of them.
  *
- * Returns false when it refused, so a caller can say so instead of silently
- * doing nothing.
+ * What it must NOT do is get there slowly or guess. `canResolve` answers from
+ * the session and the role already on the device — no network, because this
+ * function's whole promise is a durable write in milliseconds on a phone with
+ * no signal — and it refuses only a device that has been TOLD a role that does
+ * not permit this. A device that does not know its own role queues the write
+ * and lets RLS decide, which is the difference between a rule and a volunteer
+ * losing their work.
+ *
+ * Returns false when it refused. Callers act on that: the map sheet and the
+ * report feed put the note explaining the rule where the button was, and the
+ * dashboard leaves its panel open, rather than reporting work that did not
+ * happen.
  */
 export async function resolveHazard(hazard: Pick<Hazard, "id" | "reported_by">): Promise<boolean> {
   if (!(await canResolve(hazard))) return false;
@@ -295,11 +305,35 @@ export function subscribeHazards(onChange: () => void): () => void {
  */
 export { canResolveHazard } from "./hazardPermission";
 
-/** Async convenience for callers that hold neither the uid nor the role. */
+/**
+ * Whether this device should queue a resolve, answered from what it already
+ * knows — no network.
+ *
+ * This is NOT the same question `canResolveHazard` answers for a screen, and
+ * the difference is the whole of it. A screen asks "should I offer this
+ * button", and an unknown role means don't, because offering an action that is
+ * about to be refused is worse than a note explaining the rule. This asks
+ * "should I throw this person's work away", and an unknown role means NO —
+ * queue it and let the database decide.
+ *
+ * That distinction is load-bearing rather than pedantic. `readMyRole` answers
+ * "resident" when it cannot reach the server and finds nothing cached, and iOS
+ * evicts a PWA's storage after about a week unused, which is exactly how long
+ * a volunteer's phone sits between storms. Collapsing "not known" into
+ * "resident" meant a real volunteer, offline, tapping MARK FIXED and having
+ * the resolve silently dropped — not queued, not retried, not mentioned —
+ * where before this check existed it would have landed on reconnect.
+ *
+ * So the refusal is narrow on purpose: only a device that has been TOLD its
+ * role, and told one that does not permit this. That still covers the case the
+ * check exists for — a resident tapping a control that should not have been
+ * drawn — and the cost of being wrong in the other direction is bounded, since
+ * RLS refuses the write and `lib/hazardMerge.ts` drops blocked rows out of what
+ * the map shows.
+ */
 export async function canResolve(hazard: Resolvable): Promise<boolean> {
-  const [uid, role] = await Promise.all([
-    getCurrentUserId(),
-    getMyRole().catch((): UserRole | null => null),
-  ]);
+  const uid = await getCurrentUserId();
+  const role = knownRole(uid);
+  if (role === null) return true;
   return decide(hazard, uid, role);
 }

@@ -65,6 +65,14 @@ export default function ReportPage() {
   const [now, setNow] = useState(() => Date.now());
   /** Which half of the feed is showing. Unresolved is the working list. */
   const [filter, setFilter] = useState<"open" | "resolved">("open");
+  /*
+   * Reports this device tried to mark fixed and was refused. `resolveHazard`
+   * reads the role at the tap rather than at the render, so it can say no
+   * after the button has been drawn — and a row that silently stays
+   * UNRESOLVED reads as the app being broken. Refusing puts the note that
+   * explains the rule where the button was.
+   */
+  const [refused, setRefused] = useState<ReadonlySet<string>>(new Set());
   const fileInput = useRef<HTMLInputElement | null>(null);
 
   /*
@@ -457,9 +465,15 @@ export default function ReportPage() {
                     hazard={entry.hazard}
                     now={now}
                     purokName={purokName}
-                    canFix={canResolveHazard(entry.hazard, userId ?? null, role)}
+                    canFix={
+                      !refused.has(entry.hazard.id) &&
+                      canResolveHazard(entry.hazard, userId ?? null, role)
+                    }
                     onResolve={async () => {
-                      await resolveHazard(entry.hazard);
+                      if (!(await resolveHazard(entry.hazard))) {
+                        setRefused((was) => new Set(was).add(entry.hazard.id));
+                        return;
+                      }
                       void refresh();
                     }}
                   />

@@ -11,7 +11,8 @@ import type { EvacCenter } from "@/lib/advisory";
 import { MAX_CENTRES } from "@/lib/centres";
 import { capacityState, centreTotal, subscribeHeadcounts } from "@/lib/headcount";
 import { directionsUrl, type DashItem } from "@/lib/dashboard";
-import { resolveHazard } from "@/lib/hazards";
+import { resolveHazard, type Hazard } from "@/lib/hazards";
+import type { NamedPerson } from "@/lib/profile";
 import { signalStyle } from "@/lib/signal";
 import { acknowledge, markRescued } from "@/lib/sos";
 import { agoLabel, clearWaterReport } from "@/lib/water";
@@ -303,20 +304,7 @@ export function FixedList({ items, now }: { items: DashItem[]; now: number }) {
               be able to tell "we do not know" from "no one did".
             */}
             {item.kind === "hazard" && item.hazard.status === "resolved" && (
-              <span className="mono mt-1 block text-[9.5px] leading-relaxed tracking-[0.4px] text-paper-3">
-                {item.hazard.resolved_by ? (
-                  <>
-                    {t("hazard.cleared_by")}{" "}
-                    <span className="font-bold text-paper-2">
-                      {item.resolver
-                        ? `${item.resolver.first_name} ${item.resolver.last_name}`
-                        : t("profile.no_name")}
-                    </span>
-                  </>
-                ) : (
-                  t("hazard.cleared_unknown")
-                )}
-              </span>
+              <ClearedBy hazard={item.hazard} resolver={item.resolver} />
             )}
           </span>
           <span className="shrink-0 text-right">
@@ -330,6 +318,47 @@ export function FixedList({ items, now }: { items: DashItem[]; now: number }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * Who cleared a hazard (migration 0060).
+ *
+ * Three states, and the reason this is a component rather than a ternary is
+ * that the middle one was originally missing and the screen lied about it.
+ *
+ *   - Stamped: the name, or "no name" if that device never entered one.
+ *   - Still in the queue: NOTHING. The resolve was made on this device seconds
+ *     ago and Postgres has not stamped it yet, so there is no answer to give.
+ *     Saying "cleared before this was recorded" here — which is what a plain
+ *     null check does — tells an official their own tap happened months ago.
+ *     `pending` is set by lib/hazardMerge.ts for exactly this: a row that reads
+ *     as resolved because of a write still sitting in the queue.
+ *   - Neither: a row resolved before the column existed, or by something with
+ *     no session behind it. "Not recorded" is then the truth, and it is worth
+ *     saying, because the barangay should be able to tell "we do not know" from
+ *     "no one did".
+ *
+ * Hazards only. Water goes down by itself and an official merely records that
+ * it has, so naming a person for it would be a claim nobody made.
+ */
+function ClearedBy({ hazard, resolver }: { hazard: Hazard; resolver: NamedPerson | undefined }) {
+  const t = useT();
+  if (hazard.pending && !hazard.resolved_by) return null;
+
+  return (
+    <span className="mono mt-1 block text-[9.5px] leading-relaxed tracking-[0.4px] text-paper-3">
+      {hazard.resolved_by ? (
+        <>
+          {t("hazard.cleared_by")}{" "}
+          <span className="font-bold text-paper-2">
+            {resolver ? `${resolver.first_name} ${resolver.last_name}` : t("profile.no_name")}
+          </span>
+        </>
+      ) : (
+        t("hazard.cleared_unknown")
+      )}
+    </span>
   );
 }
 
@@ -453,7 +482,9 @@ export function ItemDetail({
           label={t("hazard.resolve")}
           holdingLabel={t("sos.cancelling")}
           tone="accent"
-          onConfirm={() => void resolveHazard(item.hazard).then(onChanged)}
+          /* Only on a resolve that was actually queued. Closing the panel on a
+             refusal would report work that did not happen. */
+          onConfirm={() => void resolveHazard(item.hazard).then((queued) => queued && onChanged())}
         />
       )}
       {/* Officials only (0051); this screen is officials-only too. */}

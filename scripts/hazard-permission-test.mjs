@@ -100,6 +100,28 @@ check(
 );
 
 /*
+ * This is a rule for SCREENS, and `canResolve` in lib/hazards.ts deliberately
+ * answers a different question. Pinned here because the two look like the same
+ * function and unifying them is the obvious tidy-up.
+ *
+ * A screen asks "should I draw this button", and an unknown role means no:
+ * offering an action that is about to be refused is worse than a note
+ * explaining the rule. The write path asks "should I throw this person's work
+ * away", and an unknown role means it queues anyway and lets RLS decide.
+ *
+ * The cost of getting that backwards was measured, not imagined. `readMyRole`
+ * answers "resident" when it cannot reach the server and finds nothing cached,
+ * and iOS evicts a PWA's storage after about a week unused — the interval
+ * between storms. A real volunteer, offline, would tap MARK FIXED and have the
+ * resolve dropped rather than queued.
+ */
+check(
+  "an unknown role is a reason not to OFFER, never a reason to discard",
+  !canResolveHazard(byResident, OTHER_RESIDENT, null),
+  "see canResolve() in src/lib/hazards.ts, which queues in this same case",
+);
+
+/*
  * A row whose reporter is null — possible for seeded fixture rows, which is
  * exactly the case that would break a naive `hazard.reported_by === uid` when
  * uid is also null. Two unknowns must not compare equal into a permission.

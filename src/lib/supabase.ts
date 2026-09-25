@@ -142,6 +142,36 @@ export async function getMyRole(): Promise<UserRole> {
   }));
 }
 
+/**
+ * The role this device last CONFIRMED, without asking anyone.
+ *
+ * `getMyRole` never serves a cached result — deliberately, because a screen
+ * that redirects on the answer should be working from a fresh one. But there
+ * is one caller for whom a network read is the wrong thing entirely: the code
+ * path between a volunteer's thumb and a durable write. `resolveHazard` must
+ * reach IndexedDB in milliseconds on a phone with no signal, and it cannot do
+ * that behind a `select` that may hang for half a minute on a half-open
+ * connection.
+ *
+ * So this answers from what is already on the device: the value `readMyRole`
+ * wrote the last time the server confirmed one. Three outcomes, and the third
+ * is why the return type is nullable — `null` is NOT "resident", it is "this
+ * device has never been told", and a caller that collapsed those two would
+ * refuse a volunteer their own work. See `canResolve` in lib/hazards.ts.
+ */
+export function knownRole(uid: string | null): UserRole | null {
+  if (!uid) return null;
+  try {
+    const cached = localStorage.getItem(`salbabayan.role:${uid}`);
+    return cached === "volunteer" || cached === "official" || cached === "resident"
+      ? cached
+      : null;
+  } catch {
+    // Storage unavailable (private mode, blocked): genuinely not known.
+    return null;
+  }
+}
+
 async function readMyRole(): Promise<UserRole> {
   const supabase = getSupabase();
   if (!supabase) return "resident";

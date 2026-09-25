@@ -122,14 +122,30 @@ export function playSOSSent(): void {
  * notification, because it has to survive a pocket, a generator and a room of
  * people talking.
  */
+/**
+ * When the alarm currently scheduled finishes, on the context's own clock.
+ *
+ * Calls do not queue behind each other and they do not stack. Two residents
+ * pressing SOS half a second apart arrive as two separate realtime events, so
+ * `IncomingSOSAlert` asks twice — and two of these sequences started out of
+ * phase are not twice the warning, they are a mush that sounds like neither.
+ * The alarm already means "somebody is calling"; sounding it again on top of
+ * itself adds nothing to that. The badge and the queue carry the count.
+ */
+let alarmUntil = 0;
+
 export function playIncomingSOS(): void {
   play((now) => {
     const audio = context();
     if (!audio) return;
+    if (now < alarmUntil) return;
+
     for (let i = 0; i < 3; i++) {
       const at = now + i * 0.52;
       tone(audio, { at, freq: 988, seconds: 0.22, peak: 0.3 });
       tone(audio, { at: at + 0.24, freq: 740, seconds: 0.22, peak: 0.3 });
     }
+    /* The last note ends at `now + 2 * 0.52 + 0.24 + 0.22`. */
+    alarmUntil = now + 1.5;
   });
 }

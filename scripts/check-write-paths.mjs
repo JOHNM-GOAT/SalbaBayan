@@ -82,10 +82,42 @@ console.log(`write-path check: clean (${ALLOWED.length} permitted writer)`);
  * So `resolveHazard` itself asks. This fails the build if it stops asking,
  * because that is a one-line deletion that looks like a simplification.
  */
-const hazards = readFileSync(join(ROOT, "lib", "hazards.ts"), "utf8");
-const resolveBody = hazards.slice(hazards.indexOf("export async function resolveHazard"));
+/**
+ * The body of a named function, brace-matched, with comments stripped.
+ *
+ * Deliberately not "the first N characters after the signature", which is what
+ * this did first: the length of a function's own prose then decided whether
+ * the build passed, so adding an explanatory comment — which this codebase
+ * does constantly — failed `npm run verify` with a message saying the check
+ * had been removed when it was still right there.
+ */
+function bodyOf(source, signature) {
+  /* Comments go first, so that a brace inside one cannot throw the matching
+     off — and so that a mention of the call in a comment cannot satisfy the
+     check below while the call itself is gone. */
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 
-if (!/^[\s\S]{0,700}?canResolve\(/.test(resolveBody)) {
+  const start = code.indexOf(signature);
+  if (start === -1) return null;
+
+  const open = code.indexOf("{", start);
+  if (open === -1) return null;
+
+  let depth = 0;
+  for (let i = open; i < code.length; i++) {
+    if (code[i] === "{") depth += 1;
+    else if (code[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return code.slice(open + 1, i);
+    }
+  }
+  return null;
+}
+
+const hazards = readFileSync(join(ROOT, "lib", "hazards.ts"), "utf8");
+const resolveBody = bodyOf(hazards, "export async function resolveHazard");
+
+if (resolveBody === null || !resolveBody.includes("canResolve(")) {
   console.error(
     "\nresolveHazard() in src/lib/hazards.ts no longer checks canResolve().\n\n" +
       "Hiding the button is presentation; this is the check. Without it a\n" +
