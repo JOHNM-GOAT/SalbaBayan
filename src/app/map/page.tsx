@@ -10,11 +10,12 @@ import { barangayRing, graphFor, rankCentres } from "@/lib/centres";
 import { allWaterReports, subscribeWaterReports, type WaterReport } from "@/lib/water";
 import { DEPTH_COLOUR, placeWater, waterOpacity } from "@/lib/waterMap";
 import { routeBlockers, stopsAPerson } from "@/lib/blockage";
+import { BarangayButton } from "@/components/BarangayButton";
 import { MapLegend } from "@/components/MapLegend";
 import { CentreDetail, HazardBrief, WaterBrief, YouDetail, type MapSelection } from "@/components/MapDetail";
 import { focusHazard, focusWater } from "@/lib/hazardFocus";
 import { CENTRE_ICON, HAZARD_ICON, WATER_ICON, hazardColour, pinElement, pinMarker, youElement } from "@/lib/mapMarks";
-import { sharedView, trackView } from "@/lib/mapView";
+import { fitBarangay, sharedView, trackView } from "@/lib/mapView";
 import { CATEGORY_TONE, type Category } from "@/lib/hazards";
 import type { Streets } from "@/lib/walkRoute";
 import { resolveColour } from "@/lib/signal";
@@ -717,6 +718,16 @@ export default function MapPage() {
     if (fix) map.current?.easeTo({ center: [fix.lng, fix.lat], zoom: 16.5 });
   }, [fix]);
 
+  /** The whole barangay, back on the screen. */
+  const showBarangay = useCallback(() => {
+    const m = map.current;
+    if (!m) return;
+    const ring = (snapshot?.barangay.boundary_geojson?.coordinates?.[0] ?? null) as
+      | [number, number][]
+      | null;
+    fitBarangay(m, ring, barangayCentre(snapshot?.barangay));
+  }, [snapshot]);
+
   const turnLabel =
     guidance?.turn === "arrive"
       ? t("map.arrive")
@@ -1051,6 +1062,13 @@ export default function MapPage() {
         The legend, as a status bar across the foot of the map rather than a
         floating block on top of it, with room on the right to name the base map.
       */}
+      {/* On a phone this joins the column above the zoom buttons; from sm up
+          it takes the top-right corner, which the cards leave free there. */}
+      <BarangayButton
+        onClick={showBarangay}
+        className="right-2.5 bottom-[188px] sm:top-2.5 sm:bottom-auto"
+      />
+
       <MapLegend
         water
         routeColour={routeColour}

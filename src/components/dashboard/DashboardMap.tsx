@@ -10,6 +10,8 @@ import { MapLegend } from "../MapLegend";
 import { CentreModal, PinMenu, type Draft, type PinKind } from "./PinMenu";
 import { loadStreetStyle, onStyleReady, sketchStyle } from "@/lib/basemap";
 import { barangayCentre } from "@/lib/advisory";
+import { fitBarangay } from "@/lib/mapView";
+import { BarangayButton } from "../BarangayButton";
 import { addCentre, areaFor, loadStreets, nearestStreet } from "@/lib/centres";
 import { CATEGORY_TONE } from "@/lib/hazards";
 import { resolveColour } from "@/lib/signal";
@@ -374,6 +376,15 @@ export function DashboardMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fixKey, callAt?.[0], callAt?.[1], epoch]);
 
+  /** The whole barangay, back on the screen. */
+  const showBarangay = () => {
+    const m = map.current;
+    if (!m) return;
+    framed.current = true;
+    const ring = (outline?.coordinates?.[0] ?? null) as [number, number][] | null;
+    fitBarangay(m, ring, barangayCentre(barangay));
+  };
+
   /** Centre on a point — the call being answered, or a tapped one. */
   const centreOn = (point: Point) => {
     const m = map.current;
@@ -494,6 +505,16 @@ export function DashboardMap({
       >
         {t("dash.show_all")}
       </button>
+
+      {/*
+        Under SHOW ALL, which holds the corner here. The two are not the same:
+        SHOW ALL frames the reports, which may be one street or none at all,
+        and this frames the barangay.
+      */}
+      <BarangayButton
+        onClick={showBarangay}
+        className="right-2.5 bottom-[166px] sm:top-[52px] sm:bottom-auto"
+      />
 
       {outside && (
         <p

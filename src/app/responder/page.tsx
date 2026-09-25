@@ -8,10 +8,11 @@ import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useSync, useT } from "@/components/AppRuntime";
 import { useTheme } from "@/components/useTheme";
+import { BarangayButton } from "@/components/BarangayButton";
 import { MapLegend } from "@/components/MapLegend";
 import { loadStreetStyle, onStyleReady, sketchStyle } from "@/lib/basemap";
 import { barangayCentre } from "@/lib/advisory";
-import { sharedView, trackView } from "@/lib/mapView";
+import { fitBarangay, sharedView, trackView } from "@/lib/mapView";
 import {
   CENTRE_ICON,
   HAZARD_ICON,
@@ -464,6 +465,21 @@ export default function ResponderPage() {
     m.easeTo({ center: [fix.lng, fix.lat], zoom: Math.max(m.getZoom(), 16.5), duration: 500 });
   }, [fix]);
 
+  /**
+   * The whole barangay, back on the screen. `framed` is set for the same
+   * reason the other camera moves set it: from here on the responder is
+   * driving the map, and it must not jump back on the next refresh.
+   */
+  const showBarangay = useCallback(() => {
+    const m = map.current;
+    if (!m) return;
+    framed.current = true;
+    const ring = (barangay?.boundary_geojson?.coordinates?.[0] ?? null) as
+      | [number, number][]
+      | null;
+    fitBarangay(m, ring, barangayCentre(barangay));
+  }, [barangay]);
+
   /** Centre on a call — the pin button, and every "take this call". */
   const centreOn = useCallback((request: RescueRequest) => {
     const m = map.current;
@@ -658,6 +674,12 @@ export default function ResponderPage() {
             )}
           </button>
         )}
+
+        {/* Under the queue button, which already holds the corner here. */}
+        <BarangayButton
+          onClick={showBarangay}
+          className="right-2.5 bottom-[238px] sm:top-[66px] sm:bottom-auto"
+        />
 
         <MapLegend rescue />
       </div>

@@ -9,7 +9,7 @@ import { useShellWidth } from "./Shell";
 import { useTheme } from "./useTheme";
 import { HazardPhoto } from "./HazardPhoto";
 import { loadStreetStyle, onStyleReady, sketchStyle } from "@/lib/basemap";
-import { FALLBACK_CENTRE } from "@/lib/advisory";
+import { barangayCentre, FALLBACK_CENTRE } from "@/lib/advisory";
 import { onQueueChanged } from "@/lib/offlineQueue";
 import { onReportFocus, type FocusRequest } from "@/lib/hazardFocus";
 import { agoLabel, allWaterReports, subscribeWaterReports, type WaterReport } from "@/lib/water";
@@ -25,7 +25,7 @@ import {
   pinMarker,
   youElement,
 } from "@/lib/mapMarks";
-import { sharedView, trackView } from "@/lib/mapView";
+import { fitBarangay, sharedView, trackView } from "@/lib/mapView";
 import {
   allOpenHazards,
   canResolveHazard,
@@ -35,6 +35,7 @@ import {
   type Hazard,
 } from "@/lib/hazards";
 import { Skeleton, SkeletonRegion, useSkeletonGate } from "./Skeleton";
+import { BarangayButton } from "./BarangayButton";
 import { HazardCategoryKey, MapLegend } from "./MapLegend";
 import { PersonLabel } from "./PersonLabel";
 import { namesFor, type NamedPerson } from "@/lib/profile";
@@ -179,9 +180,12 @@ export function HazardSheet() {
     });
     map.current = instance;
 
+    // Bottom-right, as on the other three maps: the zoom buttons sit in the
+    // same corner everywhere, which leaves the top-right for the control that
+    // brings the barangay back.
     instance.addControl(
       new maplibregl.NavigationControl({ showCompass: false }),
-      "top-right",
+      "bottom-right",
     );
     instance.on("error", (event) =>
       console.error("[hazard-map]", event.error?.message ?? event),
@@ -391,6 +395,15 @@ export function HazardSheet() {
     });
   }, [open, placed, placedWater, styleEpoch, t, purokName, snapshot, selectedId, waterId]);
 
+  /** The whole barangay, back on the screen. */
+  const showBarangay = useCallback(() => {
+    const m = map.current;
+    if (!m) return;
+    framed.current = true;
+    const ring = (outline?.coordinates?.[0] ?? null) as [number, number][] | null;
+    fitBarangay(m, ring, barangayCentre(snapshot?.barangay));
+  }, [outline, snapshot]);
+
   /* Who reported it — staff only (names are staff-only by RLS). */
   const staff = isStaffRole(role);
   const reporterId = selected?.reported_by ?? null;
@@ -513,6 +526,9 @@ export function HazardSheet() {
             <div className="relative flex-1">
               <div ref={container} style={{ position: "absolute", inset: 0 }} />
               <MapLegend water />
+
+              {/* The corner is free on this map at every width. */}
+              <BarangayButton onClick={showBarangay} className="top-2.5 right-2.5" />
 
               {placed.length === 0 && placedWater.length === 0 && (
                 <p className="mono pointer-events-none absolute inset-x-0 top-1/2 px-6 text-center text-[11px] leading-relaxed text-paper-3">
