@@ -313,7 +313,14 @@ export function FixedList({ items, now }: { items: DashItem[]; now: number }) {
             <span className="mono block text-[9px] font-bold tracking-[0.5px] text-clear">
               {item.kind === "hazard" ? t("hazard.resolved") : t("dash.cleared")}
             </span>
-            <span className="mono block text-[10px] text-paper-3">{agoLabel(item.ts, now)}</span>
+            {/* The age of the CLEARING, not of the report — the same clock the
+                list is sorted by (lib/dashboard.ts). A list ordered by one
+                time and labelled with another reads as not sorted at all.
+                Rows cleared before migration 0061 have only their report time,
+                and `doneAt` already falls back to it. */}
+            <span className="mono block text-[10px] text-paper-3">
+              {agoLabel(item.doneAt ?? item.ts, now)}
+            </span>
           </span>
         </li>
       ))}

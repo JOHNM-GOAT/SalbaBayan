@@ -323,10 +323,18 @@ check(
  * between a record of who cleared a downed-power-line report and a field
  * anyone can write anything into.
  */
+const beforeResolve = Date.now();
 const ownerResolve = await rest(`hazard_reports?id=eq.${hazardId}`, {
   jwt,
   method: "PATCH",
-  body: { status: "resolved", resolved_by: crypto.randomUUID() },
+  body: {
+    status: "resolved",
+    resolved_by: crypto.randomUUID(),
+    /* And a resolution time from 2001, which is the shape of the mistake this
+       guards against: a phone whose clock is wrong by years would otherwise
+       decide where the barangay's record of the storm sorts. */
+    resolved_at: "2001-01-01T00:00:00Z",
+  },
 });
 check(
   "the reporter can still resolve their own",
@@ -339,17 +347,38 @@ check(
   `LEAK: recorded ${ownerResolve.body?.[0]?.resolved_by}, session is ${me}`,
 );
 
-/* And it does not change afterwards. A second PATCH on an already-resolved row
-   must not be able to rewrite who cleared it. */
+/* The time comes from the server's clock too (0061), which is what the FIXED
+   tab is ordered by. Checked as a window rather than an exact value: the only
+   claim worth making is that it is NOW and not the 2001 the request asked for. */
+const stampedAt = Date.parse(ownerResolve.body?.[0]?.resolved_at ?? "");
+check(
+  "the resolution time is the server's clock, not what was sent",
+  Number.isFinite(stampedAt) &&
+    stampedAt >= beforeResolve - 60_000 &&
+    stampedAt <= Date.now() + 60_000,
+  `LEAK: recorded ${ownerResolve.body?.[0]?.resolved_at}`,
+);
+
+/* And neither changes afterwards. A second PATCH on an already-resolved row
+   must not be able to rewrite who cleared it or when. */
 const rewrite = await rest(`hazard_reports?id=eq.${hazardId}`, {
   jwt,
   method: "PATCH",
-  body: { status: "resolved", resolved_by: crypto.randomUUID() },
+  body: {
+    status: "resolved",
+    resolved_by: crypto.randomUUID(),
+    resolved_at: "2001-01-01T00:00:00Z",
+  },
 });
 check(
   "who cleared it cannot be rewritten later",
   rewrite.body?.[0]?.resolved_by === me,
   `LEAK: became ${rewrite.body?.[0]?.resolved_by}`,
+);
+check(
+  "nor when it was cleared",
+  rewrite.body?.[0]?.resolved_at === ownerResolve.body?.[0]?.resolved_at,
+  `LEAK: became ${rewrite.body?.[0]?.resolved_at}`,
 );
 
 /* Nothing may be DELETED by anyone: hazard_reports has no delete policy at

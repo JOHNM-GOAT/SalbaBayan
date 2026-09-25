@@ -47,6 +47,8 @@ export type Hazard = {
   reported_by: string | null;
   /** Who marked it fixed. Stamped by Postgres (migration 0060), never sent. */
   resolved_by: string | null;
+  /** When it was marked fixed, on the server's clock (0061). Never sent. */
+  resolved_at: string | null;
   /** Carries a local change the server has not accepted yet (lib/hazardMerge). */
   pending?: boolean;
 };
@@ -168,7 +170,7 @@ export async function fetchHazards(limit = 60): Promise<Hazard[]> {
 
   const { data, error } = await supabase
     .from("hazard_reports")
-    .select("id,purok_id,category,description,photo_url,status,ts,lat,lng,reported_by,resolved_by")
+    .select("id,purok_id,category,description,photo_url,status,ts,lat,lng,reported_by,resolved_by,resolved_at")
     .order("ts", { ascending: false })
     .limit(limit);
 
@@ -201,6 +203,7 @@ const fromQueuePayload = (
   /* Nobody has cleared a report that has not been filed yet, and the column is
      Postgres's to fill in any case (migration 0060). */
   resolved_by: null,
+  resolved_at: null,
   // Still in the queue, so the server has not seen it by definition.
   pending: true,
 });

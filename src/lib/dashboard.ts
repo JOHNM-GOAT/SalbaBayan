@@ -1,5 +1,6 @@
 import type { AdvisorySnapshot } from "./advisory";
 import { allOpenHazards, resolvedHazards, type Hazard } from "./hazards";
+import { byMostRecentlyCleared, clearedAt } from "./fixedOrder";
 import { namesFor, type NamedPerson } from "./profile";
 import { activeQueue, type RescueRequest } from "./sos";
 import { allWaterReports, clearedWaterReports, type WaterReport } from "./water";
@@ -34,6 +35,15 @@ type Base = {
    * honest answer for older rows is "not recorded".
    */
   resolver?: NamedPerson | undefined;
+  /**
+   * When this was dealt with, for the rows that have been.
+   *
+   * A separate field rather than overwriting `ts`, because both times are real
+   * and the FIXED tab is the only place the second one is the interesting one:
+   * everywhere else the question is how long a thing has been waiting, and
+   * that is measured from when it was reported.
+   */
+  doneAt?: string;
 };
 
 export type DashItem =
@@ -68,6 +78,9 @@ function place(
 }
 
 export async function loadDashboard(snapshot: AdvisorySnapshot | null): Promise<Dashboard> {
+  /* One timestamp for the whole load, so two rows resolved offline keep a
+     stable order between themselves instead of shuffling per map callback. */
+  const loadedAt = new Date().toISOString();
   const [sos, hazards, water, doneHazards, doneWater] = await Promise.all([
     activeQueue(),
     allOpenHazards(100),
@@ -125,12 +138,18 @@ export async function loadDashboard(snapshot: AdvisorySnapshot | null): Promise<
       }))
       .sort((a, b) => b.ts.localeCompare(a.ts)),
     /*
-     * Both kinds together, newest report first.
+     * Both kinds together, most recently DEALT WITH first (migration 0061).
      *
-     * By the time it was REPORTED, not by the time it was dealt with: a
-     * hazard row records no resolution time (there is no such column), and a
-     * list that sorted two kinds by two different clocks would be in no order
-     * at all. The rows say when they were reported and leave it at that.
+     * This used to sort by report time, because hazards recorded no resolution
+     * time and water did — so the list was ordered by one clock for one half
+     * and would have been ordered by another for the other. The result was
+     * that a tree reported on Monday and cut up this morning sat below a
+     * puddle reported an hour ago, and an official looking for "what have we
+     * just finished" was reading a list ordered by something else entirely.
+     *
+     * `doneAt` is now one clock for both. Its fallbacks are in `clearedAt`
+     * below, and they matter: a row cleared before 0061 has no resolution time
+     * and must not invent one.
      */
     fixed: [
       ...doneHazards.map((h): DashItem => ({
@@ -143,6 +162,7 @@ export async function loadDashboard(snapshot: AdvisorySnapshot | null): Promise<
            `resolved_by` at all means the row predates migration 0060, while a
            uid with no name means that device never entered one. */
         resolver: h.resolved_by ? people.get(h.resolved_by) : undefined,
+        doneAt: clearedAt(h, loadedAt),
         hazard: h,
         ...place(snapshot, h.purok_id, h.lat, h.lng),
       })),
@@ -152,10 +172,11 @@ export async function loadDashboard(snapshot: AdvisorySnapshot | null): Promise<
         ts: w.ts,
         purokId: w.purok_id,
         person: people.get(w.reported_by ?? ""),
+        doneAt: w.cleared_at,
         water: w,
         ...place(snapshot, w.purok_id, w.lat ?? null, w.lng ?? null),
       })),
-    ].sort((a, b) => b.ts.localeCompare(a.ts)),
+    ].sort(byMostRecentlyCleared),
   };
 }
 
