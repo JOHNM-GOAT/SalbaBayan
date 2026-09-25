@@ -1,8 +1,8 @@
 import type { AdvisorySnapshot } from "./advisory";
-import { allOpenHazards, type Hazard } from "./hazards";
+import { allOpenHazards, resolvedHazards, type Hazard } from "./hazards";
 import { namesFor, type NamedPerson } from "./profile";
 import { activeQueue, type RescueRequest } from "./sos";
-import { allWaterReports, type WaterReport } from "./water";
+import { allWaterReports, clearedWaterReports, type WaterReport } from "./water";
 
 /**
  * The official's map dashboard: every open SOS, open hazard and recent water
@@ -32,7 +32,19 @@ export type DashItem =
   | (Base & { kind: "hazard"; hazard: Hazard })
   | (Base & { kind: "water"; water: WaterReport });
 
-export type Dashboard = { sos: DashItem[]; hazards: DashItem[]; water: DashItem[] };
+export type Dashboard = {
+  sos: DashItem[];
+  hazards: DashItem[];
+  water: DashItem[];
+  /*
+   * Reports that are done with: hazards marked fixed, and flood readings an
+   * official has cleared. They are deliberately NOT on the map — a pin for a
+   * tree that has been cut up is a tree in the road, as far as anyone glancing
+   * at the screen is concerned. They are a list, so that "we dealt with that"
+   * is something the barangay can point at afterwards.
+   */
+  fixed: DashItem[];
+};
 
 function place(
   snapshot: AdvisorySnapshot | null,
@@ -47,15 +59,19 @@ function place(
 }
 
 export async function loadDashboard(snapshot: AdvisorySnapshot | null): Promise<Dashboard> {
-  const [sos, hazards, water] = await Promise.all([
+  const [sos, hazards, water, doneHazards, doneWater] = await Promise.all([
     activeQueue(),
     allOpenHazards(100),
     allWaterReports(40),
+    resolvedHazards(30),
+    clearedWaterReports(30),
   ]);
   const people = await namesFor([
     ...sos.map((r) => r.requested_by ?? ""),
     ...hazards.map((h) => h.reported_by ?? ""),
     ...water.map((w) => w.reported_by ?? ""),
+    ...doneHazards.map((h) => h.reported_by ?? ""),
+    ...doneWater.map((w) => w.reported_by ?? ""),
   ]);
 
   return {
@@ -97,6 +113,34 @@ export async function loadDashboard(snapshot: AdvisorySnapshot | null): Promise<
         ...place(snapshot, w.purok_id, w.lat ?? null, w.lng ?? null),
       }))
       .sort((a, b) => b.ts.localeCompare(a.ts)),
+    /*
+     * Both kinds together, newest report first.
+     *
+     * By the time it was REPORTED, not by the time it was dealt with: a
+     * hazard row records no resolution time (there is no such column), and a
+     * list that sorted two kinds by two different clocks would be in no order
+     * at all. The rows say when they were reported and leave it at that.
+     */
+    fixed: [
+      ...doneHazards.map((h): DashItem => ({
+        kind: "hazard",
+        id: h.id,
+        ts: h.ts,
+        purokId: h.purok_id,
+        person: people.get(h.reported_by ?? ""),
+        hazard: h,
+        ...place(snapshot, h.purok_id, h.lat, h.lng),
+      })),
+      ...doneWater.map((w): DashItem => ({
+        kind: "water",
+        id: w.id,
+        ts: w.ts,
+        purokId: w.purok_id,
+        person: people.get(w.reported_by ?? ""),
+        water: w,
+        ...place(snapshot, w.purok_id, w.lat ?? null, w.lng ?? null),
+      })),
+    ].sort((a, b) => b.ts.localeCompare(a.ts)),
   };
 }
 

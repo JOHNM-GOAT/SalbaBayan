@@ -8,6 +8,7 @@ import {
   CentreDetail,
   CentreList,
   Counters,
+  FixedList,
   ItemDetail,
   ItemList,
   SignalHeader,
@@ -24,7 +25,7 @@ import { onQueueChanged } from "@/lib/offlineQueue";
 import { subscribeRescue } from "@/lib/sos";
 import { subscribeWaterReports } from "@/lib/water";
 
-const EMPTY: Dashboard = { sos: [], hazards: [], water: [] };
+const EMPTY: Dashboard = { sos: [], hazards: [], water: [], fixed: [] };
 const TAB_OF: Record<DashItem["kind"], Tab> = { sos: "sos", hazard: "hazards", water: "water" };
 
 type Selection = { id: string; kind: "item" | "centre" } | null;
@@ -95,6 +96,7 @@ export default function OfficialHome() {
     sos: data.sos.length,
     hazards: data.hazards.length,
     water: data.water.length,
+    fixed: data.fixed.length,
     centres: centres.length,
   };
   const editingCentre = centres.find((c) => c.id === editing) ?? null;
@@ -234,6 +236,8 @@ export default function OfficialHome() {
                     selectedId={null}
                     onSelect={(id) => select(id, "centre")}
                   />
+                ) : tab === "fixed" ? (
+                  <FixedList items={data.fixed} now={now} />
                 ) : (
                   <ItemList items={list} selectedId={null} onSelect={(id) => select(id, "item")} now={now} />
                 )}

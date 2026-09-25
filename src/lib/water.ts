@@ -97,6 +97,35 @@ export async function recentWaterReports(limit = 12): Promise<WaterReport[]> {
 }
 
 /**
+ * Readings an official has cleared — the other half of `recentWaterReports`.
+ *
+ * Off every map by design (0051): water that has gone down is not a warning.
+ * It is still a record, and the official dashboard shows it under FIXED, which
+ * is what makes "I cleared that reading" verifiable afterwards rather than a
+ * thing that simply vanished.
+ *
+ * Only what the server holds. A clear still sitting in this phone's queue
+ * already hides the reading from the live list, and listing it here as done
+ * would claim the barangay had been told when it has not.
+ */
+export async function clearedWaterReports(limit = 30): Promise<ClearedWater[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from("water_reports")
+    .select("id,purok_id,location_label,level_category,ts,reported_by,lat,lng,cleared_at")
+    .not("cleared_at", "is", null)
+    .order("cleared_at", { ascending: false })
+    .limit(limit);
+
+  if (error) return [];
+  return (data ?? []) as ClearedWater[];
+}
+
+export type ClearedWater = WaterReport & { cleared_at: string };
+
+/**
  * Reports still in the local write queue, shaped like rows.
  *
  * Without this a reporter does not see their own report. The submit returns as

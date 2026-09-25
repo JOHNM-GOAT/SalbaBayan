@@ -19,7 +19,7 @@ import { acceptedSosPref } from "@/lib/responderRoute";
 import { BulletinCard } from "./BulletinCard";
 import type { AdvisoryValues } from "@/lib/advisoryForm";
 
-export type Tab = "sos" | "hazards" | "water" | "centres";
+export type Tab = "sos" | "hazards" | "water" | "fixed" | "centres";
 
 export function clockLabel(iso: string): string {
   return new Date(iso)
@@ -125,7 +125,7 @@ export function Tabs({
       role="tab"
       aria-selected={tab === id}
       onClick={() => onTab(id)}
-      className={`mono flex-1 border-b-2 px-1 pb-1.5 text-[9.5px] font-bold tracking-[0.7px] ${
+      className={`mono flex-1 border-b-2 px-0.5 pb-1.5 text-[9px] font-bold tracking-[0.4px] ${
         tab === id ? "border-hv text-hv" : "border-transparent text-paper-3"
       }`}
     >
@@ -138,6 +138,7 @@ export function Tabs({
       {item("sos", t("dash.tab_sos"), counts.sos)}
       {item("hazards", t("dash.tab_hazards"), counts.hazards)}
       {item("water", t("dash.tab_water"), counts.water)}
+      {item("fixed", t("dash.tab_fixed"), counts.fixed)}
       {item("centres", t("dash.tab_centres"), counts.centres)}
     </div>
   );
@@ -227,6 +228,82 @@ export function ItemList({
           </li>
         );
       })}
+    </ul>
+  );
+}
+
+/**
+ * What has been dealt with: hazards marked fixed, and flood readings an
+ * official has cleared.
+ *
+ * Rows here are not buttons. Everything on this screen that can be tapped goes
+ * to a pin on the map, and these have no pin — they were taken off it when they
+ * were closed. A row that looks tappable and does nothing is worse than a row
+ * that plainly does not.
+ */
+export function FixedList({ items, now }: { items: DashItem[]; now: number }) {
+  const { snapshot } = useSync();
+  const t = useT();
+  const { title } = useItemText();
+  const area = (id: string | null) => snapshot?.puroks.find((p) => p.id === id)?.name ?? "";
+
+  if (items.length === 0) {
+    return <p className="mono px-3 py-6 text-center text-[11px] text-paper-3">{t("dash.none")}</p>;
+  }
+
+  return (
+    <ul className="flex flex-col">
+      {items.map((item) => (
+        <li
+          key={item.id}
+          className="flex items-start gap-2.5 border-b border-line-soft px-3 py-2.5"
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--color-clear)"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="mt-0.5 shrink-0"
+            aria-hidden
+          >
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13px] font-semibold text-paper-2">{title(item)}</span>
+            <span className="mono block truncate text-[9.5px] tracking-[0.4px] text-paper-3">
+              {/* The reporter's own words for the place, when they add
+                  anything — on streets named after the area they usually
+                  repeat it, and "Oeste Street · Oeste Street" says less than
+                  either half of it. */}
+              {[
+                area(item.purokId),
+                item.kind === "water" && item.water.location_label !== area(item.purokId)
+                  ? item.water.location_label
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+            {item.person && (
+              <span className="mt-0.5 block">
+                <PersonLabel person={item.person} />
+              </span>
+            )}
+          </span>
+          <span className="shrink-0 text-right">
+            {/* A hazard was fixed by someone; water simply went down. Two
+                different claims, so two different words. */}
+            <span className="mono block text-[9px] font-bold tracking-[0.5px] text-clear">
+              {item.kind === "hazard" ? t("hazard.resolved") : t("dash.cleared")}
+            </span>
+            <span className="mono block text-[10px] text-paper-3">{agoLabel(item.ts, now)}</span>
+          </span>
+        </li>
+      ))}
     </ul>
   );
 }
