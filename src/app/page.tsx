@@ -7,6 +7,7 @@ import { PurokBar } from "@/components/PurokBar";
 import { SignalPlacard } from "@/components/SignalPlacard";
 import { LeaveByStrip } from "@/components/LeaveByStrip";
 import { ActionCard } from "@/components/ActionCard";
+import { ActiveSOSBanner } from "@/components/ActiveSOSBanner";
 import { deriveAdvisory } from "@/lib/advisory";
 import { Skeleton, SkeletonRegion, useSkeletonGate } from "@/components/Skeleton";
 
@@ -37,6 +38,13 @@ export default function Home() {
       <PurokBar />
 
       <main className="flex flex-1 flex-col gap-2.5 p-3.5">
+        {/*
+          Above everything, and outside the cache check below on purpose: a
+          device that has raised an SOS and has never reached the server has no
+          snapshot to render and the most urgent thing in the product to say.
+        */}
+        <ActiveSOSBanner />
+
         {!snapshot ? (
           /*
            * Two genuinely different states, and conflating them would be a

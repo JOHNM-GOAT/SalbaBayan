@@ -69,21 +69,64 @@ export default function VolunteerHome() {
            * visible from every screen rather than only this one.
            */}
           <div className="mt-1 grid grid-cols-2 gap-2">
-            <Link
-              href="/report"
-              className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-paper-3 transition-colors hover:text-paper text-[10px] font-bold tracking-[1px]"
-            >
-              {t("nav.report")}
-            </Link>
-            <Link
-              href="/map"
-              className="tap mono flex items-center justify-center rounded-instrument border-[1.5px] border-line-soft text-paper-3 transition-colors hover:text-paper text-[10px] font-bold tracking-[1px]"
-            >
-              {t("nav.map")}
-            </Link>
+            <HomeLink href="/report" label={t("nav.report")} icon="drop" />
+            <HomeLink href="/map" label={t("nav.map")} icon="map" />
           </div>
         </>
       )}
     </main>
+  );
+}
+
+/**
+ * The two destinations the volunteer's tab bar does not carry.
+ *
+ * They used to be a grey outline with grey tracked caps — the same treatment
+ * this app gives disabled text — so the only two links on the screen read as
+ * the least interactive thing on it, while the cards above them (which do
+ * nothing when tapped) looked exactly the same. Colour is the fix, and the
+ * rule that governs it is already written down: `hv` means INTERACTIVE and
+ * nothing else. So these take the accent, in a tint that keeps them below the
+ * signal placard in the reading order without pretending they are inert, and
+ * each gets the icon its own tab carries elsewhere in the product, so the
+ * shape is recognised before the word is read.
+ */
+function HomeLink({
+  href,
+  label,
+  icon,
+}: {
+  href: string;
+  label: string;
+  icon: "drop" | "map";
+}) {
+  return (
+    <Link
+      href={href}
+      className="tap mono flex items-center justify-center gap-2 rounded-instrument border-[1.5px] border-hv/45 bg-hv/10 text-[11px] font-bold tracking-[1px] text-hv transition-colors hover:bg-hv/20"
+    >
+      <svg
+        width="17"
+        height="17"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        {icon === "drop" ? (
+          <path d="M12 3s7 7.58 7 12a7 7 0 0 1-14 0c0-4.42 7-12 7-12z" />
+        ) : (
+          <>
+            <path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2V6z" />
+            <path d="M9 4v14" />
+            <path d="M15 6v14" />
+          </>
+        )}
+      </svg>
+      {label}
+    </Link>
   );
 }
