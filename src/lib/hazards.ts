@@ -13,7 +13,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { enqueueUpdate, enqueueWrite, newClientId, queuedWrites } from "./offlineQueue";
 import { queuePhoto } from "./photoQueue";
 import { getCurrentUserId, getMyRole, getSupabase, type UserRole } from "./supabase";
-import { canResolveHazard as decide } from "./hazardPermission";
+import { canResolveHazard as decide, type Resolvable } from "./hazardPermission";
 import { mergeHazards, queuedInserts, queuedPatches } from "./hazardMerge";
 import { currentFix } from "./sos";
 
@@ -45,6 +45,8 @@ export type Hazard = {
   lat: number | null;
   lng: number | null;
   reported_by: string | null;
+  /** Who marked it fixed. Stamped by Postgres (migration 0060), never sent. */
+  resolved_by: string | null;
   /** Carries a local change the server has not accepted yet (lib/hazardMerge). */
   pending?: boolean;
 };
@@ -111,9 +113,33 @@ export async function submitHazard(input: {
  * road is exactly the person likely to be standing in a dead zone while doing
  * it — and a resolve that evaporates leaves the barangay avoiding a road that
  * is already clear.
+ *
+ * The rule is checked HERE, not only by the screens that offer the button.
+ *
+ * It was checked in three places, all of them presentation: two feeds and a
+ * detail panel each asked `canResolveHazard` before drawing the control. That
+ * is the right thing for those screens to do and it is not enforcement — a
+ * fourth call site, or a role that resolves a moment after the button is
+ * painted, walks straight past it. RLS would still refuse the write, but not
+ * before the queue had shown the resolve locally: the report vanishes from the
+ * hazard map on that phone, the flush is refused minutes later, and until then
+ * the person is looking at a map that says a road is clear on the strength of
+ * a request the barangay threw away.
+ *
+ * So the one function that performs the action decides whether it may. The
+ * database is still the boundary; this is the client agreeing with it in every
+ * path rather than in three of them.
+ *
+ * Returns false when it refused, so a caller can say so instead of silently
+ * doing nothing.
  */
-export async function resolveHazard(id: string): Promise<void> {
-  await enqueueUpdate("hazard_reports", id, { status: "resolved" });
+export async function resolveHazard(hazard: Pick<Hazard, "id" | "reported_by">): Promise<boolean> {
+  if (!(await canResolve(hazard))) return false;
+  /* `resolved_by` is deliberately NOT sent: Postgres stamps it from the
+     session that lands the update (migration 0060), which is the only version
+     of it a client cannot lie about. */
+  await enqueueUpdate("hazard_reports", hazard.id, { status: "resolved" });
+  return true;
 }
 
 /**
@@ -132,7 +158,7 @@ export async function fetchHazards(limit = 60): Promise<Hazard[]> {
 
   const { data, error } = await supabase
     .from("hazard_reports")
-    .select("id,purok_id,category,description,photo_url,status,ts,lat,lng,reported_by")
+    .select("id,purok_id,category,description,photo_url,status,ts,lat,lng,reported_by,resolved_by")
     .order("ts", { ascending: false })
     .limit(limit);
 
@@ -162,6 +188,9 @@ const fromQueuePayload = (
   lat: (p.lat as number | null) ?? null,
   lng: (p.lng as number | null) ?? null,
   reported_by: (p.reported_by as string | null) ?? null,
+  /* Nobody has cleared a report that has not been filed yet, and the column is
+     Postgres's to fill in any case (migration 0060). */
+  resolved_by: null,
   // Still in the queue, so the server has not seen it by definition.
   pending: true,
 });
@@ -267,7 +296,7 @@ export function subscribeHazards(onChange: () => void): () => void {
 export { canResolveHazard } from "./hazardPermission";
 
 /** Async convenience for callers that hold neither the uid nor the role. */
-export async function canResolve(hazard: Hazard): Promise<boolean> {
+export async function canResolve(hazard: Resolvable): Promise<boolean> {
   const [uid, role] = await Promise.all([
     getCurrentUserId(),
     getMyRole().catch((): UserRole | null => null),

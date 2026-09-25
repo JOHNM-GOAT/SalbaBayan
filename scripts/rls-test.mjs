@@ -313,17 +313,43 @@ check(
   `LEAK: status is now ${stillOpen.body?.[0]?.status}`,
 );
 
-/* And the fence is not a wall: its own author may still clear it (rule 1 in
-   lib/hazardPermission.ts — "both volunteers and residents can fix it"). */
+/*
+ * And the fence is not a wall: its own author may still clear it (rule 1 in
+ * lib/hazardPermission.ts — "both volunteers and residents can fix it").
+ *
+ * The resolve deliberately carries a FORGED `resolved_by` naming somebody
+ * else. Migration 0060 stamps that column from `auth.uid()` in a trigger
+ * rather than accepting it from the request, and this is the difference
+ * between a record of who cleared a downed-power-line report and a field
+ * anyone can write anything into.
+ */
 const ownerResolve = await rest(`hazard_reports?id=eq.${hazardId}`, {
   jwt,
   method: "PATCH",
-  body: { status: "resolved" },
+  body: { status: "resolved", resolved_by: crypto.randomUUID() },
 });
 check(
   "the reporter can still resolve their own",
   ownerResolve.status === 200 && ownerResolve.body?.[0]?.status === "resolved",
   `status ${ownerResolve.status}`,
+);
+check(
+  "the resolver recorded is the session, not what was sent",
+  ownerResolve.body?.[0]?.resolved_by === me,
+  `LEAK: recorded ${ownerResolve.body?.[0]?.resolved_by}, session is ${me}`,
+);
+
+/* And it does not change afterwards. A second PATCH on an already-resolved row
+   must not be able to rewrite who cleared it. */
+const rewrite = await rest(`hazard_reports?id=eq.${hazardId}`, {
+  jwt,
+  method: "PATCH",
+  body: { status: "resolved", resolved_by: crypto.randomUUID() },
+});
+check(
+  "who cleared it cannot be rewritten later",
+  rewrite.body?.[0]?.resolved_by === me,
+  `LEAK: became ${rewrite.body?.[0]?.resolved_by}`,
 );
 
 /* Nothing may be DELETED by anyone: hazard_reports has no delete policy at

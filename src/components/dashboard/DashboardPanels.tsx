@@ -293,6 +293,31 @@ export function FixedList({ items, now }: { items: DashItem[]; now: number }) {
                 <PersonLabel person={item.person} />
               </span>
             )}
+            {/*
+              Who cleared it (migration 0060).
+
+              Hazards only: water goes down by itself and an official merely
+              records that it has, so naming a person for it would be a claim
+              nobody made. A row from before the column existed says so rather
+              than leaving a gap that reads as "nobody" — the barangay should
+              be able to tell "we do not know" from "no one did".
+            */}
+            {item.kind === "hazard" && item.hazard.status === "resolved" && (
+              <span className="mono mt-1 block text-[9.5px] leading-relaxed tracking-[0.4px] text-paper-3">
+                {item.hazard.resolved_by ? (
+                  <>
+                    {t("hazard.cleared_by")}{" "}
+                    <span className="font-bold text-paper-2">
+                      {item.resolver
+                        ? `${item.resolver.first_name} ${item.resolver.last_name}`
+                        : t("profile.no_name")}
+                    </span>
+                  </>
+                ) : (
+                  t("hazard.cleared_unknown")
+                )}
+              </span>
+            )}
           </span>
           <span className="shrink-0 text-right">
             {/* A hazard was fixed by someone; water simply went down. Two
@@ -428,7 +453,7 @@ export function ItemDetail({
           label={t("hazard.resolve")}
           holdingLabel={t("sos.cancelling")}
           tone="accent"
-          onConfirm={() => void resolveHazard(item.id).then(onChanged)}
+          onConfirm={() => void resolveHazard(item.hazard).then(onChanged)}
         />
       )}
       {/* Officials only (0051); this screen is officials-only too. */}

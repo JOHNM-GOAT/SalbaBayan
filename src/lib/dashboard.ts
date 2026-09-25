@@ -25,6 +25,15 @@ type Base = {
   ts: string;
   purokId: string | null;
   person: NamedPerson | undefined;
+  /**
+   * Who cleared it, on the rows where that is a question with an answer.
+   *
+   * Only hazards have one — water is cleared by an official and goes down on
+   * its own, so "who" is the wrong question for it — and only reports resolved
+   * since migration 0060, because before that the column did not exist and the
+   * honest answer for older rows is "not recorded".
+   */
+  resolver?: NamedPerson | undefined;
 };
 
 export type DashItem =
@@ -72,6 +81,8 @@ export async function loadDashboard(snapshot: AdvisorySnapshot | null): Promise<
     ...water.map((w) => w.reported_by ?? ""),
     ...doneHazards.map((h) => h.reported_by ?? ""),
     ...doneWater.map((w) => w.reported_by ?? ""),
+    // Who cleared each fixed hazard, so the FIXED tab can name them (0060).
+    ...doneHazards.map((h) => h.resolved_by ?? ""),
   ]);
 
   return {
@@ -128,6 +139,10 @@ export async function loadDashboard(snapshot: AdvisorySnapshot | null): Promise<
         ts: h.ts,
         purokId: h.purok_id,
         person: people.get(h.reported_by ?? ""),
+        /* Undefined two different ways, and the screen tells them apart: no
+           `resolved_by` at all means the row predates migration 0060, while a
+           uid with no name means that device never entered one. */
+        resolver: h.resolved_by ? people.get(h.resolved_by) : undefined,
         hazard: h,
         ...place(snapshot, h.purok_id, h.lat, h.lng),
       })),

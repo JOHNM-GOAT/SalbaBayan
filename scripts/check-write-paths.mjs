@@ -65,3 +65,35 @@ if (violations.length > 0) {
 }
 
 console.log(`write-path check: clean (${ALLOWED.length} permitted writer)`);
+
+/*
+ * Resolving a hazard must decide before it queues.
+ *
+ * The same class of problem as the one above, and found the same way. The rule
+ * for who may clear a report lived in three screens, each asking
+ * `canResolveHazard` before drawing the button — correct for those screens and
+ * not enforcement. A fourth call site, or a role that arrives a moment after
+ * the control is painted, walks past all three, and the queue then shows the
+ * resolve locally: the report disappears from that phone's hazard map, the
+ * flush is refused minutes later, and in between somebody is reading a map
+ * that calls a road clear on the strength of a request the barangay threw
+ * away. RLS refuses the write; it cannot refuse the appearance.
+ *
+ * So `resolveHazard` itself asks. This fails the build if it stops asking,
+ * because that is a one-line deletion that looks like a simplification.
+ */
+const hazards = readFileSync(join(ROOT, "lib", "hazards.ts"), "utf8");
+const resolveBody = hazards.slice(hazards.indexOf("export async function resolveHazard"));
+
+if (!/^[\s\S]{0,700}?canResolve\(/.test(resolveBody)) {
+  console.error(
+    "\nresolveHazard() in src/lib/hazards.ts no longer checks canResolve().\n\n" +
+      "Hiding the button is presentation; this is the check. Without it a\n" +
+      "refused resolve is still queued and still merged into what the device\n" +
+      "shows, so a hazard reads as cleared on that phone until the flush is\n" +
+      "refused — see lib/hazardPermission.ts.\n",
+  );
+  process.exit(1);
+}
+
+console.log("hazard-resolve check: the rule is enforced where the write happens");

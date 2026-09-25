@@ -549,7 +549,7 @@ export function HazardSheet() {
                     staff ? (reporter?.id === reporterId ? reporter.person : undefined) : null
                   }
                   onFix={async () => {
-                    await resolveHazard(selected.id);
+                    await resolveHazard(selected);
                     setSelectedId(null);
                     void refresh();
                   }}

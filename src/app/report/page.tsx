@@ -459,7 +459,7 @@ export default function ReportPage() {
                     purokName={purokName}
                     canFix={canResolveHazard(entry.hazard, userId ?? null, role)}
                     onResolve={async () => {
-                      await resolveHazard(entry.hazard.id);
+                      await resolveHazard(entry.hazard);
                       void refresh();
                     }}
                   />
