@@ -1,4 +1,5 @@
 import type { Blocker } from "./walkRoute";
+import type { Point } from "./geo";
 import type { Depth } from "./water";
 import type { PlacedWater } from "./waterMap";
 
@@ -36,8 +37,58 @@ export const BLOCK_RADIUS_M = 30;
  */
 const STOPS_A_PERSON: Depth[] = ["waist", "chest", "above_head"];
 
+/** Whether a reading of this depth stops a person on foot. */
+export function stopsAPerson(depth: Depth): boolean {
+  return STOPS_A_PERSON.includes(depth);
+}
+
 /** Enough of a hazard to route round it. */
 export type PlacedHazard = { lat: number | null; lng: number | null };
+
+/**
+ * Close enough to the destination that routing round it is pointless.
+ *
+ * A tree reported beside the evacuation centre blocks every street that
+ * reaches it, and the router then answers the only way it can: a long loop to
+ * approach from the far side, or nothing at all. Neither is advice. The person
+ * is going to that building, and the last few metres are something they can see
+ * for themselves — so the walk is drawn normally and the warning names what is
+ * there.
+ */
+export const AT_THE_DOOR_M = 60;
+
+/**
+ * How much longer a way round may be before it stops being one.
+ *
+ * Past this the map is proposing streets nobody would walk, and on a flooding
+ * night a long walk in the open is its own hazard. The direct route is shown
+ * instead, with the warning, and the person decides — they can see the water
+ * and this app cannot.
+ */
+export const MAX_DETOUR_RATIO = 2;
+export const MAX_DETOUR_M = 400;
+
+/** Blockers far enough from the destination to be worth going round. */
+export function awayFromDoor(avoid: Blocker[], destination: Point): Blocker[] {
+  return avoid.filter((blocker) => flatMetres(blocker.at, destination) > AT_THE_DOOR_M);
+}
+
+/** Whether the way round is still worth walking, given the direct distance. */
+export function worthWalking(directMetres: number, avoidedMetres: number): boolean {
+  if (avoidedMetres <= directMetres) return true;
+  return (
+    avoidedMetres <= directMetres * MAX_DETOUR_RATIO ||
+    avoidedMetres - directMetres <= MAX_DETOUR_M
+  );
+}
+
+/** Metres between two points. Local, so this file keeps its no-value-imports rule. */
+function flatMetres(a: Point, b: Point): number {
+  const lat = ((a[1] + b[1]) / 2) * (Math.PI / 180);
+  const dx = (a[0] - b[0]) * 111_320 * Math.cos(lat);
+  const dy = (a[1] - b[1]) * 110_574;
+  return Math.sqrt(dx * dx + dy * dy);
+}
 
 /**
  * Everything the route should avoid, as circles on the ground.
@@ -62,7 +113,7 @@ export function routeBlockers(hazards: PlacedHazard[], water: PlacedWater[]): Bl
 
   for (const reading of water) {
     if (reading.stale) continue;
-    if (!STOPS_A_PERSON.includes(reading.report.level_category)) continue;
+    if (!stopsAPerson(reading.report.level_category)) continue;
     /*
      * A reading placed on its street's point rather than its own is "somewhere
      * on this street". It is still avoided — that is what the radius is for —

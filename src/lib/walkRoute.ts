@@ -49,7 +49,24 @@ export type Blocker = { at: Point; radiusM: number };
 export type RouteOptions = {
   /** Streets passing within a blocker's radius are not walked. */
   avoid?: Blocker[];
+  /**
+   * Keep the walk inside the barangay where there is a way.
+   *
+   * The street extract reaches a kilometre past the barangay in every
+   * direction — it has to, or a route to a centre near the edge would have no
+   * streets to use — and the shortest line between two points inside it can
+   * still leave and come back. That is a bad instruction in a storm: the
+   * barangay's own streets are the ones its people know, the ones its
+   * volunteers are walking, and the ones its hazards are reported on.
+   *
+   * A cost, not a wall. Outside streets are walked when they are the only way,
+   * which is what keeps a centre near the boundary reachable at all.
+   */
+  prefer?: { ring: Point[]; penalty: number };
 };
+
+/** How much further an outside street is treated as being. */
+export const OUTSIDE_PENALTY = 3;
 
 export type Route = {
   /** From the node nearest the start to the node nearest the destination. */
@@ -234,11 +251,33 @@ export function walkRoute(
   if (start === null || goal === null) return null;
 
   const avoid = options.avoid ?? [];
+  const prefer = options.prefer;
 
   /** Whether the street between two nodes runs past something to be avoided. */
   const blocked = (a: Point, b: Point) =>
     avoid.some((blocker) => metresToSegment(blocker.at, a, b) <= blocker.radiusM);
 
+  /* Inside-ness is asked for the same node many times over; computed once. */
+  const insideCache = new Map<string, boolean>();
+  const isInside = (id: string) => {
+    let hit = insideCache.get(id);
+    if (hit === undefined) {
+      hit = pointInRing(graph.coords.get(id)!, prefer!.ring);
+      insideCache.set(id, hit);
+    }
+    return hit;
+  };
+
+  /** What this step costs the search — metres, or more when it leaves. */
+  const cost = (from: string, to: string, edgeMetres: number) =>
+    prefer && !(isInside(from) && isInside(to)) ? edgeMetres * prefer.penalty : edgeMetres;
+
+  /*
+   * `dist` holds the SEARCH's cost, which the preference above inflates. The
+   * distance reported to a resident must be the real walk, so it is summed
+   * separately along the path that wins — a route captioned "600 m" that is
+   * 200 m of pavement is a lie about how long they have.
+   */
   const dist = new Map<string, number>([[start, 0]]);
   const prev = new Map<string, { from: string; name: string | null }>();
   const heap = new Heap();
@@ -252,7 +291,7 @@ export function walkRoute(
       if (avoid.length > 0 && blocked(graph.coords.get(node)!, graph.coords.get(edge.to)!)) {
         continue;
       }
-      const through = d + edge.metres;
+      const through = d + cost(node, edge.to, edge.metres);
       if (through < (dist.get(edge.to) ?? Infinity)) {
         dist.set(edge.to, through);
         prev.set(edge.to, { from: node, name: edge.name });
@@ -279,9 +318,13 @@ export function walkRoute(
     if (via[via.length - 1] !== label) via.push(label);
   }
 
+  const line = keys.map((k) => graph.coords.get(k)!);
+  let walked = 0;
+  for (let i = 1; i < line.length; i++) walked += metres(line[i - 1], line[i]);
+
   return {
-    line: keys.map((k) => graph.coords.get(k)!),
-    metres: Math.round(dist.get(goal)!),
+    line,
+    metres: Math.round(walked),
     via: via.slice(0, 3),
   };
 }

@@ -16,8 +16,14 @@ import {
   pointInRing,
   walkRoute,
 } from "../src/lib/walkRoute.ts";
-import { BLOCK_RADIUS_M, routeBlockers } from "../src/lib/blockage.ts";
+import {
+  BLOCK_RADIUS_M,
+  awayFromDoor,
+  routeBlockers,
+  worthWalking,
+} from "../src/lib/blockage.ts";
 import { BLOCKED_RADIUS_M } from "../src/lib/geo.ts";
+import { OUTSIDE_PENALTY } from "../src/lib/walkRoute.ts";
 
 let pass = 0;
 let fail = 0;
@@ -199,6 +205,76 @@ console.log("\nWhat counts as blocking (src/lib/blockage.ts):");
     "an old reading does not block; water moves",
     routeBlockers([], [water("chest", true)]).length === 0,
   );
+
+  /* A hazard at the centre's own door. Going round it is a loop to approach
+     the same building from the far side — or no route at all. */
+  const centre = [120.56, 18.06];
+  const atTheDoor = { at: [120.5602, 18.06], radiusM: BLOCK_RADIUS_M }; // ~21 m
+  const upTheStreet = { at: [120.562, 18.06], radiusM: BLOCK_RADIUS_M }; // ~211 m
+  check(
+    "a hazard beside the destination is not routed round",
+    awayFromDoor([atTheDoor, upTheStreet], centre).length === 1,
+  );
+  check(
+    "one further up the street still is",
+    awayFromDoor([atTheDoor, upTheStreet], centre)[0] === upTheStreet,
+  );
+
+  check("a shorter way round is always worth walking", worthWalking(400, 380));
+  check("half again as far is worth it", worthWalking(400, 600));
+  check("twice as far, but only 300 m more, is worth it", worthWalking(300, 690));
+  check(
+    "three times as far and half a kilometre more is not",
+    worthWalking(300, 1200) === false,
+  );
+}
+
+console.log("\nKeeping the walk inside the barangay:");
+{
+  /*
+   * A long way round INSIDE, and a short cut that leaves. Without the
+   * preference the short cut wins on metres; with it the barangay's own
+   * streets do, which is what a resident is told to walk.
+   */
+  const p = (x, y) => [120.56 + x * 0.001, 18.06 + y * 0.001];
+  const graph = buildWalkGraph({
+    features: [
+      street("Inside Street", p(0, 0), p(0, 1), p(1, 2), p(2, 1), p(2, 0)),
+      street("Outside Road", p(0, 0), p(1, -1), p(2, 0)),
+    ],
+  });
+  /* A ring around the inside streets only; Outside Road dips below it. */
+  const ring = [p(-0.5, -0.4), p(-0.5, 2.5), p(2.5, 2.5), p(2.5, -0.4), p(-0.5, -0.4)];
+
+  const shortest = walkRoute(graph, p(0, 0), p(2, 0));
+  check(
+    "without the preference it takes the shorter way out of the barangay",
+    shortest?.via.join() === "Outside Rd.",
+    JSON.stringify(shortest?.via),
+  );
+
+  const kept = walkRoute(graph, p(0, 0), p(2, 0), {
+    prefer: { ring, penalty: OUTSIDE_PENALTY },
+  });
+  check(
+    "with it the walk stays inside",
+    kept?.via.join() === "Inside St.",
+    JSON.stringify(kept?.via),
+  );
+  check(
+    "and the distance reported is the real walk, not the weighted cost",
+    kept !== null && Math.abs(kept.metres - 527) < 30,
+    `got ${kept?.metres}`,
+  );
+
+  /* Nothing inside reaches it: the preference must not strand anyone. */
+  const away = buildWalkGraph({
+    features: [street("Outside Road", p(0, 0), p(1, -1), p(2, -2))],
+  });
+  const forced = walkRoute(away, p(0, 0), p(2, -2), {
+    prefer: { ring, penalty: OUTSIDE_PENALTY },
+  });
+  check("a route with no inside option is still found", forced !== null);
 }
 
 console.log("\nOrphans are not routable:");

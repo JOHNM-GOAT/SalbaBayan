@@ -1,10 +1,12 @@
 import type { AdvisorySnapshot, EvacCenter } from "./advisory";
+import { awayFromDoor, worthWalking } from "./blockage";
 import { metresBetween, metresToSegment, type Point } from "./geo";
 import { enqueueUpdate, enqueueWrite, newClientId } from "./offlineQueue";
 import {
   buildWalkGraph,
   routeDescription,
   walkRoute,
+  OUTSIDE_PENALTY,
   type Blocker,
   type Streets,
   type WalkGraph,
@@ -122,6 +124,12 @@ export type RankedCentre = {
   unavoidable: boolean;
 };
 
+/** The barangay's outline, when it has one worth routing against. */
+export function barangayRing(snapshot: AdvisorySnapshot | null): Point[] | null {
+  const ring = snapshot?.barangay.boundary_geojson?.coordinates?.[0] as Point[] | undefined;
+  return ring && ring.length > 2 ? ring : null;
+}
+
 /**
  * Every placed centre, nearest first — and "nearest" means the one this person
  * can actually walk to.
@@ -137,11 +145,27 @@ export function rankCentres(
   from: Point,
   centres: EvacCenter[],
   avoid: Blocker[] = [],
+  /** The barangay's outline: routes stay inside it where there is a way. */
+  ring: Point[] | null = null,
 ): RankedCentre[] {
+  const prefer = ring && ring.length > 2 ? { ring, penalty: OUTSIDE_PENALTY } : undefined;
   const ranked: RankedCentre[] = [];
+
   for (const centre of centres) {
     if (centre.lat == null || centre.lng == null) continue;
     const to: Point = [centre.lng, centre.lat];
+
+    /*
+     * Hazards at the destination's own door are not routed round.
+     *
+     * A tree reported beside the evacuation centre blocks every street that
+     * reaches it, and the router answers the only way it can: a long loop to
+     * approach from the far side, or nothing at all. Neither is the advice a
+     * person needs. They are going to that building, and the last few metres
+     * are something they can see for themselves — so the walk is drawn
+     * normally and the warning above it names what is there.
+     */
+    const round = awayFromDoor(avoid, to);
 
     /*
      * The direct walk, and the walk that keeps clear. Both are needed to say
@@ -149,11 +173,24 @@ export function rankCentres(
      * that was always this long, and the clear one alone cannot tell "there was
      * nothing in the way" from "there was no way round".
      */
-    const direct = graph ? walkRoute(graph, from, to) : null;
-    const clear = graph && avoid.length > 0 ? walkRoute(graph, from, to, { avoid }) : direct;
+    const direct = graph ? walkRoute(graph, from, to, { prefer }) : null;
+    const avoided =
+      graph && round.length > 0 ? walkRoute(graph, from, to, { avoid: round, prefer }) : direct;
 
+    /*
+     * A way round that costs more than this is not a way round any more.
+     *
+     * Past it the map is proposing a walk through streets nobody would take —
+     * and on a flooding night, a long walk in the open is its own hazard. The
+     * direct route is shown instead, with the warning, and the person decides:
+     * they can see the water, and this app cannot.
+     */
+    const tooFar =
+      avoided !== null && direct !== null && !worthWalking(direct.metres, avoided.metres);
+
+    const clear = tooFar ? null : avoided;
     const route = clear ?? direct;
-    const unavoidable = avoid.length > 0 && clear === null && direct !== null;
+    const unavoidable = round.length > 0 && clear === null && direct !== null;
     const detour = clear !== null && direct !== null && clear.metres > direct.metres;
 
     if (!route) {
@@ -205,7 +242,12 @@ async function reroute(
   for (const area of snapshot.puroks) {
     if (area.lat == null || area.lng == null) continue;
     const from: Point = [area.lng, area.lat];
-    const best = rankCentres(graph, from, centres)[0];
+    /* The stored protocol routes keep to the barangay too — they are what a
+       phone with no signal falls back to, so they must not differ in shape
+       from the ones the map draws live. Hazards are deliberately not applied
+       here: these are written once, and a tree cleared next week must not
+       leave every street pointing the long way round. */
+    const best = rankCentres(graph, from, centres, [], barangayRing(snapshot))[0];
     if (!best) continue;
     const line = best.line ?? [from, [best.centre.lng as number, best.centre.lat as number]];
     const text = routeDescription(area.name, best.centre.name, { line, metres: best.metres, via: best.via });

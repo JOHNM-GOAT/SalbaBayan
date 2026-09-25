@@ -6,10 +6,10 @@ import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useSync, useT } from "@/components/AppRuntime";
 import { barangayCentre, deriveAdvisory, FALLBACK_CENTRE } from "@/lib/advisory";
-import { graphFor, rankCentres } from "@/lib/centres";
+import { barangayRing, graphFor, rankCentres } from "@/lib/centres";
 import { allWaterReports, subscribeWaterReports, type WaterReport } from "@/lib/water";
 import { DEPTH_COLOUR, placeWater, waterOpacity } from "@/lib/waterMap";
-import { routeBlockers } from "@/lib/blockage";
+import { routeBlockers, stopsAPerson } from "@/lib/blockage";
 import { MapLegend } from "@/components/MapLegend";
 import { CentreDetail, HazardBrief, WaterBrief, YouDetail, type MapSelection } from "@/components/MapDetail";
 import { focusHazard, focusWater } from "@/lib/hazardFocus";
@@ -147,6 +147,7 @@ export default function MapPage() {
       startKey.split(",").map(Number) as Point,
       snapshot.centers,
       blockers,
+      barangayRing(snapshot),
     );
   }, [graph, startKey, snapshot, blockers]);
   const nearest = ranked[0] ?? null;
@@ -168,6 +169,23 @@ export default function MapPage() {
     () => (route.length && snapshot ? hazardsOnRoute(snapshot.hazards, route) : []),
     [snapshot, route],
   );
+
+  /*
+   * Deep water sitting on it, warned about the same way.
+   *
+   * It was not, and that was the gap this closes: a chest-deep reading at the
+   * door of the evacuation centre stopped the route being drawn round it — the
+   * last few metres are the resident's to judge — and then said nothing at all,
+   * so the one reading that mattered most was the one the screen was quietest
+   * about.
+   */
+  const deepWater = useMemo(() => {
+    if (!route.length) return [];
+    const deep = placedWater.filter(
+      (w) => !w.stale && stopsAPerson(w.report.level_category),
+    );
+    return hazardsOnRoute(deep, route);
+  }, [placedWater, route]);
 
   const guidance = useMemo(() => {
     if (!route.length) return null;
@@ -735,10 +753,20 @@ export default function MapPage() {
   const selectedRank = ranked.find((r) => r.centre.id === selectedCentre?.id);
   const others = ranked.slice(1);
 
-  /* The avoid warning names the hazard: its note if it has one, else its kind. */
+  /* The warning names what is in the way: the hazard's note if it has one,
+     else its kind; for water, the depth and where it was seen. */
+  const inTheWay = blocking.length > 0 || deepWater.length > 0;
   const blockingLabel = blocking[0]
     ? (blocking[0].description ?? t(`cat.${blocking[0].category}`))
-    : "";
+    : deepWater[0]
+      ? [t(`water.${deepWater[0].report.level_category}`), deepWater[0].report.location_label]
+          .filter(Boolean)
+          .join(" · ")
+      : "";
+  const showWhatIsInTheWay = () =>
+    setSelection(
+      blocking[0] ? { hazard: blocking[0].id } : { water: deepWater[0].report.id },
+    );
 
   /*
    * The route was redrawn to keep clear of something. Worth saying out loud:
@@ -864,7 +892,7 @@ export default function MapPage() {
           and never at the same time as the warning below: either this walk
           keeps clear, or it does not.
         */}
-        {detoured && blocking.length === 0 && (
+        {detoured && !inTheWay && (
           <div className="pointer-events-auto flex w-full items-center gap-2 rounded-instrument border-[1.5px] border-clear bg-ink-900/95 px-3 py-1.5 shadow-md sm:gap-2.5 sm:py-2">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-clear)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
               <path d="M4 20h6a4 4 0 0 0 4-4V8a4 4 0 0 1 4-4h2" />
@@ -877,11 +905,11 @@ export default function MapPage() {
         )}
 
         {/* The blocked-path warning: it changes whether the destination is reachable at all. */}
-        {blocking.length > 0 && (
+        {inTheWay && (
           <button
             type="button"
             // Tapping the warning goes to the thing being warned about.
-            onClick={() => setSelection({ hazard: blocking[0].id })}
+            onClick={showWhatIsInTheWay}
             className="pointer-events-auto flex w-full items-center gap-2 rounded-instrument border-[1.5px] border-alarm bg-ink-900/95 px-3 py-1.5 text-left shadow-md sm:gap-2.5 sm:py-2.5">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--color-alarm)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
               <path d="M12 9v5" /><path d="M12 17h.01" />
