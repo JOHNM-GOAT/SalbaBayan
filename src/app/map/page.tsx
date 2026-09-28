@@ -7,6 +7,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useSync, useT } from "@/components/AppRuntime";
 import { barangayCentre, deriveAdvisory, FALLBACK_CENTRE } from "@/lib/advisory";
 import { barangayRing, graphFor, rankCentres } from "@/lib/centres";
+import { loadBuildings, paintBuildings, type Buildings } from "@/lib/buildings";
 import { allWaterReports, subscribeWaterReports, type WaterReport } from "@/lib/water";
 import { DEPTH_COLOUR, placeWater, waterOpacity } from "@/lib/waterMap";
 import { routeBlockers, stopsAPerson } from "@/lib/blockage";
@@ -80,6 +81,7 @@ export default function MapPage() {
   const [fix, setFix] = useState<Fix | null>(null);
   const [selection, setSelection] = useState<MapSelection>(null);
   const [streets, setStreets] = useState<FeatureCollection | null>(null);
+  const [buildings, setBuildings] = useState<Buildings | null>(null);
   /** The other centres under the nearest one: folded away until asked for. */
   const [showOthers, setShowOthers] = useState(false);
   /** Phone only: the route name and the offline note above the turn. */
@@ -241,6 +243,12 @@ export default function MapPage() {
       .then((r) => r.json())
       .then(setStreets)
       .catch(() => setStreets(null));
+  }, []);
+
+  /* And the houses along them. Carried rather than drawn from the tiles,
+     because OpenStreetMap has almost no buildings here — see lib/buildings.ts. */
+  useEffect(() => {
+    void loadBuildings().then(setBuildings);
   }, []);
 
   useEffect(() => {
@@ -479,6 +487,15 @@ export default function MapPage() {
       else m.addSource(id, { type: "geojson", data });
     };
 
+    /*
+     * The houses, under everything.
+     *
+     * Added before the streets and the boundary so they stay beneath them —
+     * MapLibre draws in insertion order, and a building over the route is a
+     * building hiding the one line on this screen that matters.
+     */
+    if (buildings) paintBuildings(m, buildings);
+
     /* The drawn grid is the base only when there is no surveyed one under it.
        Both at once would put invented streets over real ones. */
     if (base === "sketch") {
@@ -602,7 +619,7 @@ export default function MapPage() {
       }
     }
 
-  }, [ready, styleEpoch, base, streets, purok, route, snapshot]);
+  }, [ready, styleEpoch, base, streets, buildings, purok, route, snapshot]);
 
   /*
    * Hazards and the destination, as pins (lib/mapMarks.ts) — the same marks as

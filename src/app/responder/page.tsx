@@ -11,6 +11,7 @@ import { useTheme } from "@/components/useTheme";
 import { BarangayButton } from "@/components/BarangayButton";
 import { MapLegend } from "@/components/MapLegend";
 import { loadStreetStyle, onStyleReady, sketchStyle } from "@/lib/basemap";
+import { loadBuildings, paintBuildings } from "@/lib/buildings";
 import { barangayCentre } from "@/lib/advisory";
 import { fitBarangay, sharedView, trackView } from "@/lib/mapView";
 import {
@@ -128,6 +129,27 @@ export default function ResponderPage() {
     setPeople(await namesFor(rows.map((r) => r.requested_by ?? "")));
     setSettled(true);
   }, []);
+
+
+  /*
+   * The houses, under everything this screen draws on top.
+   *
+   * Carried by the app rather than taken from the tiles: OpenStreetMap has
+   * almost no buildings in Nilombot, and the drawn fallback map has none at
+   * all. See lib/buildings.ts.
+   */
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    let live = true;
+    void loadBuildings().then((data) => {
+      if (!live || !data) return;
+      onStyleReady(m, () => paintBuildings(m, data));
+    });
+    return () => {
+      live = false;
+    };
+  }, [epoch]);
 
   useEffect(() => {
     queueMicrotask(() => void refresh());

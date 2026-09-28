@@ -9,6 +9,7 @@ import { useShellWidth } from "./Shell";
 import { useTheme } from "./useTheme";
 import { HazardPhoto } from "./HazardPhoto";
 import { loadStreetStyle, onStyleReady, sketchStyle } from "@/lib/basemap";
+import { loadBuildings, paintBuildings } from "@/lib/buildings";
 import { barangayCentre, FALLBACK_CENTRE } from "@/lib/advisory";
 import { onQueueChanged } from "@/lib/offlineQueue";
 import { onReportFocus, type FocusRequest } from "@/lib/hazardFocus";
@@ -252,6 +253,27 @@ export function HazardSheet() {
 
   /* The barangay outline, as on the evacuation map. Re-added after a style swap. */
   const outline = snapshot?.barangay.boundary_geojson ?? null;
+
+  /*
+   * The houses, under everything this screen draws on top.
+   *
+   * Carried by the app rather than taken from the tiles: OpenStreetMap has
+   * almost no buildings in Nilombot, and the drawn fallback map has none at
+   * all. See lib/buildings.ts.
+   */
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    let live = true;
+    void loadBuildings().then((data) => {
+      if (!live || !data) return;
+      onStyleReady(m, () => paintBuildings(m, data));
+    });
+    return () => {
+      live = false;
+    };
+  }, [styleEpoch]);
+
   useEffect(() => {
     const m = map.current;
     if (!open || !m || !outline) return;
