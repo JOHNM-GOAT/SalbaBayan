@@ -8,6 +8,7 @@ import { OfficialAccessCard } from "@/components/OfficialAccessCard";
 import { useOfficialAccess } from "@/components/useOfficialAccess";
 import { ProfileCard } from "@/components/ProfileCard";
 import { ActorSwitch } from "@/components/ActorSwitch";
+import { PushCard } from "@/components/PushCard";
 
 /**
  * "Ako" — this device (design: `stage-2/design/artboards/DeviceRole.dc.html`).
@@ -109,6 +110,9 @@ export default function ProfilePage() {
           )}
         </p>
       </section>
+
+      {/* Staff only; it hides itself for a resident device. */}
+      <PushCard />
 
       {role === "official" && <RoleManager />}
       {role === "official" && <OfficialAccessCard />}

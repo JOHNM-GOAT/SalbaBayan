@@ -30,7 +30,8 @@ export type QueueTable =
   | "profiles"
   | "barangays"
   | "evac_centers"
-  | "protocols";
+  | "protocols"
+  | "push_subscriptions";
 
 /**
  * The column on each table that records who performed the action.
@@ -64,6 +65,13 @@ const OWNER_COLUMN: Record<QueueTable, string | null> = {
    */
   evac_centers: null,
   protocols: null,
+  /*
+   * Set by the caller, and it has to be: `write_own_push` checks
+   * `user_id = auth.uid()` on the way in, so a row stamped after the fact
+   * would be refused rather than saved. Listed here so the record stays
+   * complete and the stamp is a no-op rather than an omission.
+   */
+  push_subscriptions: "user_id",
 };
 
 /**
@@ -433,6 +441,17 @@ export async function flushQueue(): Promise<{ sent: number; remaining: number }>
 
       await database.queue.delete(item.id);
       sent += 1;
+
+      /*
+       * Both ops carry the target row's id in the payload — an insert because
+       * that IS the row, an update because `enqueueUpdate` puts it there so
+       * the synthetic `<uuid>:update` queue key never has to be parsed apart.
+       */
+      landed({
+        table: item.table,
+        id: (item.payload as { id?: string }).id ?? item.id,
+        op: item.op ?? "insert",
+      });
     }
   } finally {
     flushing = false;
@@ -492,6 +511,42 @@ export async function discardBlocked(): Promise<number> {
  * Change notification — lets any screen show the live queued-write count
  * without polling (PRD §6: sync state is always visible, never a toast).
  * ------------------------------------------------------------------------ */
+
+/**
+ * A write that has actually reached Postgres.
+ *
+ * Distinct from `onQueueChanged`, which fires whenever the queue's SHAPE
+ * changes — something enqueued, something given up on — and says nothing about
+ * whether the server ever heard about it.
+ *
+ * This is for the things that can only happen once a row exists. Pushing a
+ * rescue alert is the first: the notification names a request, and sending one
+ * for a request still sitting in a queue on somebody's phone would wake a
+ * volunteer to a map with nothing on it. The gap between the tap and the row
+ * can be an hour on a bad night, and this is what closes it.
+ */
+export type LandedWrite = { table: QueueTable; id: string; op: "insert" | "update" };
+
+const landedListeners = new Set<(write: LandedWrite) => void>();
+
+export function onWriteLanded(fn: (write: LandedWrite) => void): () => void {
+  landedListeners.add(fn);
+  return () => {
+    landedListeners.delete(fn);
+  };
+}
+
+function landed(write: LandedWrite): void {
+  /* A throwing listener must not abort the flush: the row is already saved,
+     and the rest of the queue is still waiting behind it. */
+  landedListeners.forEach((fn) => {
+    try {
+      fn(write);
+    } catch {
+      /* the caller's problem, not the queue's */
+    }
+  });
+}
 
 const listeners = new Set<() => void>();
 

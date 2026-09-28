@@ -163,3 +163,78 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+/* ---------------------------------------------------------------------------
+ * Push
+ *
+ * The only part of this product that can reach somebody who is not looking at
+ * it. Everything else — the tab badge, the dashboard queue, the alarm sound —
+ * needs the app open, and at two in the morning a phone is in a pocket with
+ * the screen off.
+ *
+ * Sent by supabase/functions/notify-rescue, which fires when a rescue request
+ * actually lands in Postgres.
+ * ------------------------------------------------------------------------ */
+
+type PushPayload = { kind?: string; id?: string; area?: string };
+
+self.addEventListener("push", (event) => {
+  let data: PushPayload = {};
+  try {
+    data = event.data?.json() ?? {};
+  } catch {
+    /* A payload we cannot read is still a push, and a push from this sender
+       always means the same thing. Better a bare alarm than none. */
+  }
+
+  /*
+   * The area, and nothing else about the person.
+   *
+   * A notification is read off a lock screen by whoever picks the phone up,
+   * which is not always the volunteer it was sent to. Who is in trouble is on
+   * the rescue screen, behind the device's own lock — the street is enough to
+   * get somebody moving, and it is the part that is useful before the app is
+   * even open.
+   */
+  const title = "SALBABAYAN";
+  const body = data.area ? `Rescue needed — ${data.area}` : "Someone needs rescue";
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: "/icon.png",
+      badge: "/icon.png",
+      /* Collapses repeats onto one entry: three calls in a minute should not
+         leave three notifications to dismiss before the queue can be opened. */
+      tag: "salbabayan-rescue",
+      renotify: true,
+      requireInteraction: true,
+      vibrate: [200, 100, 200, 100, 400],
+      data: { url: "/responder" },
+    } as NotificationOptions),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data as { url?: string })?.url ?? "/responder";
+
+  /*
+   * Reuse a window that is already open rather than stacking another. A
+   * responder who has the queue open and taps the notification should land on
+   * the queue they were already looking at, not a second copy of the app.
+   */
+  event.waitUntil(
+    (async () => {
+      const open = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const client of open) {
+        if ("focus" in client) {
+          await client.focus();
+          if ("navigate" in client) await client.navigate(url).catch(() => {});
+          return;
+        }
+      }
+      await self.clients.openWindow(url);
+    })(),
+  );
+});
