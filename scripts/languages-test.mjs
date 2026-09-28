@@ -40,10 +40,16 @@ for (const code of ["en", "tl", "ceb"]) {
     isLanguage(code),
   );
 }
-check(
-  "Ilocano is offered — the language of Batac, where the app now runs",
-  isLanguage("ilo"),
-);
+/*
+ * Both languages of the place the app now runs.
+ *
+ * Mapandan is in Pangasinan, so Pangasinan is the language of the town — and
+ * Ilocano is widely spoken across the province too, which is why neither can
+ * stand in for the other. This used to check Ilocano alone and call it "the
+ * language of Batac"; the barangay moved and the claim did not.
+ */
+check("Pangasinan is offered — the language of Mapandan", isLanguage("pag"));
+check("Ilocano is offered too — widely spoken in Pangasinan", isLanguage("ilo"));
 check("an unknown code is not a language", !isLanguage("xx") && !isLanguage(undefined));
 
 console.log("\nChosen is not the same as translated:");

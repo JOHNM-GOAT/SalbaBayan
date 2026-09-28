@@ -330,9 +330,10 @@ export function walkRoute(
 }
 
 /**
- * The route as a protocol's `route` text: "Oeste Street → #5 Callaguip Barangay
- * Hall · 391 m · Oeste St.". The generator and the centre editor both write it,
- * so a route redrawn on a phone reads exactly like one built at setup.
+ * The route as a protocol's `route` text: "Rose Street → Nilombot Elementary
+ * School · 579 m · Rose St., Santan St.". The generator and the centre editor
+ * both write it, so a route redrawn on a phone reads exactly like one built at
+ * setup.
  */
 export function routeDescription(area: string, centre: string, route: Route): string {
   const via = route.via.length ? ` · ${route.via.join(" → ")}` : "";

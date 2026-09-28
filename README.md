@@ -4,7 +4,7 @@
 
 *Salba* (save) + *Bayan* (town, nation).
 
-> **Status: live.** The MVP is deployed and running for Barangay #5 Callaguip, Batac City, Ilocos Norte.
+> **Status: live.** The MVP is deployed and running for Barangay Nilombot, Mapandan, Pangasinan.
 > **[Open the app →](https://salba-bayan.vercel.app)** &nbsp;·&nbsp; **[Deliverables →](stage-5/)**
 
 ![The evacuation map](stage-5/source/assets/map.png)
@@ -160,7 +160,7 @@ Stated up front — these are accepted trade-offs, not oversights.
 - **QR check-in is cooperative-trust, not adversarial-proof.** Right for coordinating an evacuation centre; not designed to resist forged or replayed check-ins.
 - **Offline maps need one pre-storm visit.** A phone that has never opened the app has nothing cached. The app is installable precisely so this happens in fair weather.
 - **The PAGASA reader has never met a live bulletin.** No cyclone entered the area of responsibility while it was built, so it is tested against fixtures. When it cannot parse a bulletin it says so and links to PAGASA, which is the failure it was designed to have.
-- **Ilocano is machine-translated.** Batac speaks Ilocano. The app labels machine translation honestly, but a native speaker should write it before the barangay depends on it.
+- **Pangasinan and Ilocano are machine-translated.** Mapandan speaks Pangasinan, and Ilocano is widely spoken across the province; the app offers both and labels the machine translation honestly. A native speaker should write them before the barangay depends on either. This is the single most important thing left: the instruction that matters is "evacuate now".
 - **The offline street grid has no waterways.** A flood app whose offline map cannot show a river — the next thing worth building.
 
 ---

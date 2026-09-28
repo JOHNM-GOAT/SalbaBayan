@@ -211,7 +211,7 @@ export default function MapPage() {
    */
   /*
    * The outline to frame and draw: the area's own, or — for areas named after
-   * streets, which have none — the whole barangay's. Callaguip's areas are its
+   * streets, which have none — the whole barangay's. Nilombot's areas are its
    * streets until it supplies a Purok list, so today this is always the
    * barangay outline.
    */

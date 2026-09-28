@@ -350,11 +350,17 @@ const LIVE_TABLES = [
 ] as const;
 
 /**
- * Where a map opens: the barangay's own point, or #5 Callaguip's before the
- * snapshot has loaded (OSM node 8883724672). A single constant, instead of the
+ * Where a map opens: the barangay's own point, or Nilombot's before the
+ * snapshot has loaded (OSM node 4369884571). A single constant, instead of the
  * three copies of Sta. Cruz's coordinates the map screens used to carry.
+ *
+ * It MOVES when the barangay does, and that is not cosmetic. This held
+ * Callaguip's point in Batac after the app moved to Mapandan, which is 250 km
+ * away: every map opened on the wrong province and stayed there for as long as
+ * the snapshot took to arrive — longest on exactly the slow connection this
+ * fallback exists for.
  */
-export const FALLBACK_CENTRE: [number, number] = [120.5615882, 18.0634855];
+export const FALLBACK_CENTRE: [number, number] = [120.4286234, 16.0253207];
 
 export function barangayCentre(barangay: Barangay | null | undefined): [number, number] {
   return barangay?.lat != null && barangay.lng != null

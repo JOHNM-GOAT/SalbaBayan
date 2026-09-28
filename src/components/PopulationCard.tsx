@@ -6,7 +6,7 @@ import { useSync, useT } from "./AppRuntime";
  * The barangay's population, for officials.
  *
  * Always shown with its source. It is a published figure (832 for #5
- * Callaguip, from PhilAtlas), not a live count, and an official planning an
+ * Nilombot, from the PSA 2020 census), not a live count, and an official planning an
  * evacuation must not mistake it for the number of people in the barangay
  * tonight. The live counts are the headcount and the check-ins.
  */

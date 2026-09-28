@@ -14,7 +14,7 @@
  *
  * Not checked any more: the blocked-path demonstration. San Isidro carried two
  * invented hazards placed to exercise it; clearing the test records removed
- * them, and Callaguip deliberately has no invented hazards. `hazardsOnRoute`
+ * them, and neither Callaguip nor Nilombot has any invented hazards. `hazardsOnRoute`
  * itself is covered by scripts/geo-test.mjs.
  *
  * Run:  node scripts/check-routes.mjs
@@ -27,7 +27,7 @@ import { lineLength, metresBetween, metresToLine } from "../src/lib/geo.ts";
 import { pointInRing } from "../src/lib/walkRoute.ts";
 
 const ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
-const MIGRATION = join(ROOT, "supabase/migrations/0027_callaguip_geography.sql");
+const MIGRATION = join(ROOT, "supabase/migrations/0063_nilombot_geography.sql");
 
 let pass = 0;
 let fail = 0;
@@ -79,7 +79,27 @@ for (const m of sql.matchAll(
 const outlineMatch = sql.match(/boundary_geojson = '(\{[^']*\})'::jsonb/);
 const ring = outlineMatch ? JSON.parse(outlineMatch[1]).coordinates[0] : null;
 
-check("the migration parses into routes", routes.size === 6, `${routes.size} of 6`);
+/*
+ * One route per area, counted from the migration rather than hardcoded.
+ *
+ * It used to assert `routes.size === 6`, which was Callaguip's six streets.
+ * Nilombot has seven, so the number moved — and a constant that has to be
+ * edited by hand every time the barangay changes is a constant that will one
+ * day be edited to match a wrong answer. The real invariant is that every area
+ * the migration inserts gets a route, and nothing else does.
+ */
+const purokBlock = sql.match(/insert into public\.puroks[\s\S]*?\) as v\(name, lat, lng\);/)?.[0] ?? "";
+const purokNames = [...purokBlock.matchAll(/\n\s*\('((?:[^']|'')*)',/g)].map((m) => unquote(m[1]));
+
+check("the migration inserts areas", purokNames.length > 0, `${purokNames.length}`);
+check(
+  "every area has a route, and nothing else does",
+  routes.size === purokNames.length && purokNames.every((n) => routes.has(n)),
+  `${routes.size} routes for ${purokNames.length} areas` +
+    (purokNames.filter((n) => !routes.has(n)).length
+      ? `; no route for ${purokNames.filter((n) => !routes.has(n)).join(", ")}`
+      : ""),
+);
 check("the migration parses into a centre", centres.size === 1, `${centres.size} of 1`);
 check("the migration parses into an outline", Array.isArray(ring) && ring.length > 3);
 check("the offline base map has roads", roads.length > 50, `${roads.length}`);
@@ -98,11 +118,26 @@ if (routes.size === 0 || roads.length === 0 || !ring) {
   // one metre absorbs rounding.
   const ON_ROAD_M = 1;
 
+  /*
+   * The LAST vertex is exempt, and only the last.
+   *
+   * A route ends at the evacuation centre itself, and a centre is a building —
+   * Nilombot Elementary School stands 40 m back from Santan Street behind its
+   * gate. That final leg is a walk across a schoolyard, not along a road, and
+   * `rankCentres` appends exactly the same leg when the app draws the route
+   * live. Demanding it sit on a road would either fail honest data or push the
+   * generator into stopping at the kerb, which is the worse of the two: the
+   * stored route is the offline fallback, and it must not disagree with the
+   * line the app draws when there IS a signal.
+   *
+   * Every other vertex is held to a metre, which is what catches a route
+   * generated against a different street file — the failure this exists for.
+   */
   let worst = 0;
   let worstArea = null;
   let checked = 0;
   for (const [name, { line }] of routes) {
-    for (const point of line) {
+    for (const point of line.slice(0, -1)) {
       let nearest = Infinity;
       for (const road of roads) nearest = Math.min(nearest, metresToLine(point, road));
       checked += 1;
@@ -113,7 +148,7 @@ if (routes.size === 0 || roads.length === 0 || !ring) {
     }
   }
   check(
-    `all ${checked} route vertices sit on a mapped road`,
+    `all ${checked} route vertices before the last sit on a mapped road`,
     worst <= ON_ROAD_M,
     `worst ${worst.toFixed(1)}m, on ${worstArea}`,
   );
@@ -122,12 +157,17 @@ if (routes.size === 0 || roads.length === 0 || !ring) {
    * Every route starts in the barangay and arrives at the centre
    * ---------------------------------------------------------------------- */
 
-  console.log("\nRoutes start in #5 Callaguip and arrive at the centre:");
+  console.log("\nRoutes start in Nilombot and arrive at the centre:");
 
   const ON_EDGE_M = 3; // a street along the outline is part of the barangay
   // The centre is the building, not a point on the street; the route ends at
   // the street point nearest it.
-  const ARRIVAL_M = 30;
+  /* The route ends AT the centre, not near it. One metre for rounding: the
+     generator appends the centre's own surveyed point. */
+  const ARRIVAL_M = 1;
+  /* How far the last leg may run off the street before it stops being a walk
+     from the kerb to the door and starts being a street nobody mapped. */
+  const DOOR_M = 120;
 
   for (const [name, { line, label, centre }] of routes) {
     const start = line[0];
@@ -143,6 +183,14 @@ if (routes.size === 0 || roads.length === 0 || !ring) {
       `${name} arrives at ${centre}`,
       Boolean(at) && metresBetween(end, at) <= ARRIVAL_M,
       at ? `ends ${metresBetween(end, at).toFixed(0)}m from it` : "unknown centre",
+    );
+
+    /* And the walk from the street to it is a walk, not a hike. */
+    const kerb = line[line.length - 2];
+    check(
+      `${name}'s last leg is the walk from the street`,
+      kerb !== undefined && metresBetween(kerb, end) <= DOOR_M,
+      kerb === undefined ? "no second-to-last point" : `${metresBetween(kerb, end).toFixed(0)}m off the street`,
     );
 
     const stated = Number(label.match(/· (\d+) m/)?.[1]);

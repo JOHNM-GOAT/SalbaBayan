@@ -76,7 +76,7 @@ export function nearestStreet(streets: Streets | null, point: Point): string | n
 }
 
 /**
- * Which area a pinned point belongs to. Callaguip's areas are its streets, so
+ * Which area a pinned point belongs to. Nilombot's areas are its streets, so
  * the tapped street's own area first; otherwise the area whose starting point
  * is closest.
  */

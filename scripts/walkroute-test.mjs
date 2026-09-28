@@ -38,7 +38,9 @@ function check(name, ok, detail = "") {
   }
 }
 
-// ~111 m per 0.001° of latitude at Batac. Small, readable coordinates.
+/* The graph cases below use small synthetic coordinates near 120.56, 18.06 —
+   arbitrary, and chosen only because they make the shapes readable. The
+   distance check immediately below is the one that has to use a real place. */
 const street = (name, ...points) => ({
   properties: { name },
   geometry: { type: "LineString", coordinates: points },
@@ -46,13 +48,23 @@ const street = (name, ...points) => ({
 
 console.log("\nWalking routes — SalbaBayan\n");
 
-console.log("Distance at Batac's latitude:");
+/*
+ * Measured where the app actually runs.
+ *
+ * A degree of latitude is the same length everywhere; a degree of longitude
+ * shrinks towards the poles, and this is the check that the code corrects for
+ * it rather than assuming 111 m in both directions. That correction was worth
+ * about 5 m per 0.001° at Batac and is worth about 4 m at Nilombot, so the
+ * expected number moves when the barangay does — which is exactly why it is
+ * pinned to a named latitude instead of a round figure.
+ */
+console.log("Distance at Nilombot's latitude:");
 {
-  const d = metres([120.56, 18.06], [120.56, 18.061]);
+  const d = metres([120.4286, 16.0253], [120.4286, 16.0263]);
   check("0.001° of latitude is about 111 m", Math.abs(d - 110.6) < 1, `got ${d.toFixed(1)}`);
-  const e = metres([120.56, 18.06], [120.561, 18.06]);
-  // cos(18.06°) ≈ 0.951, so 0.001° of longitude ≈ 105.9 m there, not 111 m.
-  check("0.001° of longitude is corrected for latitude", Math.abs(e - 105.9) < 1, `got ${e.toFixed(1)}`);
+  const e = metres([120.4286, 16.0253], [120.4296, 16.0253]);
+  // cos(16.025°) ≈ 0.9611, so 0.001° of longitude ≈ 107.0 m there, not 111 m.
+  check("0.001° of longitude is corrected for latitude", Math.abs(e - 107.0) < 1, `got ${e.toFixed(1)}`);
 }
 
 console.log("\nShortest path:");
@@ -293,7 +305,7 @@ console.log("\nOrphans are not routable:");
 
 console.log("\nInside the barangay or not:");
 {
-  // A triangle shaped like Callaguip: apex north, flat-ish south edge.
+  // A triangle: apex north, flat-ish south edge. Synthetic, not a real outline.
   const triangle = [
     [120.5593, 18.0618],
     [120.5614, 18.0673],

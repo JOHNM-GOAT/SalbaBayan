@@ -76,7 +76,18 @@ is("highest signal first", bulletin?.signals[0].level, 3);
  * Which signal covers this barangay
  * ------------------------------------------------------------------------ */
 
-console.log("\n#5 Callaguip, Batac City, Ilocos Norte:");
+/*
+ * Worked against Batac City, Ilocos Norte, deliberately — NOT the barangay the
+ * app currently serves.
+ *
+ * The fixture is a real bulletin, saved as PAGASA published it, and the storm
+ * in it was over the Ilocos coast. Re-pointing these cases at Nilombot would
+ * mean every one of them answering "no", which tests nothing: the whole point
+ * is the difference between "the northern portion of the province", "the rest
+ * of it", and a municipality named outright. Nilombot gets its own case below,
+ * against text written for it.
+ */
+console.log("\nAgainst a real bulletin (Batac City, Ilocos Norte):");
 const here = signalHere(bulletin, { province: "Ilocos Norte", municipality: "Batac City" });
 
 /*
@@ -108,11 +119,50 @@ is(
 
 is(
   "another province is not this one",
-  matchArea("Luzon: Ilocos Sur, La Union, Pangasinan", {
+  matchArea("Luzon: Ilocos Sur, La Union, Benguet", {
     province: "Ilocos Norte",
     municipality: "Batac City",
   }),
   "no",
+);
+
+/* ---------------------------------------------------------------------------
+ * Nilombot, Mapandan, Pangasinan — the barangay the app actually serves
+ *
+ * Its own block, because the place has moved once already and the cases above
+ * quietly stopped being about it. The municipality here is a MUNICIPALITY, not
+ * a city, which is the one difference that touches the code: `matchArea`
+ * strips " city" from the name before matching, and that has to be a no-op
+ * rather than damage when there is no such word.
+ * ------------------------------------------------------------------------ */
+
+console.log("\nNilombot, Mapandan, Pangasinan:");
+const NILOMBOT = { province: "Pangasinan", municipality: "Mapandan" };
+
+is(
+  "the whole province names it",
+  matchArea("Luzon: Pangasinan, La Union, Benguet", NILOMBOT),
+  "province",
+);
+is(
+  "the municipality named outright is a match",
+  matchArea("Luzon: the eastern portion of Pangasinan (Mapandan, Santa Barbara, Manaoag)", NILOMBOT),
+  "municipality",
+);
+is(
+  "a portion of the province that does not name it is partial",
+  matchArea("Luzon: the western portion of Pangasinan (Bolinao, Bani, Alaminos City)", NILOMBOT),
+  "partial",
+);
+is(
+  "the neighbouring province is not this one",
+  matchArea("Luzon: Ilocos Norte, Ilocos Sur, Abra", NILOMBOT),
+  "no",
+);
+is(
+  "Mapandan is not matched by Mangaldan",
+  matchArea("Luzon: the eastern portion of Pangasinan (Mangaldan, Manaoag)", NILOMBOT),
+  "partial",
 );
 
 /* A bulletin that lists only the far end of the province: nothing certain. */
