@@ -256,3 +256,53 @@ body {
   background-color: transparent;
   opacity: 0.6;
 }
+
+/* ---------------------------------------------------------------------------
+ * Native dropdowns — the language picker
+ *
+ * The picker is a styled chip with an invisible <select> over it, so tapping
+ * opens the phone's OWN list: every screen reader and every small phone
+ * already handles that widget, and forty languages do not fit in a menu we
+ * would have to build ourselves.
+ *
+ * The cost is that the popup is drawn by the operating system, outside this
+ * document, and it takes only what it inherits. In dark mode it inherited
+ * `--color-paper` — near-white — and Windows drew the popup on its own white
+ * background, so the list read as pale grey on white: forty languages, none of
+ * them legible, on the one control a resident who cannot read the current
+ * language has to use.
+ *
+ * So the rows are given both halves explicitly rather than half of one. These
+ * resolve per theme like everything else, which is why the rule is written
+ * once instead of twice.
+ * ------------------------------------------------------------------------ */
+
+/*
+ * Asks the OS to draw the popup's own chrome — scrollbar, borders, the
+ * highlight — to match the theme rather than always light.
+ *
+ * Stated per theme rather than as `color-scheme: inherit`, which reads as if
+ * it should work and does not: the computed value came back `normal` on the
+ * control while its own parent computed `dark`.
+ */
+select {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] select {
+  color-scheme: dark;
+}
+
+select option,
+select optgroup {
+  background-color: var(--color-ink-800);
+  color: var(--color-paper);
+}
+
+/* The group headings ("Translated", "Machine-translated") are labels, not
+   choices, and should read as quietly as the labels everywhere else. */
+select optgroup {
+  color: var(--color-paper-3);
+  font-style: normal;
+  font-weight: 700;
+}
