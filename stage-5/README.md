@@ -7,7 +7,7 @@
 | **Pitch deck** | [SalbaBayan-Pitch-Deck.pdf](SalbaBayan-Pitch-Deck.pdf) — 11 slides, 16:9 |
 | **User manual** | [SalbaBayan-User-Manual.pdf](SalbaBayan-User-Manual.pdf) — 12 pages, A4 |
 
-The app is live for Barangay #5 Callaguip, Batac City, Ilocos Norte. Open it on
+The app is live for Barangay Nilombot, Mapandan, Pangasinan. Open it on
 a phone, turn airplane mode on and reload: the signal, the map, the walking
 route and the SOS button all still work, which is the point of the whole thing.
 
