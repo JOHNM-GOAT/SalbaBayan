@@ -148,7 +148,39 @@ export function buildWalkGraph(streets: Streets): WalkGraph {
   return { coords, adj, nodes: best };
 }
 
-export function nearestNode(graph: WalkGraph, point: Point): string | null {
+/**
+ * How far a point may be from the street network before the network is simply
+ * the wrong network.
+ *
+ * Snapping a start onto the nearest street is what makes routing work at all —
+ * a phone's fix lands in a garden, not on the centre line of a road. But
+ * `nearestNode` has no opinion about distance, so it will happily snap a point
+ * in Pangasinan onto a road in Ilocos Norte and return a confident route
+ * between two places 250 km apart.
+ *
+ * That is not hypothetical. The street file is precached by the Service Worker
+ * for offline use, and when the barangay moved, a phone holding the previous
+ * barangay's streets drew exactly that: a line from the resident's position,
+ * north out of the province, along streets they will never walk, and back to
+ * the evacuation centre. It looked like a route. It was two provinces.
+ *
+ * A kilometre and a half is generous for "off the network but plausibly in
+ * this barangay" — a barangay is a couple of kilometres across, and the
+ * extract carries roughly a kilometre of margin past its edge. Beyond that,
+ * the honest answer is that these streets cannot describe this walk.
+ */
+export const OFF_NETWORK_M = 1_500;
+
+/**
+ * The nearest node, and how far away it is.
+ *
+ * Callers that care whether the answer is meaningful use this; `nearestNode`
+ * keeps its old shape for the ones that do not.
+ */
+export function nearestNodeWithin(
+  graph: WalkGraph,
+  point: Point,
+): { id: string; metres: number } | null {
   let best: string | null = null;
   let bestDistance = Infinity;
   for (const id of graph.nodes) {
@@ -158,7 +190,21 @@ export function nearestNode(graph: WalkGraph, point: Point): string | null {
       best = id;
     }
   }
-  return best;
+  return best === null ? null : { id: best, metres: bestDistance };
+}
+
+export function nearestNode(graph: WalkGraph, point: Point): string | null {
+  return nearestNodeWithin(graph, point)?.id ?? null;
+}
+
+/**
+ * Whether this street network can describe walks around this point at all.
+ *
+ * Checked before a route is drawn, not after it looks wrong.
+ */
+export function networkCovers(graph: WalkGraph, point: Point): boolean {
+  const near = nearestNodeWithin(graph, point);
+  return near !== null && near.metres <= OFF_NETWORK_M;
 }
 
 /** A small binary min-heap of [distance, node], enough for Dijkstra. */
@@ -246,9 +292,18 @@ export function walkRoute(
   to: Point,
   options: RouteOptions = {},
 ): Route | null {
-  const start = nearestNode(graph, from);
-  const goal = nearestNode(graph, to);
-  if (start === null || goal === null) return null;
+  /*
+   * Both ends have to be ON this network, not merely nearest to it. Without
+   * the distance test a stale street file routes between two provinces and
+   * reports it as a walk — see OFF_NETWORK_M.
+   */
+  const startNode = nearestNodeWithin(graph, from);
+  const goalNode = nearestNodeWithin(graph, to);
+  if (!startNode || !goalNode) return null;
+  if (startNode.metres > OFF_NETWORK_M || goalNode.metres > OFF_NETWORK_M) return null;
+
+  const start = startNode.id;
+  const goal = goalNode.id;
 
   const avoid = options.avoid ?? [];
   const prefer = options.prefer;

@@ -13,6 +13,7 @@ import {
   buildWalkGraph,
   metres,
   nearestNode,
+  networkCovers,
   pointInRing,
   walkRoute,
 } from "../src/lib/walkRoute.ts";
@@ -287,6 +288,58 @@ console.log("\nKeeping the walk inside the barangay:");
     prefer: { ring, penalty: OUTSIDE_PENALTY },
   });
   check("a route with no inside option is still found", forced !== null);
+}
+
+console.log("\nThe wrong street network is refused, not snapped onto:");
+{
+  /*
+   * The bug this exists for, with the real coordinates it happened at.
+   *
+   * The street file is precached for offline use. When the barangay moved from
+   * Batac City to Mapandan, a phone still holding Batac's streets snapped a
+   * resident standing in Nilombot onto a road 250 km north and drew a
+   * confident route: out of the province, along streets they will never walk,
+   * and back to the evacuation centre. Two long lines on the map, and every
+   * number beside them wrong.
+   *
+   * `nearestNode` has no opinion about distance, so the refusal has to be
+   * explicit.
+   */
+  const batac = buildWalkGraph({
+    features: [
+      street("Asuncion Street", [120.5600566, 18.0642701], [120.5617001, 18.0635897]),
+      street("Oeste Street", [120.5603179, 18.0603096], [120.560553, 18.0608209]),
+    ],
+  });
+
+  const inNilombot = [120.4294185, 16.023214];
+  const theSchool = [120.4362941, 16.0281798];
+
+  check(
+    "a walk in Pangasinan is not routed on Ilocos Norte's streets",
+    walkRoute(batac, inNilombot, theSchool) === null,
+    "a route across two provinces was returned as a walk",
+  );
+  check(
+    "nor is one end of it",
+    walkRoute(batac, inNilombot, [120.5617001, 18.0635897]) === null,
+  );
+  check(
+    "and the network knows it does not cover the place",
+    !networkCovers(batac, inNilombot) && networkCovers(batac, [120.5610000, 18.0640000]),
+  );
+
+  /* The tolerance still has to be generous enough for an ordinary fix that
+     lands off the road — a garden, a rice paddy, a rooftop GPS bounce. */
+  const p = (x, y) => [120.4294185 + x * 0.001, 16.023214 + y * 0.001];
+  const local = buildWalkGraph({
+    features: [street("Santan Street", p(0, 0), p(1, 0), p(2, 0))],
+  });
+  check(
+    "a fix a few hundred metres off the road still routes",
+    walkRoute(local, [p(0, 0)[0], p(0, 0)[1] - 0.002], p(2, 0)) !== null,
+    "220 m off the network should snap, not be refused",
+  );
 }
 
 console.log("\nOrphans are not routable:");

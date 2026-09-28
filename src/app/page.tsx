@@ -8,6 +8,7 @@ import { SignalPlacard } from "@/components/SignalPlacard";
 import { LeaveByStrip } from "@/components/LeaveByStrip";
 import { ActionCard } from "@/components/ActionCard";
 import { ActiveSOSBanner } from "@/components/ActiveSOSBanner";
+import { YouAre } from "@/components/YouAre";
 import { deriveAdvisory } from "@/lib/advisory";
 import { Skeleton, SkeletonRegion, useSkeletonGate } from "@/components/Skeleton";
 
@@ -36,6 +37,9 @@ export default function Home() {
   return (
     <>
       <PurokBar />
+      {/* Where you are, then who the barangay has you down as. Silent until a
+          name exists — ProfilePrompt is what asks for one. */}
+      <YouAre />
 
       <main className="flex flex-1 flex-col gap-2.5 p-3.5">
         {/*
